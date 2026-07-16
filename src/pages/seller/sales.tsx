@@ -28,9 +28,25 @@ type Sale = {
 
 export default function MySales({ sales }: { sales: Sale[] }) {
   const router = useRouter()
-  const [deleting, setDeleting] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
   const [month, setMonth] = useState('all')
   const [search, setSearch] = useState('')
+
+  // A return is stored as a sale with negative qty.
+  async function returnSale(sale: Sale) {
+    if (!confirm(`"${sale.product_name}" ni qaytarasizmi? Ombor va foyda qayta hisoblanadi.`)) return
+    setBusy(sale.id)
+    const supabase = createBrowser()
+    const { data: orig } = await supabase.from('sales').select('seller_id, product_id, qty, unit_price').eq('id', sale.id).single()
+    if (orig) {
+      await supabase.from('sales').insert({
+        seller_id: orig.seller_id, product_id: orig.product_id,
+        qty: -Math.abs(orig.qty), unit_price: orig.unit_price, note: 'Qaytarildi',
+      })
+      router.replace(router.asPath)
+    }
+    setBusy(null)
+  }
 
   // Distinct months present, newest first
   const months = useMemo(() => {
@@ -62,11 +78,11 @@ export default function MySales({ sales }: { sales: Sale[] }) {
 
   async function deleteSale(id: string) {
     if (!confirm(S.deleteConfirm)) return
-    setDeleting(id)
+    setBusy(id)
     const supabase = createBrowser()
     await supabase.from('sales').delete().eq('id', id)
     router.replace(router.asPath)
-    setDeleting(null)
+    setBusy(null)
   }
 
   return (
@@ -145,25 +161,41 @@ export default function MySales({ sales }: { sales: Sale[] }) {
                 <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">Bu filtr bo'yicha sotuv yo'q</div>
               ) : (
                 <div className="space-y-3">
-                  {filtered.map(sale => (
-                    <div key={sale.id} className="bg-surface rounded-2xl shadow-card p-4">
+                  {filtered.map(sale => {
+                    const isReturn = sale.qty < 0
+                    return (
+                    <div key={sale.id} className={`rounded-2xl shadow-card p-4 ${isReturn ? 'bg-red-50' : 'bg-surface'}`}>
                       <div className="flex justify-between items-start gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
-                          <p className="text-sm text-muted mt-1">{sale.qty} × {formatUZS(sale.unit_price)}</p>
-                          <p className="text-xs font-semibold text-rose mt-1">Foyda: {formatUZS(sale.your_profit)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
+                            {isReturn && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full flex-shrink-0">Qaytarilgan</span>}
+                          </div>
+                          <p className="text-sm text-muted mt-1">{Math.abs(sale.qty)} × {formatUZS(sale.unit_price)}</p>
+                          <p className={`text-xs font-semibold mt-1 ${isReturn ? 'text-danger' : 'text-rose'}`}>
+                            Foyda: {formatUZS(sale.your_profit)}
+                          </p>
                           <p className="text-xs text-muted/60 mt-1">{formatDate(sale.sold_at, true)}</p>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="font-display font-bold text-success text-lg">{formatUZS(sale.amount)}</p>
-                          <button onClick={() => deleteSale(sale.id)} disabled={deleting === sale.id}
-                            className="mt-2 text-danger/40 hover:text-danger transition disabled:opacity-30">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <p className={`font-display font-bold text-lg ${isReturn ? 'text-danger' : 'text-success'}`}>{formatUZS(sale.amount)}</p>
+                          <div className="flex items-center justify-end gap-2 mt-2">
+                            {!isReturn && (
+                              <button onClick={() => returnSale(sale)} disabled={busy === sale.id}
+                                className="text-xs font-semibold text-warning hover:text-orange-600 transition disabled:opacity-30 whitespace-nowrap">
+                                ↩ Qaytarish
+                              </button>
+                            )}
+                            <button onClick={() => deleteSale(sale.id)} disabled={busy === sale.id}
+                              className="text-danger/40 hover:text-danger transition disabled:opacity-30">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
