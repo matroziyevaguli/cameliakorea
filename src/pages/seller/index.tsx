@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search } from 'lucide-react'
+import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
@@ -95,7 +95,8 @@ function buildCaption(p: Product) {
 export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit }: Props) {
   const router = useRouter()
 
-  // Product search
+  // Settings menu + product search
+  const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
   const visibleProducts = search.trim()
     ? products.filter(p => p.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -154,13 +155,27 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               <span className="font-display font-bold text-white text-base">{formatUZS(thisMonthProfit)}</span>
             </p>
           </div>
-          <div className="flex items-center gap-1">
-            <Link href="/seller/settings" className="text-white/70 hover:text-white p-2 transition">
+          <div className="relative">
+            <button onClick={() => setMenuOpen(o => !o)} className="text-white/70 hover:text-white p-2 transition">
               <Settings className="w-5 h-5" />
-            </Link>
-            <button onClick={signOut} className="text-white/70 hover:text-white p-2 transition">
-              <LogOut className="w-5 h-5" />
             </button>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 mt-2 w-56 bg-surface rounded-2xl shadow-card p-2 z-40 text-ink">
+                  <Link href="/seller/settings" onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-sm font-medium">
+                    <span className="w-8 h-8 rounded-full bg-rose/10 grid place-items-center"><Lock className="w-4 h-4 text-rose" /></span>
+                    Parolni o'zgartirish
+                  </Link>
+                  <button onClick={signOut}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-sm font-medium text-danger">
+                    <span className="w-8 h-8 rounded-full bg-red-50 grid place-items-center"><LogOut className="w-4 h-4" /></span>
+                    Chiqish
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </header>
