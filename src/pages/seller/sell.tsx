@@ -66,6 +66,12 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
       .eq('id', inserted.id)
       .single()
 
+    // Low-stock alert to the owner (fire-and-forget — never blocks the sale)
+    fetch('/api/low-stock-check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId, qty }),
+    }).catch(() => {})
+
     // Confetti
     if (typeof window !== 'undefined') {
       const confetti = (await import('canvas-confetti')).default

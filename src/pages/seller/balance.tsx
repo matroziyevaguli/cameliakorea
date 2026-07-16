@@ -4,8 +4,11 @@ import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
 import Link from 'next/link'
 import { useState } from 'react'
-import { ShoppingBag, History, Wallet, Sparkles, CircleDollarSign, CheckCircle2, ChevronDown } from 'lucide-react'
+import { ShoppingBag, History, Wallet, Sparkles, CircleDollarSign, CheckCircle2, ChevronDown, CalendarDays } from 'lucide-react'
 import { S } from '@/consts/strings'
+
+const UZ_MONTH = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
+const monthLabel = (ym: string) => { const [y, m] = ym.split('-'); return `${UZ_MONTH[parseInt(m, 10)] ?? m} ${y}` }
 
 // From v_my_summary (a definer view — correct for sellers, unlike v_seller_balances
 // which returns 0 because of the products-RLS cascade).
@@ -16,10 +19,11 @@ type Summary = {
   not_submitted: number       // still owed
 }
 type Payment = { id: string; amount: number; note: string | null; paid_at: string }
+type Monthly = { month: string; units_sold: number; revenue: number; your_profit: number }
 
-type Props = { summary: Summary | null; payments: Payment[] }
+type Props = { summary: Summary | null; payments: Payment[]; monthly: Monthly[] }
 
-export default function MyBalance({ summary, payments }: Props) {
+export default function MyBalance({ summary, payments, monthly }: Props) {
   const [showBreakdown, setShowBreakdown] = useState(false)
 
   if (!summary) return (
@@ -117,6 +121,36 @@ export default function MyBalance({ summary, payments }: Props) {
           {summary.not_submitted <= 0 && <p className="text-white/80 text-sm mt-2">{S.settled}</p>}
         </div>
 
+        {/* Monthly statement — screenshot-friendly per-month summary */}
+        {monthly.length > 0 && (
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-rose" />
+              <h3 className="font-display font-bold text-ink text-base">Oylik hisobot</h3>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {[...monthly].reverse().map(m => (
+                <div key={m.month} className="px-5 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-display font-bold text-ink">{monthLabel(m.month)}</p>
+                    <span className="text-xs text-muted">{m.units_sold} ta sotildi</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-cream rounded-xl px-3 py-2">
+                      <p className="text-[11px] text-muted">Savdo</p>
+                      <p className="font-display font-bold text-ink text-sm">{formatUZS(m.revenue)}</p>
+                    </div>
+                    <div className="bg-gradient-to-br from-success/10 to-mint/10 rounded-xl px-3 py-2">
+                      <p className="text-[11px] text-muted">Daromadingiz</p>
+                      <p className="font-display font-bold text-success text-sm">{formatUZS(m.your_profit)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Payment history */}
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -171,10 +205,17 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   // v_my_summary is a definer view → correct numbers even with the products-RLS cascade.
   // (v_seller_balances returns balance=0 for sellers — do NOT use it here.)
-  const [summaryRes, paymentsRes] = await Promise.all([
+  const [summaryRes, paymentsRes, monthlyRes] = await Promise.all([
     supabase.from('v_my_summary').select('your_total_profit, total_owed, submitted, not_submitted').maybeSingle(),
     supabase.from('payments').select('id, amount, note, paid_at').eq('seller_id', profile!.id).order('paid_at', { ascending: false }),
+    supabase.from('v_my_monthly').select('month, units_sold, revenue, your_profit'),
   ])
 
-  return { props: { summary: summaryRes.data ?? null, payments: paymentsRes.data ?? [] } }
+  return {
+    props: {
+      summary: summaryRes.data ?? null,
+      payments: paymentsRes.data ?? [],
+      monthly: monthlyRes.data ?? [],
+    },
+  }
 }
