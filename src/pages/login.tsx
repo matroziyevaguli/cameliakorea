@@ -3,20 +3,21 @@ import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
 import { GetServerSideProps } from 'next'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createPublicClient } from '@/lib/supabase/api'
+import { sellerEmail } from '@/lib/sellerEmail'
 import { User, Lock, Sparkles } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { MiniSpinner } from '@/components/Loader'
 
-// Fixed set of users — each label maps to the exact auth email.
-const USERS = [
-  { label: 'Admin (Guli)', email: 'matroziyevaguli@gmail.com', role: 'admin' as const },
-  { label: 'Gulshan',      email: 'gulshan@sellers.local',     role: 'seller' as const },
-  { label: 'Adolat',       email: 'adolat@sellers.local',      role: 'seller' as const },
-  { label: 'Saida',        email: 'saida@sellers.local',       role: 'seller' as const },
-]
+const ADMIN = { label: 'Admin (Guli)', email: 'matroziyevaguli@gmail.com', role: 'admin' as const }
 
-export default function Login() {
+export default function Login({ sellerNames }: { sellerNames: string[] }) {
   const router = useRouter()
+  // Build the user list: the admin + every active seller (loaded from the DB).
+  const USERS = [
+    ADMIN,
+    ...sellerNames.map(n => ({ label: n, email: sellerEmail(n), role: 'seller' as const })),
+  ]
   // ?as=admin / ?as=seller from the landing login menu filters who's shown.
   const as = router.query.as
   const users = as === 'admin' || as === 'seller' ? USERS.filter(u => u.role === as) : USERS
@@ -129,5 +130,16 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     if (profile?.role === 'seller') return { redirect: { destination: '/seller', permanent: false } }
   }
 
-  return { props: {} }
+  // Load active seller names for the dropdown (public view, anon key).
+  let sellerNames: string[] = []
+  try {
+    const pub = createPublicClient()
+    const { data } = await pub.from('v_login_sellers').select('full_name')
+    if (data) sellerNames = data.map((r: any) => r.full_name)
+  } catch { /* view may not exist yet */ }
+
+  // Fallback so login always works even before the v_login_sellers SQL is run.
+  if (sellerNames.length === 0) sellerNames = ['GULSHAN', 'ADOLAT', 'SAIDA']
+
+  return { props: { sellerNames } }
 }
