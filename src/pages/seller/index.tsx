@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X } from 'lucide-react'
+import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
@@ -95,6 +95,12 @@ function buildCaption(p: Product) {
 export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit }: Props) {
   const router = useRouter()
 
+  // Product search
+  const [search, setSearch] = useState('')
+  const visibleProducts = search.trim()
+    ? products.filter(p => p.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : products
+
   // Telegram post sheet
   const [postProduct, setPostProduct] = useState<Product | null>(null)
   const [caption, setCaption] = useState('')
@@ -148,9 +154,14 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               <span className="font-display font-bold text-white text-base">{formatUZS(thisMonthProfit)}</span>
             </p>
           </div>
-          <button onClick={signOut} className="text-white/70 hover:text-white p-2 transition">
-            <LogOut className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <Link href="/seller/settings" className="text-white/70 hover:text-white p-2 transition">
+              <Settings className="w-5 h-5" />
+            </Link>
+            <button onClick={signOut} className="text-white/70 hover:text-white p-2 transition">
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -197,15 +208,29 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
 
         {/* ── Product cards ── */}
         <div>
-          <h2 className="font-display font-bold text-ink text-base mb-3 px-1">{S.myProducts}</h2>
+          <div className="flex items-center justify-between gap-3 mb-3 px-1">
+            <h2 className="font-display font-bold text-ink text-base">{S.myProducts}</h2>
+          </div>
+
+          {/* Search */}
+          {products.length > 0 && (
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Mahsulot qidirish…"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface text-ink text-sm shadow-card border-2 border-transparent focus:outline-none focus:border-rose transition" />
+            </div>
+          )}
+
           {products.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
               <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">{S.noProducts}</p>
             </div>
+          ) : visibleProducts.length === 0 ? (
+            <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">"{search}" bo'yicha mahsulot topilmadi</div>
           ) : (
             <div className="space-y-4">
-              {products.map((p, i) => (
+              {visibleProducts.map((p, i) => (
                 <div key={p.product_id} className="bg-surface rounded-2xl shadow-card overflow-hidden">
 
                   {/* Swipeable gallery: cover first, then result photos */}
