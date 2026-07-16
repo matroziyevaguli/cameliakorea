@@ -3,7 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
-import { Send, AtSign, Sparkles, ArrowRight } from 'lucide-react'
+import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search } from 'lucide-react'
 
 // Only SAFE, public fields — cost/profit never leave the server.
 type ShopProduct = {
@@ -22,19 +22,20 @@ export default function Store({ products }: { products: ShopProduct[] }) {
   return (
     <>
       <Head>
-        <title>Camelia Korea — Koreyadan teri parvarishi</title>
-        <meta name="description" content="Koreyadan original teri parvarish mahsulotlari. Camelia Korea — sifatli K-beauty mahsulotlari O'zbekistonda." />
+        <title>Camelia Korea — Koreyadan teri parvarishi katalogi</title>
+        <meta name="description" content="Camelia Korea — Koreyadan original teri parvarish mahsulotlari katalogi. Buyurtma uchun Telegram orqali bog'laning. O'zbekiston bo'ylab yetkazib berish." />
         <meta property="og:title" content="Camelia Korea" />
-        <meta property="og:description" content="Koreyadan original teri parvarish mahsulotlari." />
+        <meta property="og:description" content="Koreyadan original teri parvarish mahsulotlari katalogi." />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
       <div className="min-h-screen bg-cream text-ink font-sans">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-cream/90 backdrop-blur border-b border-black/5">
+        <header className="sticky top-0 z-30 bg-cream/85 backdrop-blur border-b border-black/5">
           <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 font-display font-bold text-lg">
-              <span className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center text-sm">C</span>
-              Camelia Korea
+              <span className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center text-sm shadow-rose">C</span>
+              Camelia <span className="text-rose">Korea</span>
             </Link>
             <a href={TELEGRAM} target="_blank" rel="noreferrer"
               className="flex items-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold px-4 py-2 rounded-full shadow-rose active:scale-95 transition">
@@ -45,42 +46,85 @@ export default function Store({ products }: { products: ShopProduct[] }) {
 
         {/* Hero */}
         <section className="relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-rose/20 to-peach/20 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3" />
+          <div className="absolute top-0 right-0 w-[28rem] h-[28rem] bg-gradient-to-br from-rose/25 to-peach/25 rounded-full blur-3xl -translate-y-1/3 translate-x-1/4" />
+          <div className="absolute bottom-0 left-0 w-72 h-72 bg-gradient-to-br from-lavender/20 to-sky/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
           <div className="max-w-6xl mx-auto px-5 py-16 md:py-24 relative">
             <div className="inline-flex items-center gap-2 bg-white rounded-full px-4 py-1.5 shadow-card text-sm font-medium text-rose mb-6">
-              <Sparkles className="w-4 h-4" /> 🇰🇷 Koreyadan original
+              <Sparkles className="w-4 h-4" /> 🇰🇷 Koreyadan original mahsulotlar
             </div>
-            <h1 className="font-display font-bold text-4xl md:text-6xl leading-tight max-w-2xl">
-              Teringiz uchun eng yaxshi <span className="text-rose">Koreya</span> mahsulotlari
+            <h1 className="font-display font-bold text-4xl md:text-6xl leading-[1.05] max-w-3xl">
+              Teringiz uchun eng yaxshi <span className="text-rose">Koreya</span> parvarishi
             </h1>
             <p className="text-muted text-lg mt-5 max-w-xl leading-relaxed">
-              Camelia Korea — sinab ko'rilgan, original K-beauty mahsulotlari.
-              O'zbekiston bo'ylab yetkazib beramiz.
+              Sinab ko'rilgan, original K-beauty mahsulotlari katalogi. Yoqqan mahsulotni tanlang —
+              buyurtma uchun Telegram yoki telefon orqali bog'laning.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
               <a href="#mahsulotlar"
                 className="flex items-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold px-6 py-3.5 rounded-full shadow-rose active:scale-95 transition">
-                Mahsulotlarni ko'rish <ArrowRight className="w-5 h-5" />
+                Katalogni ko'rish <ArrowRight className="w-5 h-5" />
               </a>
               <a href={TELEGRAM} target="_blank" rel="noreferrer"
                 className="flex items-center gap-2 bg-white text-ink font-semibold px-6 py-3.5 rounded-full shadow-card active:scale-95 transition">
-                <Send className="w-5 h-5 text-rose" /> Telegram'da buyurtma
+                <Send className="w-5 h-5 text-rose" /> Telegram'da yozish
               </a>
             </div>
+
+            {/* Trust badges */}
+            <div className="flex flex-wrap gap-x-6 gap-y-3 mt-10 text-sm text-muted">
+              <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-success" /> Original & sinovdan o'tgan</span>
+              <span className="flex items-center gap-2"><Truck className="w-4 h-4 text-sky" /> O'zbekiston bo'ylab yetkazib berish</span>
+              <span className="flex items-center gap-2"><MessageCircle className="w-4 h-4 text-rose" /> Maslahat va yordam</span>
+            </div>
+          </div>
+        </section>
+
+        {/* How to order — because we don't sell online */}
+        <section className="max-w-6xl mx-auto px-5 pb-4">
+          <div className="bg-surface rounded-3xl shadow-card p-6 md:p-8 grid gap-6 md:grid-cols-3">
+            {[
+              { n: '1', t: 'Tanlang', d: 'Katalogdan yoqqan mahsulotni toping.' },
+              { n: '2', t: 'Yozing', d: 'Telegram yoki telefon orqali bog\'laning.' },
+              { n: '3', t: 'Qabul qiling', d: 'Mahsulotni qulay tarzda yetkazib beramiz.' },
+            ].map(s => (
+              <div key={s.n} className="flex gap-4">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center font-display font-bold flex-shrink-0">{s.n}</div>
+                <div>
+                  <p className="font-display font-bold">{s.t}</p>
+                  <p className="text-sm text-muted mt-0.5">{s.d}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
         {/* Products */}
         <section id="mahsulotlar" className="max-w-6xl mx-auto px-5 py-12">
-          <h2 className="font-display font-bold text-2xl md:text-3xl mb-8">Mahsulotlar</h2>
+          <div className="flex items-end justify-between mb-8 gap-4">
+            <div>
+              <h2 className="font-display font-bold text-2xl md:text-3xl">Katalog</h2>
+              <p className="text-muted text-sm mt-1">Buyurtma uchun mahsulotni bosing.</p>
+            </div>
+            {products.length > 0 && (
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted bg-white px-3 py-1.5 rounded-full shadow-card">
+                <Search className="w-4 h-4" /> {products.length} ta mahsulot
+              </span>
+            )}
+          </div>
 
           {products.length === 0 ? (
-            <p className="text-muted text-center py-16">Hozircha mahsulot yo'q.</p>
+            <div className="bg-surface rounded-2xl shadow-card p-16 text-center">
+              <p className="text-muted">Katalog tez orada to'ldiriladi. Yangiliklar uchun Telegram'ga obuna bo'ling.</p>
+              <a href={TELEGRAM} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-2 mt-4 bg-gradient-to-br from-rose to-peach text-white font-semibold px-5 py-2.5 rounded-full shadow-rose">
+                <Send className="w-4 h-4" /> Telegram
+              </a>
+            </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {products.map((p, i) => (
                 <Link key={p.id} href={`/product/${p.id}`}
-                  className="group bg-surface rounded-2xl shadow-card overflow-hidden hover:shadow-rose transition">
+                  className="group bg-surface rounded-2xl shadow-card overflow-hidden hover:shadow-rose hover:-translate-y-0.5 transition">
                   <div className="relative aspect-square overflow-hidden">
                     {p.image_url ? (
                       <img src={p.image_url} alt={p.name} loading="lazy"
@@ -93,7 +137,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
                       </div>
                     )}
                     {p.discount_price != null && (
-                      <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full">Chegirma</span>
+                      <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">Chegirma</span>
                     )}
                   </div>
                   <div className="p-4">
@@ -108,6 +152,9 @@ export default function Store({ products }: { products: ShopProduct[] }) {
                         <span className="font-display font-bold text-ink">{formatUZS(p.retail_price)}</span>
                       )}
                     </div>
+                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-rose group-hover:gap-2 transition-all">
+                      Batafsil <ArrowRight className="w-3.5 h-3.5" />
+                    </span>
                   </div>
                 </Link>
               ))}
@@ -115,12 +162,25 @@ export default function Store({ products }: { products: ShopProduct[] }) {
           )}
         </section>
 
+        {/* Order CTA band */}
+        <section className="max-w-6xl mx-auto px-5 pb-12">
+          <div className="rounded-3xl bg-gradient-to-br from-rose to-peach text-white p-8 md:p-12 text-center shadow-rose relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3" />
+            <h2 className="font-display font-bold text-2xl md:text-3xl relative">Savolingiz bormi?</h2>
+            <p className="text-white/90 mt-2 relative">Maslahat va buyurtma uchun biz bilan bog'laning.</p>
+            <a href={TELEGRAM} target="_blank" rel="noreferrer"
+              className="inline-flex items-center gap-2 mt-6 bg-white text-rose font-display font-bold px-6 py-3.5 rounded-full active:scale-95 transition relative">
+              <Send className="w-5 h-5" /> Telegram orqali yozish
+            </a>
+          </div>
+        </section>
+
         {/* Footer */}
-        <footer className="bg-ink text-white/80 mt-8">
+        <footer className="bg-ink text-white/80">
           <div className="max-w-6xl mx-auto px-5 py-12 grid gap-8 md:grid-cols-3">
             <div>
               <p className="font-display font-bold text-white text-lg mb-2">Camelia Korea</p>
-              <p className="text-sm leading-relaxed">Koreyadan original teri parvarish mahsulotlari. Sifat kafolati bilan.</p>
+              <p className="text-sm leading-relaxed">Koreyadan original teri parvarish mahsulotlari katalogi. Sifat kafolati bilan.</p>
             </div>
             <div>
               <p className="font-semibold text-white mb-3">Buyurtma uchun</p>
