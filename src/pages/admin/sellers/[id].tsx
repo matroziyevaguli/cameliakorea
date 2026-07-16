@@ -4,7 +4,19 @@ import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
 import AdminNav from '@/components/AdminNav'
 import Link from 'next/link'
-import { ChevronLeft, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Wallet, Package } from 'lucide-react'
+import { useState } from 'react'
+import { useRouter } from 'next/router'
+import { createClient as createBrowser } from '@/lib/supabase/browser'
+import { ChevronLeft, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Wallet, Package, Wrench, Plus } from 'lucide-react'
+
+type Adjustment = { id: string; product_id: string; product_name: string; qty: number; reason: string; note: string | null; created_at: string }
+const REASONS: { value: string; label: string }[] = [
+  { value: 'damaged', label: 'Buzilgan' },
+  { value: 'lost',    label: "Yo'qolgan" },
+  { value: 'gift',    label: "Sovg'a" },
+  { value: 'other',   label: 'Boshqa' },
+]
+const reasonLabel = (r: string) => REASONS.find(x => x.value === r)?.label ?? r
 
 type SellerProduct = {
   product_id: string
@@ -33,10 +45,12 @@ type Summary = {
 }
 
 type Props = {
+  sellerId: string
   sellerName: string
   summary: Summary
   products: SellerProduct[]
   sales: Sale[]
+  adjustments: Adjustment[]
 }
 
 const cards = (s: Summary) => [
@@ -47,7 +61,30 @@ const cards = (s: Summary) => [
   { label: 'Qoldiq qarz',    value: formatUZS(s.balance),      icon: Wallet,      bg: s.balance > 0 ? 'bg-gradient-to-br from-danger to-rose' : 'bg-gradient-to-br from-success to-mint' },
 ]
 
-export default function SellerDetail({ sellerName, summary, products, sales }: Props) {
+export default function SellerDetail({ sellerId, sellerName, summary, products, sales, adjustments }: Props) {
+  const router = useRouter()
+  const [productId, setProductId] = useState('')
+  const [qty, setQty] = useState('')
+  const [reason, setReason] = useState('damaged')
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function addAdjustment(e: React.FormEvent) {
+    e.preventDefault()
+    const n = Number(qty)
+    if (!productId || n <= 0) { setError("Mahsulot va soni to'g'ri bo'lsin"); return }
+    setSaving(true); setError('')
+    const supabase = createBrowser()
+    const { error: err } = await supabase.from('stock_adjustments').insert({
+      seller_id: sellerId, product_id: productId, qty: n, reason, note: note || null,
+    })
+    setSaving(false)
+    if (err) { setError(err.message); return }
+    setProductId(''); setQty(''); setNote(''); setReason('damaged')
+    router.replace(router.asPath)
+  }
+
   return (
     <div className="min-h-screen bg-cream">
       <AdminNav />
@@ -157,6 +194,75 @@ export default function SellerDetail({ sellerName, summary, products, sales }: P
             </div>
           )}
         </div>
+
+        {/* Stock adjustments — damaged / lost / gifted */}
+        <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <Wrench className="w-4 h-4 text-rose" />
+            <h3 className="font-display font-bold text-ink text-lg">Ombor tuzatish</h3>
+          </div>
+
+          <form onSubmit={addAdjustment} className="p-6 grid gap-3 sm:grid-cols-5 items-end border-b border-gray-100">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-muted mb-1">Mahsulot</label>
+              <select value={productId} onChange={e => setProductId(e.target.value)} required
+                className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
+                <option value="">Tanlang…</option>
+                {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_name} (qoldi: {p.left})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted mb-1">Soni</label>
+              <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)} required placeholder="0"
+                className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted mb-1">Sabab</label>
+              <select value={reason} onChange={e => setReason(e.target.value)}
+                className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
+                {REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </div>
+            <button type="submit" disabled={saving}
+              className="flex items-center justify-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white font-semibold px-4 py-2.5 rounded-xl shadow-rose active:scale-95 transition disabled:opacity-50 text-sm">
+              <Plus className="w-4 h-4" /> {saving ? 'Saqlanmoqda…' : "Qo'shish"}
+            </button>
+            <div className="sm:col-span-5">
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)"
+                className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+              {error && <p className="text-danger text-xs mt-2">{error}</p>}
+            </div>
+          </form>
+
+          {adjustments.length === 0 ? (
+            <p className="text-muted text-sm px-6 py-6 text-center">Tuzatishlar yo'q</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">Mahsulot</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">Sabab</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">Izoh</th>
+                    <th className="text-right px-6 py-3 font-semibold text-muted">Soni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adjustments.map((a, i) => (
+                    <tr key={a.id} className={i % 2 === 1 ? 'bg-cream/50' : ''}>
+                      <td className="px-6 py-3 text-muted">{formatDate(a.created_at)}</td>
+                      <td className="px-4 py-3 font-medium text-ink">{a.product_name}</td>
+                      <td className="px-4 py-3"><span className="text-xs font-semibold bg-red-50 text-danger px-2 py-0.5 rounded-full">{reasonLabel(a.reason)}</span></td>
+                      <td className="px-4 py-3 text-muted">{a.note ?? '—'}</td>
+                      <td className="px-6 py-3 text-right font-display font-bold text-danger">−{a.qty}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   )
@@ -223,12 +329,22 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     balance:      balanceRes.data?.balance ?? 0,
   }
 
+  // Stock adjustments for this seller (may be empty / table may not exist yet)
+  const prodName: Record<string, string> = Object.fromEntries(products.map(p => [p.product_id, p.product_name]))
+  const adjRes = await supabase.from('stock_adjustments').select('id, product_id, qty, reason, note, created_at').eq('seller_id', id).order('created_at', { ascending: false })
+  const adjustments: Adjustment[] = (adjRes.data ?? []).map((a: any) => ({
+    id: a.id, product_id: a.product_id, product_name: prodName[a.product_id] ?? '—',
+    qty: a.qty, reason: a.reason, note: a.note, created_at: a.created_at,
+  }))
+
   return {
     props: {
+      sellerId: id,
       sellerName: balanceRes.data?.seller_name ?? profileRes.data.full_name,
       summary,
       products,
       sales: salesRes.data ?? [],
+      adjustments,
     },
   }
 }
