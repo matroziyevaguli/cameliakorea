@@ -5,6 +5,7 @@ import { GetServerSideProps } from 'next'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { User, Lock, Sparkles } from 'lucide-react'
 import { S } from '@/consts/strings'
+import { MiniSpinner } from '@/components/Loader'
 
 // Fixed set of users — each label maps to the exact auth email.
 const USERS = [
@@ -102,8 +103,9 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-60 mt-2"
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-60 mt-2"
           >
+            {loading && <MiniSpinner />}
             {loading ? S.loggingIn : S.loginBtn}
           </button>
         </form>
