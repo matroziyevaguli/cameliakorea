@@ -22,9 +22,9 @@ export default function ProjectDetail() {
       </Head>
       <main className="archive-shell">
         <nav className="archive-nav">
-          <Link href="/archive"><ArrowLeft size={17} /> {t.allProjects}</Link>
+          <Link href="/careers/owner/archive"><ArrowLeft size={17} /> {t.allProjects}</Link>
           <LanguageSwitcher />
-          <Link href="/">GM / {t.home}</Link>
+          <Link href="/careers/owner/portfolio">GM / {t.home}</Link>
         </nav>
         <header className="case-hero">
           <p className="eyebrow">{t.caseStudy} / {project.start_at.slice(0, 4)}</p>

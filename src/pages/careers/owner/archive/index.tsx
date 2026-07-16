@@ -19,7 +19,7 @@ export default function Archive() {
       </Head>
       <main className="archive-shell">
         <nav className="archive-nav">
-          <Link href="/"><ArrowLeft size={17} /> {t.backHome}</Link>
+          <Link href="/careers/owner/portfolio"><ArrowLeft size={17} /> {t.backHome}</Link>
           <LanguageSwitcher />
           <span>{t.archiveLabel}</span>
         </nav>
@@ -30,7 +30,7 @@ export default function Archive() {
         </header>
         <section className="archive-list" aria-label={t.allProjects}>
           {projects.map((project) => (
-            <Link className="archive-row" href={`/archive/${project.id}`} key={project.id}>
+            <Link className="archive-row" href={`/careers/owner/archive/${project.id}`} key={project.id}>
               <span className="year">{project.start_at.slice(0, 4)}</span>
               <div><h2>{project.title}</h2><p>{project.made_at || t.independent}</p></div>
               <div className="tag-list">{project.stacks.map((stack) => <span key={stack}>{stack}</span>)}</div>
