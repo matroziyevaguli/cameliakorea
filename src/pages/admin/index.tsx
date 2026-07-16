@@ -15,10 +15,10 @@ type Props = { kpis: KPIs; productStats: ProductStat[]; recentSales: RecentSale[
 const CHART_COLORS = ['#F4628E','#B9A7F0','#6FD8C0','#7CC4F2','#FFB088','#F4628E','#B9A7F0','#6FD8C0']
 
 const kpiCards = (k: KPIs) => [
-  { label: 'Total Revenue',      value: formatUZS(k.totalRevenue),    icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark',     text: 'text-white' },
-  { label: 'My Profit',          value: formatUZS(k.myProfit),        icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success',      text: 'text-white' },
-  { label: 'Total Outstanding',  value: formatUZS(k.totalOutstanding),icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning',     text: 'text-white' },
-  { label: 'Units Sold',         value: String(k.unitsSold),          icon: ShoppingCart,bg: 'bg-gradient-to-br from-lavender to-sky',      text: 'text-white' },
+  { label: 'Umumiy savdo',     value: formatUZS(k.totalRevenue),    icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark',     text: 'text-white' },
+  { label: 'Mening foydam',    value: formatUZS(k.myProfit),        icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success',      text: 'text-white' },
+  { label: "Yig'ilishi kerak", value: formatUZS(k.totalOutstanding),icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning',     text: 'text-white' },
+  { label: 'Sotilgan (dona)',  value: String(k.unitsSold),          icon: ShoppingCart,bg: 'bg-gradient-to-br from-lavender to-sky',      text: 'text-white' },
 ]
 
 export default function AdminDashboard({ kpis, productStats, recentSales }: Props) {
@@ -45,14 +45,14 @@ export default function AdminDashboard({ kpis, productStats, recentSales }: Prop
 
         {/* Bar chart */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
-          <h2 className="font-display font-bold text-ink text-lg mb-5">Best-selling products</h2>
+          <h2 className="font-display font-bold text-ink text-lg mb-5">Ko'p sotilgan mahsulotlar</h2>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={productStats} margin={{ left: 0, right: 0 }}>
               <XAxis dataKey="name" tick={{ fill: '#8A7F8C', fontSize: 11, fontFamily: 'var(--font-inter)' }} />
               <YAxis tick={{ fill: '#8A7F8C', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 8px 30px rgba(244,98,142,0.12)', fontFamily: 'var(--font-inter)' }}
-                formatter={(v: number) => [v, 'Units sold']}
+                formatter={(v: number) => [v, 'Sotildi']}
               />
               <Bar dataKey="units_sold" radius={[8, 8, 0, 0]}>
                 {productStats.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
@@ -63,7 +63,7 @@ export default function AdminDashboard({ kpis, productStats, recentSales }: Prop
 
         {/* Recent sales */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
-          <h2 className="font-display font-bold text-ink text-lg mb-4">Recent sales</h2>
+          <h2 className="font-display font-bold text-ink text-lg mb-4">So'nggi sotuvlar</h2>
           <div className="space-y-1">
             {recentSales.map((s, i) => (
               <div key={i} className={`flex justify-between items-center py-3 px-3 rounded-xl ${i % 2 === 0 ? 'bg-cream' : ''}`}>
@@ -91,18 +91,22 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (guard) return guard
 
   const supabase = createClient(ctx)
-  const [{ data: salesData }, { data: productStats }, { data: balances }] = await Promise.all([
-    supabase.from('v_sales_enriched').select('revenue, my_profit, owed_to_me, sold_at, seller_name, product_name, qty').order('sold_at', { ascending: false }).limit(20),
+  const [{ data: recent }, { data: productStats }, { data: balances }, { data: allSales }] = await Promise.all([
+    // Recent feed (15 newest) — display only
+    supabase.from('v_sales_enriched').select('revenue, sold_at, seller_name, product_name, qty').order('sold_at', { ascending: false }).limit(15),
+    // Chart: top 8 products
     supabase.from('v_product_stats').select('name, units_sold, revenue').order('units_sold', { ascending: false }).limit(8),
     supabase.from('v_seller_balances').select('balance'),
+    // ALL sales — for the TRUE totals (not just the last 20)
+    supabase.from('v_sales_enriched').select('revenue, my_profit, qty'),
   ])
 
   const kpis: KPIs = {
-    totalRevenue:    (salesData ?? []).reduce((s, r) => s + r.revenue, 0),
-    myProfit:        (salesData ?? []).reduce((s, r) => s + r.my_profit, 0),
+    totalRevenue:    (allSales ?? []).reduce((s, r) => s + r.revenue, 0),
+    myProfit:        (allSales ?? []).reduce((s, r) => s + r.my_profit, 0),
     totalOutstanding:(balances ?? []).reduce((s, r) => s + Math.max(0, r.balance), 0),
-    unitsSold:       (salesData ?? []).reduce((s, r) => s + r.qty, 0),
+    unitsSold:       (allSales ?? []).reduce((s, r) => s + r.qty, 0),
   }
 
-  return { props: { kpis, productStats: productStats ?? [], recentSales: (salesData ?? []).slice(0, 15) } }
+  return { props: { kpis, productStats: productStats ?? [], recentSales: recent ?? [] } }
 }

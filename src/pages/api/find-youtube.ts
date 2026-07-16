@@ -1,7 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getApiUser } from '@/lib/apiAuth'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  if (!(await getApiUser(req))) return res.status(401).json({ error: "Ruxsat yo'q" })
 
   const { name } = req.body as { name?: string }
   if (!name) return res.status(400).json({ error: 'name is required' })

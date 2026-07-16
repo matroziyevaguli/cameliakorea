@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
+import { getApiUser } from '@/lib/apiAuth'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  // Require a logged-in user (admin or seller). Blocks anonymous channel spam.
+  if (!(await getApiUser(req))) return res.status(401).json({ error: "Ruxsat yo'q — tizimga kiring" })
 
   const { image_url, caption, link } = req.body as {
     image_url?: string

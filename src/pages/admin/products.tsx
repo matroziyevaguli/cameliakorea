@@ -274,12 +274,22 @@ export default function Products({ products: initial }: { products: Product[] })
 
   // ── Save — refreshes product list client-side, no navigation ─────
   async function save() {
+    const retail = Number(form.retail_price)
+    const discount = form.discount_price !== '' ? Number(form.discount_price) : null
+    // Validation: discount must not exceed retail; prices non-negative.
+    if (retail < 0 || (discount != null && discount < 0) || Number(form.cost) < 0) {
+      setError('Narxlar manfiy bo\'lishi mumkin emas'); return
+    }
+    if (discount != null && discount > retail) {
+      setError('Chegirma narxi retail narxidan katta bo\'lolmaydi'); return
+    }
+
     setLoading(true); setError('')
     const supabase = createBrowser()
     const payload = {
       name: form.name,
-      retail_price: Number(form.retail_price),
-      discount_price: form.discount_price !== '' ? Number(form.discount_price) : null,
+      retail_price: retail,
+      discount_price: discount,
       cost: Number(form.cost),
       total_qty: Number(form.total_qty),
       description: description || null,
