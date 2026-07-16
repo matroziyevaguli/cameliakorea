@@ -30,8 +30,11 @@ create policy adj_seller_read on public.stock_adjustments for select
 ## 2. Stock views — subtract adjustments (paste the whole block)
 ```sql
 -- seller's own inventory
+-- NOTE: NO security_invoker → SECURITY DEFINER, so it bypasses the products RLS that
+-- blocks sellers (my_profile_id() still scopes it to the logged-in seller). Do NOT add
+-- security_invoker here or sellers get 0 rows.
 drop view if exists public.v_my_inventory;
-create view public.v_my_inventory with (security_invoker = on) as
+create view public.v_my_inventory as
 select a.product_id, p.name as product_name, a.qty_allocated as had,
   coalesce(s.qty_sold, 0) as sold,
   coalesce(adj.q, 0) as adjusted,
