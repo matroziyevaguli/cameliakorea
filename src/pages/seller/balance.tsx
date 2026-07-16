@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
 import Link from 'next/link'
-import { ShoppingBag, History, Wallet, Sparkles, CircleDollarSign, CheckCircle2 } from 'lucide-react'
+import { useState } from 'react'
+import { ShoppingBag, History, Wallet, Sparkles, CircleDollarSign, CheckCircle2, ChevronDown } from 'lucide-react'
 import { S } from '@/consts/strings'
 
 // From v_my_summary (a definer view — correct for sellers, unlike v_seller_balances
@@ -19,11 +20,16 @@ type Payment = { id: string; amount: number; note: string | null; paid_at: strin
 type Props = { summary: Summary | null; payments: Payment[] }
 
 export default function MyBalance({ summary, payments }: Props) {
+  const [showBreakdown, setShowBreakdown] = useState(false)
+
   if (!summary) return (
     <div className="min-h-screen bg-cream flex items-center justify-center">
       <p className="text-muted">{S.noData}</p>
     </div>
   )
+
+  // Total money the seller collected from customers = her kept profit + what Camelia is owed.
+  const collected = summary.your_total_profit + summary.total_owed
 
   return (
     <div className="min-h-screen bg-cream">
@@ -46,13 +52,18 @@ export default function MyBalance({ summary, payments }: Props) {
 
         {/* Hand-over block */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-surface rounded-2xl p-5 shadow-card">
+          {/* Topshirilgan — clickable to reveal the breakdown */}
+          <button onClick={() => setShowBreakdown(v => !v)}
+            className="text-left bg-surface rounded-2xl p-5 shadow-card active:scale-[0.98] transition">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle2 className="w-4 h-4 text-success" />
               <p className="text-xs font-medium text-muted">{S.handedOver}</p>
             </div>
             <p className="font-display text-xl font-bold text-success">{formatUZS(summary.submitted)}</p>
-          </div>
+            <p className="flex items-center gap-1 text-[11px] text-rose font-semibold mt-1">
+              {S.tapForDetails} <ChevronDown className={`w-3 h-3 transition ${showBreakdown ? 'rotate-180' : ''}`} />
+            </p>
+          </button>
           <div className="bg-surface rounded-2xl p-5 shadow-card">
             <div className="flex items-center gap-2 mb-2">
               <CircleDollarSign className="w-4 h-4 text-muted" />
@@ -61,6 +72,43 @@ export default function MyBalance({ summary, payments }: Props) {
             <p className="font-display text-xl font-bold text-ink">{formatUZS(summary.total_owed)}</p>
           </div>
         </div>
+
+        {/* Breakdown — plain-language money flow (shown when Topshirilgan tapped) */}
+        {showBreakdown && (
+          <div className="bg-surface rounded-2xl shadow-card p-5">
+            <p className="font-display font-bold text-ink mb-4">{S.breakdownTitle}</p>
+
+            {/* Total collected */}
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <span className="text-sm text-muted">{S.collected}</span>
+              <span className="font-display font-bold text-ink">{formatUZS(collected)}</span>
+            </div>
+
+            {/* Her profit — kept */}
+            <div className="flex items-center justify-between py-3 pl-4 border-l-2 border-success/40 ml-1 mt-2">
+              <span className="text-sm text-ink flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-success" /> {S.yoursKept}</span>
+              <span className="font-display font-bold text-success">{formatUZS(summary.your_total_profit)}</span>
+            </div>
+
+            {/* Camelia's share */}
+            <div className="flex items-center justify-between py-2 pl-4 border-l-2 border-rose/40 ml-1">
+              <span className="text-sm text-ink">{S.cameliaShare}</span>
+              <span className="font-display font-bold text-ink">{formatUZS(summary.total_owed)}</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 pl-10 ml-1 text-sm">
+              <span className="text-muted flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-success" /> {S.ofWhichPaid}</span>
+              <span className="font-semibold text-success">{formatUZS(summary.submitted)}</span>
+            </div>
+            <div className="flex items-center justify-between py-1.5 pl-10 ml-1 text-sm">
+              <span className="text-muted">⏳ {S.ofWhichLeft}</span>
+              <span className="font-semibold text-danger">{formatUZS(Math.max(0, summary.not_submitted))}</span>
+            </div>
+
+            <p className="text-xs text-muted leading-relaxed mt-4 bg-cream rounded-xl px-4 py-3">
+              {S.breakdownNote}
+            </p>
+          </div>
+        )}
 
         {/* Still owed — the big number that matters */}
         <div className={`rounded-2xl p-6 shadow-card ${summary.not_submitted > 0 ? 'bg-gradient-to-br from-rose to-peach text-white' : 'bg-gradient-to-br from-success to-mint text-white'}`}>

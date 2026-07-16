@@ -10,14 +10,16 @@ import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X } from 'lucid
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
-const UZ_MONTHS: Record<string, string> = {
-  Jan:'Yan', Feb:'Fev', Mar:'Mar', Apr:'Apr', May:'May', Jun:'Iyn',
-  Jul:'Iyl', Aug:'Avg', Sep:'Sen', Oct:'Okt', Nov:'Noy', Dec:'Dek',
+// Uzbek month names by number (1–12). v_my_monthly returns month as "YYYY-MM".
+const UZ_MONTH_BY_NUM = ['', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
+function uzMonth(month: string): string {
+  const n = parseInt((month || '').slice(5, 7), 10)   // "2026-07" → 7
+  return UZ_MONTH_BY_NUM[n] ?? month
 }
 const CARD_COLORS = ['#F4628E','#B9A7F0','#6FD8C0','#7CC4F2','#FFB088','#E14B79']
 
 type Summary = { your_total_profit: number; total_owed: number; submitted: number; not_submitted: number }
-type Monthly  = { month: string; month_label: string; your_profit: number; units_sold: number }
+type Monthly  = { month: string; your_profit: number; units_sold: number }
 type Product  = {
   product_id: string; name: string; retail_price: number; discount_price: number | null
   image_url: string | null; description: string | null; link: string | null; gallery: string[]
@@ -126,7 +128,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   }
 
   const chartData = monthly.map(m => ({
-    label: UZ_MONTHS[m.month_label] ?? m.month_label,
+    label: uzMonth(m.month),
     foyda: Math.round(m.your_profit),
   }))
 
