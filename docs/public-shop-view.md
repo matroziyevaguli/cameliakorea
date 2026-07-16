@@ -23,7 +23,12 @@ select
      from public.product_images pi
      where pi.product_id = p.id),
     '[]'::json
-  ) as gallery
+  ) as gallery,
+  -- units left across all sellers; <= 0 means SOLD OUT (shown as "Tugadi")
+  greatest(
+    p.total_qty - coalesce((select sum(s.qty) from public.sales s where s.product_id = p.id), 0),
+    0
+  ) as remaining
 from public.products p;
 
 -- Allow the public (anon) and logged-in (authenticated) roles to READ the view.

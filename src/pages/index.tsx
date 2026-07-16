@@ -48,6 +48,7 @@ type ShopProduct = {
   discount_price: number | null
   image_url: string | null
   description: string | null
+  remaining: number   // units left across all sellers; <= 0 means sold out
 }
 
 const CARD_COLORS = ['#F4628E', '#B9A7F0', '#6FD8C0', '#7CC4F2', '#FFB088', '#E14B79']
@@ -160,42 +161,59 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {products.map((p, i) => (
-                <Link key={p.id} href={`/product/${p.id}`}
-                  className="group bg-surface rounded-2xl shadow-card overflow-hidden hover:shadow-rose hover:-translate-y-0.5 transition">
-                  <div className="relative aspect-square overflow-hidden">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500" />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center"
-                        style={{ background: `linear-gradient(135deg, ${CARD_COLORS[i % CARD_COLORS.length]}30, ${CARD_COLORS[(i + 1) % CARD_COLORS.length]}55)` }}>
-                        <span className="font-display font-bold text-6xl opacity-60"
-                          style={{ color: CARD_COLORS[i % CARD_COLORS.length] }}>{p.name.charAt(0).toUpperCase()}</span>
-                      </div>
-                    )}
-                    {p.discount_price != null && (
-                      <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">Chegirma</span>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-display font-semibold text-sm md:text-base leading-snug line-clamp-2 min-h-[2.5rem]">{p.name}</h3>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      {p.discount_price != null ? (
+              {products.map((p, i) => {
+                const soldOut = p.remaining <= 0
+                const lowStock = !soldOut && p.remaining <= 3
+                return (
+                  <Link key={p.id} href={`/product/${p.id}`}
+                    className="group bg-surface rounded-2xl shadow-card overflow-hidden hover:shadow-rose hover:-translate-y-0.5 transition">
+                    <div className="relative aspect-square overflow-hidden">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} loading="lazy"
+                          className={`w-full h-full object-cover transition duration-500 ${soldOut ? 'grayscale opacity-70' : 'group-hover:scale-105'}`} />
+                      ) : (
+                        <div className={`w-full h-full grid place-items-center ${soldOut ? 'grayscale opacity-70' : ''}`}
+                          style={{ background: `linear-gradient(135deg, ${CARD_COLORS[i % CARD_COLORS.length]}30, ${CARD_COLORS[(i + 1) % CARD_COLORS.length]}55)` }}>
+                          <span className="font-display font-bold text-6xl opacity-60"
+                            style={{ color: CARD_COLORS[i % CARD_COLORS.length] }}>{p.name.charAt(0).toUpperCase()}</span>
+                        </div>
+                      )}
+
+                      {soldOut ? (
                         <>
-                          <span className="font-display font-bold text-rose">{formatUZS(p.discount_price)}</span>
-                          <span className="text-xs text-muted line-through">{formatUZS(p.retail_price)}</span>
+                          <span className="absolute top-3 left-3 bg-ink text-white text-xs font-bold px-2.5 py-1 rounded-full">Tugadi</span>
+                          <span className="absolute inset-x-0 bottom-0 bg-ink/80 text-white text-center text-xs font-semibold py-1.5">Hozircha mavjud emas</span>
                         </>
                       ) : (
-                        <span className="font-display font-bold text-ink">{formatUZS(p.retail_price)}</span>
+                        <>
+                          {p.discount_price != null && (
+                            <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">Chegirma</span>
+                          )}
+                          {lowStock && (
+                            <span className="absolute top-3 right-3 bg-warning text-white text-xs font-bold px-2.5 py-1 rounded-full">Kam qoldi</span>
+                          )}
+                        </>
                       )}
                     </div>
-                    <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-rose group-hover:gap-2 transition-all">
-                      Batafsil <ArrowRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </Link>
-              ))}
+                    <div className="p-4">
+                      <h3 className="font-display font-semibold text-sm md:text-base leading-snug line-clamp-2 min-h-[2.5rem]">{p.name}</h3>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        {p.discount_price != null ? (
+                          <>
+                            <span className={`font-display font-bold ${soldOut ? 'text-muted' : 'text-rose'}`}>{formatUZS(p.discount_price)}</span>
+                            <span className="text-xs text-muted line-through">{formatUZS(p.retail_price)}</span>
+                          </>
+                        ) : (
+                          <span className={`font-display font-bold ${soldOut ? 'text-muted' : 'text-ink'}`}>{formatUZS(p.retail_price)}</span>
+                        )}
+                      </div>
+                      <span className={`mt-3 inline-flex items-center gap-1 text-xs font-semibold transition-all ${soldOut ? 'text-muted' : 'text-rose group-hover:gap-2'}`}>
+                        Batafsil <ArrowRight className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
+                  </Link>
+                )
+              })}
             </div>
           )}
         </section>
@@ -246,24 +264,29 @@ export default function Store({ products }: { products: ShopProduct[] }) {
 }
 
 export const getServerSideProps: GetServerSideProps = async () => {
-  const FIELDS = 'id, name, retail_price, discount_price, image_url, description'
-
-  // Preferred: public `v_shop` view via the anon key (works everywhere the NEXT_PUBLIC
-  // keys are set — same as admin/seller). v_shop hides cost, so nothing sensitive leaks.
+  // Preferred: public `v_shop` view via the anon key. v_shop now exposes `remaining`.
   let data: any[] | null = null
   try {
     const pub = createPublicClient()
-    const res = await pub.from('v_shop').select(FIELDS).order('name')
+    const res = await pub.from('v_shop').select('id, name, retail_price, discount_price, image_url, description, remaining').order('name')
     if (!res.error && res.data) data = res.data
   } catch { /* fall through */ }
 
-  // Fallback: service-role read of the products table (works locally / before v_shop
-  // exists). Cost is never selected, so it never leaves the server.
+  // Fallback: service-role read of products + sales to compute remaining stock.
+  // (Works locally / before the updated v_shop is created.) Cost never selected.
   if (!data || data.length === 0) {
     try {
       const svc = createServiceClient()
-      const res = await svc.from('products').select(FIELDS).order('name')
-      if (res.data) data = res.data
+      const [{ data: prods }, { data: sales }] = await Promise.all([
+        svc.from('products').select('id, name, retail_price, discount_price, image_url, description, total_qty').order('name'),
+        svc.from('sales').select('product_id, qty'),
+      ])
+      const soldBy: Record<string, number> = {}
+      for (const s of sales ?? []) soldBy[s.product_id] = (soldBy[s.product_id] ?? 0) + s.qty
+      data = (prods ?? []).map((p: any) => ({
+        ...p,
+        remaining: Math.max(0, (p.total_qty ?? 0) - (soldBy[p.id] ?? 0)),
+      }))
     } catch { /* leave empty */ }
   }
 
@@ -274,7 +297,11 @@ export const getServerSideProps: GetServerSideProps = async () => {
     discount_price: p.discount_price,
     image_url: p.image_url,
     description: p.description,
+    remaining: typeof p.remaining === 'number' ? p.remaining : 0,
   }))
+
+  // Show in-stock products first, sold-out ones last.
+  products.sort((a, b) => (a.remaining <= 0 ? 1 : 0) - (b.remaining <= 0 ? 1 : 0))
 
   return { props: { products } }
 }
