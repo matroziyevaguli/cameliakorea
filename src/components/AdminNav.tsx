@@ -1,7 +1,8 @@
 import Link from 'next/link'
+import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
-import { LayoutDashboard, Package, Share2, Users, CreditCard, BarChart2, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, Share2, Users, CreditCard, BarChart2, LogOut, Menu, X } from 'lucide-react'
 
 const links = [
   { href: '/admin',             label: 'Dashboard',    icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const links = [
 
 export default function AdminNav() {
   const router = useRouter()
+  const [open, setOpen] = useState(false)
 
   async function signOut() {
     const supabase = createClient()
@@ -22,37 +24,59 @@ export default function AdminNav() {
   }
 
   return (
-    <header className="bg-surface border-b border-gray-100 shadow-sm px-6 py-0 flex items-center justify-between sticky top-0 z-30">
-      <Link href="/admin" className="font-display font-bold text-ink text-lg py-4 flex items-center gap-2">
-        <span className="text-rose">✦</span> Camelia Admin
-      </Link>
-      <nav className="flex items-center gap-1">
-        {links.map(l => {
-          const active = router.pathname === l.href
-          const Icon = l.icon
-          return (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm font-medium transition ${
-                active
-                  ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose'
-                  : 'text-muted hover:text-ink hover:bg-cream'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {l.label}
-            </Link>
-          )
-        })}
-        <button
-          onClick={signOut}
-          className="flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm text-muted hover:text-danger transition ml-2"
-        >
-          <LogOut className="w-4 h-4" />
-          Chiqish
+    <header className="bg-surface border-b border-gray-100 shadow-sm sticky top-0 z-30">
+      <div className="px-4 md:px-6 flex items-center justify-between">
+        <Link href="/admin" className="font-display font-bold text-ink text-lg py-4 flex items-center gap-2">
+          <span className="text-rose">✦</span> Camelia <span className="hidden sm:inline">Admin</span>
+        </Link>
+
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center gap-1">
+          {links.map(l => {
+            const active = router.pathname === l.href
+            const Icon = l.icon
+            return (
+              <Link key={l.href} href={l.href}
+                className={`flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm font-medium transition ${
+                  active ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'text-muted hover:text-ink hover:bg-cream'
+                }`}>
+                <Icon className="w-4 h-4" />
+                {l.label}
+              </Link>
+            )
+          })}
+          <button onClick={signOut} className="flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm text-muted hover:text-danger transition ml-2">
+            <LogOut className="w-4 h-4" /> Chiqish
+          </button>
+        </nav>
+
+        {/* Mobile hamburger */}
+        <button onClick={() => setOpen(o => !o)} className="md:hidden text-ink p-2 -mr-2" aria-label="Menu">
+          {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
-      </nav>
+      </div>
+
+      {/* Mobile dropdown menu */}
+      {open && (
+        <nav className="md:hidden border-t border-gray-100 px-3 py-2 space-y-1">
+          {links.map(l => {
+            const active = router.pathname === l.href
+            const Icon = l.icon
+            return (
+              <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
+                className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition ${
+                  active ? 'bg-gradient-to-br from-rose to-peach text-white' : 'text-ink hover:bg-cream'
+                }`}>
+                <Icon className="w-5 h-5" />
+                {l.label}
+              </Link>
+            )
+          })}
+          <button onClick={signOut} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-danger hover:bg-cream transition">
+            <LogOut className="w-5 h-5" /> Chiqish
+          </button>
+        </nav>
+      )}
     </header>
   )
 }

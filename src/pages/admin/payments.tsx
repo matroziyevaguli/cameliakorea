@@ -200,7 +200,8 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
           {payments.length === 0 ? (
             <p className="text-muted text-sm px-6 py-8 text-center">Hali to'lov yo'q</p>
           ) : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
@@ -226,6 +227,7 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </main>

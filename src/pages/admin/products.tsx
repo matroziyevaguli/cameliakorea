@@ -484,8 +484,8 @@ export default function Products({ products: initial }: { products: Product[] })
         </div>
 
         {/* ── Table ── always visible ── */}
-        <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-surface rounded-2xl shadow-card overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left px-5 py-4 font-semibold text-muted w-12"></th>

@@ -61,7 +61,7 @@ export default function Stats({ productStats, sellerStats }: { productStats: Pro
         {/* Seller stats */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h3 className="font-display font-bold text-ink text-lg mb-5">Sotuvchi natijalari</h3>
-          <div className="grid grid-cols-3 gap-4 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
             {sellerStats.map((s, i) => (
               <div key={s.seller_id} className="rounded-xl p-4" style={{ backgroundColor: `${COLORS[i % COLORS.length]}20` }}>
                 <p className="font-display font-bold text-ink text-base">{s.seller_name}</p>
