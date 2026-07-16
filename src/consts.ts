@@ -353,7 +353,7 @@ export const EXPERIENCE_LIST: ExperienceProps[] = [
         start_at: '2022.07',
         end_at: '2023.08',
         title: 'RS Interactive',
-        url: 'https://rsinteractive.co.kr',
+        url: 'https://www.jobplanet.co.kr/companies/66998/landing/%EC%95%8C%EC%97%90%EC%8A%A4%EC%9D%B8%ED%84%B0%EB%A0%89%ED%8B%B0%EB%B8%8C',
         description: 'Built mobility, education, rental, and desktop products across React, Node.js, Electron, and AWS—from EV charging interfaces to real-time desktop synchronization.',
         subTitle: 'Web Developer',
         links: [''],

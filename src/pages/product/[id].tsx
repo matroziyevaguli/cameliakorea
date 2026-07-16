@@ -2,7 +2,7 @@ import { GetServerSideProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
 import { useState } from 'react'
-import { createServiceClient } from '@/lib/supabase/api'
+import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
 import { Send, ChevronLeft, Play } from 'lucide-react'
 
@@ -107,27 +107,39 @@ export default function ProductPage({ product }: { product: Product | null }) {
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const id = ctx.params?.id as string
-  const supabase = createServiceClient()
 
+  // Preferred: public v_shop view (anon key) — includes a `gallery` array, hides cost.
+  try {
+    const pub = createPublicClient()
+    const { data: v, error } = await pub
+      .from('v_shop')
+      .select('id, name, retail_price, discount_price, image_url, description, link, gallery')
+      .eq('id', id)
+      .single()
+    if (!error && v) {
+      const gallery: string[] = Array.isArray(v.gallery) ? v.gallery : []
+      const product: Product = {
+        id: v.id, name: v.name, retail_price: v.retail_price, discount_price: v.discount_price,
+        description: v.description, link: v.link,
+        images: [...(v.image_url ? [v.image_url] : []), ...gallery],
+      }
+      return { props: { product } }
+    }
+  } catch { /* fall through */ }
+
+  // Fallback: service-role read (works locally / before v_shop exists).
+  const svc = createServiceClient()
   const [{ data: p }, { data: imgs }] = await Promise.all([
-    supabase.from('products').select('id, name, retail_price, discount_price, image_url, description, link').eq('id', id).single(),
-    supabase.from('product_images').select('url, sort_order').eq('product_id', id).order('sort_order', { ascending: true }),
+    svc.from('products').select('id, name, retail_price, discount_price, image_url, description, link').eq('id', id).single(),
+    svc.from('product_images').select('url, sort_order').eq('product_id', id).order('sort_order', { ascending: true }),
   ])
-
   if (!p) return { notFound: true }
 
   const gallery = (imgs ?? []).map(r => r.url)
-  const images = [...(p.image_url ? [p.image_url] : []), ...gallery]
-
   const product: Product = {
-    id: p.id,
-    name: p.name,
-    retail_price: p.retail_price,
-    discount_price: p.discount_price,
-    description: p.description,
-    link: p.link,
-    images,
+    id: p.id, name: p.name, retail_price: p.retail_price, discount_price: p.discount_price,
+    description: p.description, link: p.link,
+    images: [...(p.image_url ? [p.image_url] : []), ...gallery],
   }
-
   return { props: { product } }
 }

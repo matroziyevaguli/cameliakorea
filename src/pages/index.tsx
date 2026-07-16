@@ -1,7 +1,7 @@
 import { GetServerSideProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
-import { createServiceClient } from '@/lib/supabase/api'
+import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
 import { Send, AtSign, Sparkles, ArrowRight } from 'lucide-react'
 
@@ -148,14 +148,28 @@ export default function Store({ products }: { products: ShopProduct[] }) {
 }
 
 export const getServerSideProps: GetServerSideProps = async () => {
-  // Server-side service-role read → strip cost/profit before sending to the browser.
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('products')
-    .select('id, name, retail_price, discount_price, image_url, description')
-    .order('name')
+  const FIELDS = 'id, name, retail_price, discount_price, image_url, description'
 
-  const products: ShopProduct[] = (data ?? []).map(p => ({
+  // Preferred: public `v_shop` view via the anon key (works everywhere the NEXT_PUBLIC
+  // keys are set — same as admin/seller). v_shop hides cost, so nothing sensitive leaks.
+  let data: any[] | null = null
+  try {
+    const pub = createPublicClient()
+    const res = await pub.from('v_shop').select(FIELDS).order('name')
+    if (!res.error && res.data) data = res.data
+  } catch { /* fall through */ }
+
+  // Fallback: service-role read of the products table (works locally / before v_shop
+  // exists). Cost is never selected, so it never leaves the server.
+  if (!data || data.length === 0) {
+    try {
+      const svc = createServiceClient()
+      const res = await svc.from('products').select(FIELDS).order('name')
+      if (res.data) data = res.data
+    } catch { /* leave empty */ }
+  }
+
+  const products: ShopProduct[] = (data ?? []).map((p: any) => ({
     id: p.id,
     name: p.name,
     retail_price: p.retail_price,
