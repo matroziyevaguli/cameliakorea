@@ -243,24 +243,26 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                     </div>
 
                     {/* Actions */}
-                    <div className="flex flex-wrap gap-2">
-                      {p.remaining > 0 && (
-                        <Link href={`/seller/sell?product=${p.product_id}`}
-                          className="flex-1 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3 rounded-full text-sm text-center shadow-rose active:scale-95 transition">
-                          {S.soldBtn}
-                        </Link>
-                      )}
-                      {p.link && (
-                        <a href={p.link} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-red-50 text-red-600 text-sm font-semibold active:scale-95 transition border border-red-100">
-                          ▶️ Videoni ko'rish
-                        </a>
-                      )}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {p.remaining > 0 && (
+                          <Link href={`/seller/sell?product=${p.product_id}`}
+                            className="flex-1 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3 rounded-full text-sm text-center shadow-rose active:scale-95 transition">
+                            {S.soldBtn}
+                          </Link>
+                        )}
+                        {p.link && (
+                          <a href={p.link} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-red-50 text-red-600 text-sm font-semibold active:scale-95 transition border border-red-100">
+                            ▶️ Videoni ko'rish
+                          </a>
+                        )}
+                      </div>
                       {p.image_url && (
                         <button onClick={() => openPost(p)}
-                          className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-gradient-to-br from-sky/20 to-lavender/20 text-ink text-sm font-semibold active:scale-95 transition border border-lavender/30">
-                          <Send className="w-4 h-4 text-lavender" />
-                          Post
+                          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-gradient-to-br from-sky to-lavender text-white text-sm font-display font-bold active:scale-95 transition shadow-sm">
+                          <Send className="w-4 h-4" />
+                          Telegram kanalga jo'natish
                         </button>
                       )}
                     </div>
@@ -326,7 +328,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               <button onClick={sendPost} disabled={posting || !caption.trim()}
                 className="mt-3 w-full flex items-center justify-center gap-2 bg-gradient-to-br from-sky to-lavender text-white font-display font-bold py-4 rounded-full active:scale-95 transition disabled:opacity-50 shadow-sm">
                 <Send className="w-5 h-5" />
-                {posting ? 'Yuborilmoqda…' : 'Yuborish'}
+                {posting ? 'Yuborilmoqda…' : "Telegram kanalga jo'natish"}
               </button>
             )}
           </div>

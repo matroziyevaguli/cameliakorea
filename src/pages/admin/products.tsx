@@ -551,7 +551,7 @@ export default function Products({ products: initial }: { products: Product[] })
                             <button onClick={() => post(p)} disabled={posting || !caption.trim()}
                               className="flex items-center gap-2 bg-gradient-to-br from-sky to-lavender text-white font-semibold px-5 py-2.5 rounded-full active:scale-95 transition disabled:opacity-50 text-sm shadow-sm">
                               <Send className="w-4 h-4" />
-                              {posting ? 'Yuborilmoqda…' : 'Kanalga yuborish'}
+                              {posting ? 'Yuborilmoqda…' : "Telegram kanalga jo'natish"}
                             </button>
                             <button onClick={closeAnnounce} className="text-muted hover:text-ink text-sm px-4 py-2 transition">Bekor qilish</button>
                           </div>
