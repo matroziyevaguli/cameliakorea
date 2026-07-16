@@ -8,14 +8,17 @@ import { S } from '@/consts/strings'
 
 // Fixed set of users — each label maps to the exact auth email.
 const USERS = [
-  { label: 'Admin (Guli)', email: 'matroziyevaguli@gmail.com' },
-  { label: 'Gulshan',      email: 'gulshan@sellers.local' },
-  { label: 'Adolat',       email: 'adolat@sellers.local' },
-  { label: 'Saida',        email: 'saida@sellers.local' },
+  { label: 'Admin (Guli)', email: 'matroziyevaguli@gmail.com', role: 'admin' as const },
+  { label: 'Gulshan',      email: 'gulshan@sellers.local',     role: 'seller' as const },
+  { label: 'Adolat',       email: 'adolat@sellers.local',      role: 'seller' as const },
+  { label: 'Saida',        email: 'saida@sellers.local',       role: 'seller' as const },
 ]
 
 export default function Login() {
   const router = useRouter()
+  // ?as=admin / ?as=seller from the landing login menu filters who's shown.
+  const as = router.query.as
+  const users = as === 'admin' || as === 'seller' ? USERS.filter(u => u.role === as) : USERS
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -71,7 +74,7 @@ export default function Login() {
               className={`w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-cream font-sans text-base focus:outline-none focus:border-rose transition appearance-none ${email ? 'text-ink' : 'text-muted'}`}
             >
               <option value="" disabled>Ismingizni tanlang</option>
-              {USERS.map(u => (
+              {users.map(u => (
                 <option key={u.email} value={u.email} className="text-ink">{u.label}</option>
               ))}
             </select>

@@ -1,9 +1,44 @@
 import { GetServerSideProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useState } from 'react'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
-import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search } from 'lucide-react'
+import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, ShieldCheck as Shield } from 'lucide-react'
+
+function LoginMenu() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1.5 bg-white text-ink text-sm font-semibold px-4 py-2 rounded-full shadow-card active:scale-95 transition">
+        <User className="w-4 h-4 text-rose" /> Kirish
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-2 w-60 bg-surface rounded-2xl shadow-card p-2 z-40 border border-black/5">
+            <Link href="/login?as=admin" onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
+              <span><span className="block text-sm font-semibold text-ink">Admin sifatida</span><span className="block text-xs text-muted">Boshqaruv paneli</span></span>
+            </Link>
+            <Link href="/login?as=seller" onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
+              <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
+            </Link>
+            <a href="#mahsulotlar" onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-lavender to-peach text-white grid place-items-center"><User className="w-4 h-4" /></span>
+              <span><span className="block text-sm font-semibold text-ink">Xaridor sifatida</span><span className="block text-xs text-muted">Katalogni ko'rish</span></span>
+            </a>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
 // Only SAFE, public fields — cost/profit never leave the server.
 type ShopProduct = {
@@ -37,10 +72,13 @@ export default function Store({ products }: { products: ShopProduct[] }) {
               <span className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center text-sm shadow-rose">C</span>
               Camelia <span className="text-rose">Korea</span>
             </Link>
-            <a href={TELEGRAM} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold px-4 py-2 rounded-full shadow-rose active:scale-95 transition">
-              <Send className="w-4 h-4" /> Telegram
-            </a>
+            <div className="flex items-center gap-2">
+              <a href={TELEGRAM} target="_blank" rel="noreferrer"
+                className="hidden sm:flex items-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold px-4 py-2 rounded-full shadow-rose active:scale-95 transition">
+                <Send className="w-4 h-4" /> Telegram
+              </a>
+              <LoginMenu />
+            </div>
           </div>
         </header>
 
