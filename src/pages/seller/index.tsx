@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus } from 'lucide-react'
+import SellerNav from '@/components/SellerNav'
+import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
@@ -34,12 +35,6 @@ type MyRequest = {
 }
 type Available = { id: string; name: string; retail_price: number; discount_price: number | null }
 type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[] }
-
-const REQ_BADGE: Record<MyRequest['status'], { label: string; cls: string }> = {
-  pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
-  approved: { label: 'Tasdiqlandi', cls: 'bg-green-100 text-success' },
-  rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
-}
 
 function RemainingBadge({ n }: { n: number }) {
   if (n === 0) return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-danger">Tugadi</span>
@@ -456,43 +451,9 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
             </div>
           )}
         </div>
-        {/* ── My correction requests ── */}
-        {requests.length > 0 && (
-          <div>
-            <div className="flex items-center gap-2 mb-3 px-1">
-              <ClipboardList className="w-4 h-4 text-rose" />
-              <h2 className="font-display font-bold text-ink text-base">So'rovlarim</h2>
-            </div>
-            <div className="space-y-2">
-              {requests.map(r => (
-                <div key={r.id} className="bg-surface rounded-xl shadow-card px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-ink truncate">{r.product_name}</p>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE[r.status].cls}`}>
-                      {REQ_BADGE[r.status].label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted mt-0.5">{r.current_qty} → {r.requested_qty} ta{r.reason ? ` · "${r.reason}"` : ''}</p>
-                  {r.admin_note && <p className="text-xs text-muted mt-0.5">Admin: {r.admin_note}</p>}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </main>
 
-      {/* ── Bottom nav ── */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-100 flex z-20 shadow-card">
-        <Link href="/seller" className="flex-1 flex flex-col items-center gap-1 py-3 text-rose">
-          <ShoppingBag className="w-5 h-5" /><span className="text-xs font-medium">Mahsulotlar</span>
-        </Link>
-        <Link href="/seller/sales" className="flex-1 flex flex-col items-center gap-1 py-3 text-muted hover:text-rose transition">
-          <History className="w-5 h-5" /><span className="text-xs font-medium">Tarix</span>
-        </Link>
-        <Link href="/seller/balance" className="flex-1 flex flex-col items-center gap-1 py-3 text-muted hover:text-rose transition">
-          <Wallet className="w-5 h-5" /><span className="text-xs font-medium">Hisobim</span>
-        </Link>
-      </nav>
+      <SellerNav />
 
       {/* ── Telegram post sheet ── */}
       {postProduct && (

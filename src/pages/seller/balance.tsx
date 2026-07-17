@@ -2,9 +2,9 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
-import Link from 'next/link'
+import SellerNav from '@/components/SellerNav'
 import { useState } from 'react'
-import { ShoppingBag, History, Wallet, Sparkles, CircleDollarSign, CheckCircle2, ChevronDown, CalendarDays } from 'lucide-react'
+import { History, Sparkles, CircleDollarSign, CheckCircle2, ChevronDown, CalendarDays } from 'lucide-react'
 import { S } from '@/consts/strings'
 
 const UZ_MONTH = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
@@ -175,20 +175,7 @@ export default function MyBalance({ summary, payments, monthly }: Props) {
         </div>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-100 flex z-20 shadow-card">
-        <Link href="/seller" className="flex-1 flex flex-col items-center gap-1 py-3 text-muted hover:text-rose transition">
-          <ShoppingBag className="w-5 h-5" />
-          <span className="text-xs font-medium">Mahsulotlar</span>
-        </Link>
-        <Link href="/seller/sales" className="flex-1 flex flex-col items-center gap-1 py-3 text-muted hover:text-rose transition">
-          <History className="w-5 h-5" />
-          <span className="text-xs font-medium">Tarix</span>
-        </Link>
-        <Link href="/seller/balance" className="flex-1 flex flex-col items-center gap-1 py-3 text-rose">
-          <Wallet className="w-5 h-5" />
-          <span className="text-xs font-medium">Hisobim</span>
-        </Link>
-      </nav>
+      <SellerNav />
     </div>
   )
 }
