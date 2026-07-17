@@ -5,7 +5,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
-import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, ShieldCheck as Shield } from 'lucide-react'
+import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
   const [open, setOpen] = useState(false)
@@ -15,9 +15,13 @@ function LoginMenu() {
   // Portal to <body> so the menu escapes the sticky/backdrop-blur header, which on
   // Android clips absolutely-positioned descendants (menu appeared "not showing up").
   const menuContent = (
-    <div className="fixed inset-0 z-[100]">
-      <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-      <div className="absolute right-4 top-16 w-60 max-w-[calc(100vw-2rem)] bg-surface rounded-2xl shadow-card p-2 border border-black/5">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+      <div className="relative w-full max-w-xs bg-surface rounded-2xl shadow-card p-3 border border-black/5">
+        <div className="flex items-center justify-between px-1 pb-2 mb-1">
+          <p className="text-sm font-bold text-ink">Kirish</p>
+          <button onClick={() => setOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+        </div>
         <Link href="/login?as=admin" onClick={() => setOpen(false)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
           <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
