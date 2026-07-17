@@ -160,7 +160,7 @@ export default function MySales({ sales }: { sales: Sale[] }) {
             {/* Individual sales */}
             <div>
               <p className="font-display font-bold text-ink text-sm mb-1 px-1">Har bir sotuv ({filtered.length})</p>
-              <p className="text-xs text-muted mb-2 px-1">Xato yozdingizmi? <b className="text-rose">Tahrirlash</b> orqali sonini yoki narxini tuzating.</p>
+              <p className="text-xs text-muted mb-2 px-1">Xato yozdingizmi? <b className="text-rose">Tahrirlash</b> orqali sonini tuzating.</p>
               {filtered.length === 0 ? (
                 <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">Bu filtr bo'yicha sotuv yo'q</div>
               ) : (
