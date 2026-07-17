@@ -2,11 +2,12 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
-import { LayoutDashboard, Package, Share2, Users, CreditCard, BarChart2, Inbox, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Layers, Share2, Users, CreditCard, BarChart2, Inbox, LogOut, Menu, X } from 'lucide-react'
 
 const links = [
   { href: '/admin',             label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/admin/products',    label: 'Mahsulotlar',  icon: Package },
+  { href: '/admin/batches',     label: 'Partiyalar',   icon: Layers },
   { href: '/admin/distribute',  label: 'Taqsimlash',   icon: Share2 },
   { href: '/admin/requests',    label: "So'rovlar",    icon: Inbox },
   { href: '/admin/sellers',     label: 'Sotuvchilar',  icon: Users },

@@ -6,6 +6,21 @@ All notable changes to the Camelia admin + seller app are tracked here.
 
 ## [2026-07-17] (latest)
 
+### Added — Product batches (partiyalar) + FEFO
+- New `product_batches` table: track each shipment separately with its own expiry + optional
+  lot label, so you can tell old stock from new. Independent layer — `total_qty` unchanged.
+- Admin **Partiyalar** tab (`/admin/batches`): add/delete batches per product; list is FEFO
+  (first-expiring first) with near-expiry badges; "1-navbat" marks the batch to sell first;
+  drift warning if batch quantities don't sum to `total_qty`
+- Views `v_batches` (FEFO) + `v_batch_rollup` (per-product totals/earliest expiry)
+- Run `docs/batches-setup.md`. Basis: `docs/research-batch-expiry.md`
+
+### Added — Seller self-assignment (request a new product)
+- Sellers can request a product they don't have yet (e.g. a just-arrived batch) via "Yangi
+  mahsulot so'rash" → creates a `new_product` request in the admin inbox; approving allocates it
+- New `v_available_products` (definer, price-only — never `cost`). Run `docs/self-assign-setup.md`
+- Admin inbox labels each request as "Tuzatish" or "Yangi mahsulot"
+
 ### Added — Allocation correction requests (seller verify → admin approve)
 - Sellers can flag that the quantity entered for them is wrong ("you gave me 4, I actually
   have 3"). Fixes the risk from the hand-typed initial distribution.

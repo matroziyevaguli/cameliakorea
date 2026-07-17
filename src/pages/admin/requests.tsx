@@ -78,7 +78,12 @@ export default function Requests({ requests }: Props) {
                 <div key={r.id} className="bg-surface rounded-2xl shadow-card p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div>
-                      <p className="font-semibold text-ink text-sm">{r.seller_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-ink text-sm">{r.seller_name}</p>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.type === 'new_product' ? 'bg-sky/15 text-sky' : 'bg-lavender/20 text-ink'}`}>
+                          {r.type === 'new_product' ? 'Yangi mahsulot' : 'Tuzatish'}
+                        </span>
+                      </div>
                       <p className="text-xs text-muted">{r.product_name}</p>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_BADGE[r.status].cls}`}>

@@ -11,9 +11,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const user = await getApiUser(req)
   if (!user) return res.status(401).json({ error: "Ruxsat yo'q" })
 
-  const { product_id, requested_qty, reason } = req.body as {
-    product_id?: string; requested_qty?: number; reason?: string
+  const { product_id, requested_qty, reason, type: rawType } = req.body as {
+    product_id?: string; requested_qty?: number; reason?: string; type?: string
   }
+  const type = rawType === 'new_product' ? 'new_product' : 'correction'
   if (!product_id || requested_qty == null || Number(requested_qty) < 0) {
     return res.status(400).json({ error: "Mahsulot va to'g'ri son kiritilishi shart" })
   }
@@ -33,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { error } = await svc.from('allocation_requests').insert({
     seller_id:     prof.id,
     product_id,
-    type:          'correction',
+    type,
     current_qty:   currentQty,
     requested_qty: Number(requested_qty),
     reason:        reason?.trim() || null,
@@ -49,7 +50,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (ownerChat && token) {
     const reasonLine = reason?.trim() ? `\nSabab: ${reason.trim()}` : ''
-    const msg = `✏️ TUZATISH SO'ROVI\n${prof.full_name}: "${product?.name ?? ''}" — ${currentQty} → ${requested_qty} ta${reasonLine}`
+    const msg = type === 'new_product'
+      ? `🆕 YANGI MAHSULOT SO'ROVI\n${prof.full_name}: "${product?.name ?? ''}" — ${requested_qty} ta so'radi${reasonLine}`
+      : `✏️ TUZATISH SO'ROVI\n${prof.full_name}: "${product?.name ?? ''}" — ${currentQty} → ${requested_qty} ta${reasonLine}`
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: ownerChat, text: msg }),

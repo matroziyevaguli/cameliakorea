@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList } from 'lucide-react'
+import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
@@ -32,7 +32,8 @@ type MyRequest = {
   current_qty: number; requested_qty: number; reason: string | null
   status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
 }
-type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[] }
+type Available = { id: string; name: string; retail_price: number; discount_price: number | null }
+type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[] }
 
 const REQ_BADGE: Record<MyRequest['status'], { label: string; cls: string }> = {
   pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
@@ -105,7 +106,7 @@ function buildCaption(p: Product) {
   return `✨ Yangi mahsulot!\n\n${p.name}\n${price}${desc}\n\n⚠️ Mahsulot soni cheklangan!\n\n🇰🇷 Koreyadan, sinab ko'rilgan\n📍 O'zbekistonda mavjud\n\n📞 Buyurtma uchun:\n🏙 Namangan: Gulshanoy +998 94 099 44 99\n🏙 Andijon: Saida +998 93 858 27 27\n🏙 Farg'ona: Adolat +998 33 408 61 83\n\n@cameliakorea`
 }
 
-export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests }: Props) {
+export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available }: Props) {
   const router = useRouter()
 
   // Settings menu + product search
@@ -114,6 +115,33 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
 
   // Correction request ("I actually received a different amount")
   const pendingByProduct = new Set(requests.filter(r => r.status === 'pending').map(r => r.product_id))
+
+  // Request a NEW product she doesn't have yet (self-assignment)
+  const availableToRequest = available.filter(a => !pendingByProduct.has(a.id))
+  const [newOpen, setNewOpen] = useState(false)
+  const [newProductId, setNewProductId] = useState('')
+  const [newQty, setNewQty] = useState('')
+  const [newReason, setNewReason] = useState('')
+  const [newBusy, setNewBusy] = useState(false)
+  const [newError, setNewError] = useState('')
+
+  function openNewRequest() {
+    setNewOpen(true); setNewProductId(''); setNewQty(''); setNewReason(''); setNewError('')
+  }
+  async function submitNewRequest() {
+    if (!newProductId) { setNewError('Mahsulotni tanlang'); return }
+    if (newQty === '' || Number(newQty) <= 0) { setNewError("To'g'ri son kiriting"); return }
+    setNewBusy(true); setNewError('')
+    const res = await fetch('/api/allocation-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: newProductId, requested_qty: Number(newQty), reason: newReason, type: 'new_product' }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setNewBusy(false)
+    if (!res.ok) { setNewError(json.error ?? 'Xatolik'); return }
+    setNewOpen(false)
+    router.replace(router.asPath)
+  }
   const [correctOpen, setCorrectOpen] = useState<string | null>(null)
   const [correctQty, setCorrectQty] = useState('')
   const [correctReason, setCorrectReason] = useState('')
@@ -276,6 +304,12 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
         <div>
           <div className="flex items-center justify-between gap-3 mb-3 px-1">
             <h2 className="font-display font-bold text-ink text-base">{S.myProducts}</h2>
+            {availableToRequest.length > 0 && (
+              <button onClick={openNewRequest}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose hover:text-roseDark transition">
+                <Plus className="w-4 h-4" /> Yangi mahsulot so'rash
+              </button>
+            )}
           </div>
 
           {/* Search */}
@@ -507,6 +541,41 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           </div>
         </div>
       )}
+
+      {/* ── Request a new product sheet ── */}
+      {newOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setNewOpen(false)} />
+          <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-display font-bold text-ink text-base">🆕 Yangi mahsulot so'rash</p>
+              <button onClick={() => setNewOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-xs text-muted mb-4">Sizda yo'q mahsulotni tanlang va nechta olishni yozing. Admin tasdiqlaganda sizga biriktiriladi.</p>
+
+            <label className="block text-xs font-semibold text-muted mb-1">Mahsulot</label>
+            <select value={newProductId} onChange={e => setNewProductId(e.target.value)}
+              className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
+              <option value="">Tanlang…</option>
+              {availableToRequest.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+
+            <label className="block text-xs font-semibold text-muted mb-1">Nechta?</label>
+            <input type="number" min={1} value={newQty} onChange={e => setNewQty(e.target.value)} placeholder="0"
+              className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+
+            <input value={newReason} onChange={e => setNewReason(e.target.value)} placeholder="Izoh (ixtiyoriy)…"
+              className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+
+            {newError && <p className="text-danger text-xs mb-2">{newError}</p>}
+
+            <button onClick={submitNewRequest} disabled={newBusy}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full active:scale-95 transition disabled:opacity-50 shadow-rose">
+              {newBusy ? 'Yuborilmoqda…' : "So'rov yuborish"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -524,12 +593,13 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   // Product list: v_my_inventory (RLS-safe for sellers — v_inventory & the products table
   // both return 0 rows to sellers). Prices/images/gallery: v_catalog (a definer view sellers
   // CAN read), keyed by `id` = product_id.
-  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes] = await Promise.all([
+  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes, availableRes] = await Promise.all([
     supabase.from('v_my_summary').select('*').maybeSingle(),
     supabase.from('v_my_monthly').select('*'),
     supabase.from('v_my_inventory').select('product_id, product_name, had, sold, remaining'),
     supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date'),
     supabase.from('v_my_requests').select('*'),
+    supabase.from('v_available_products').select('id, name, retail_price, discount_price'),
   ])
 
   const inv = invRes.data ?? []
@@ -564,6 +634,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       products,
       thisMonthProfit,
       requests:       requestsRes.data ?? [],
+      available:      availableRes.data ?? [],
     }
   }
 }
