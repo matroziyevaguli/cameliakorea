@@ -5,7 +5,7 @@ import { formatUZS, formatDate } from '@/lib/format'
 import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { Trash2, Package, Search, TrendingUp } from 'lucide-react'
+import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, RotateCcw } from 'lucide-react'
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
 
@@ -31,6 +31,28 @@ export default function MySales({ sales }: { sales: Sale[] }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [month, setMonth] = useState('all')
   const [search, setSearch] = useState('')
+
+  // Inline edit (fix a mistyped quantity or price)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editQty, setEditQty] = useState(1)
+  const [editPrice, setEditPrice] = useState('')
+  const [editError, setEditError] = useState('')
+
+  function openEdit(sale: Sale) {
+    setEditId(sale.id); setEditQty(Math.abs(sale.qty)); setEditPrice(String(sale.unit_price)); setEditError('')
+  }
+  async function saveEdit(sale: Sale) {
+    const price = Number(editPrice)
+    if (editQty < 1) { setEditError('Kamida 1 ta'); return }
+    if (Number.isNaN(price) || price < 0) { setEditError("Narx noto'g'ri"); return }
+    setBusy(sale.id); setEditError('')
+    const supabase = createBrowser()
+    const { error } = await supabase.from('sales').update({ qty: editQty, unit_price: price }).eq('id', sale.id)
+    setBusy(null)
+    if (error) { setEditError(error.message); return }   // e.g. oversell guard
+    setEditId(null)
+    router.replace(router.asPath)
+  }
 
   // A return is stored as a sale with negative qty.
   async function returnSale(sale: Sale) {
@@ -156,43 +178,85 @@ export default function MySales({ sales }: { sales: Sale[] }) {
 
             {/* Individual sales */}
             <div>
-              <p className="font-display font-bold text-ink text-sm mb-2 px-1">Har bir sotuv ({filtered.length})</p>
+              <p className="font-display font-bold text-ink text-sm mb-1 px-1">Har bir sotuv ({filtered.length})</p>
+              <p className="text-xs text-muted mb-2 px-1">Xato yozdingizmi? <b className="text-rose">Tahrirlash</b> — sonini tuzatadi · <b className="text-warning">Qaytarish</b> — mijoz mahsulotni qaytarsa</p>
               {filtered.length === 0 ? (
                 <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">Bu filtr bo'yicha sotuv yo'q</div>
               ) : (
                 <div className="space-y-3">
                   {filtered.map(sale => {
                     const isReturn = sale.qty < 0
+                    const isEditing = editId === sale.id
                     return (
                     <div key={sale.id} className={`rounded-2xl shadow-card p-4 ${isReturn ? 'bg-red-50' : 'bg-surface'}`}>
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
-                            {isReturn && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full flex-shrink-0">Qaytarilgan</span>}
+                      {isEditing ? (
+                        <div className="space-y-3">
+                          <p className="font-display font-semibold text-ink">{sale.product_name}</p>
+                          {/* Quantity stepper (same feel as the add-sale form) */}
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted flex-1">Nechta sotildi?</span>
+                            <button onClick={() => setEditQty(q => Math.max(1, q - 1))}
+                              className="w-9 h-9 rounded-full bg-cream text-ink grid place-items-center active:scale-95 transition"><Minus className="w-4 h-4" /></button>
+                            <span className="font-display font-bold text-xl w-8 text-center">{editQty}</span>
+                            <button onClick={() => setEditQty(q => q + 1)}
+                              className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition shadow-rose"><Plus className="w-4 h-4" /></button>
                           </div>
-                          <p className="text-sm text-muted mt-1">{Math.abs(sale.qty)} × {formatUZS(sale.unit_price)}</p>
-                          <p className={`text-xs font-semibold mt-1 ${isReturn ? 'text-danger' : 'text-rose'}`}>
-                            Foyda: {formatUZS(sale.your_profit)}
-                          </p>
-                          <p className="text-xs text-muted/60 mt-1">{formatDate(sale.sold_at, true)}</p>
+                          {/* Unit price */}
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted flex-1">Dona narxi</span>
+                            <input type="number" min={0} value={editPrice} onChange={e => setEditPrice(e.target.value)}
+                              className="w-36 bg-cream text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                          </div>
+                          <div className="flex justify-between items-center pt-1">
+                            <span className="text-sm text-muted">Jami</span>
+                            <span className="font-display font-bold text-ink">{formatUZS(editQty * (Number(editPrice) || 0))}</span>
+                          </div>
+                          {editError && <p className="text-danger text-xs">{editError}</p>}
+                          <div className="flex gap-2">
+                            <button onClick={() => saveEdit(sale)} disabled={busy === sale.id}
+                              className="flex-1 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
+                              {busy === sale.id ? 'Saqlanmoqda…' : 'Saqlash'}
+                            </button>
+                            <button onClick={() => setEditId(null)} className="px-5 text-muted text-sm">Bekor</button>
+                          </div>
                         </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className={`font-display font-bold text-lg ${isReturn ? 'text-danger' : 'text-success'}`}>{formatUZS(sale.amount)}</p>
-                          <div className="flex items-center justify-end gap-2 mt-2">
-                            {!isReturn && (
-                              <button onClick={() => returnSale(sale)} disabled={busy === sale.id}
-                                className="text-xs font-semibold text-warning hover:text-orange-600 transition disabled:opacity-30 whitespace-nowrap">
-                                ↩ Qaytarish
-                              </button>
-                            )}
+                      ) : (
+                        <>
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
+                                {isReturn && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full flex-shrink-0">Qaytarilgan</span>}
+                              </div>
+                              <p className="text-sm text-muted mt-1">{Math.abs(sale.qty)} × {formatUZS(sale.unit_price)}</p>
+                              <p className={`text-xs font-semibold mt-1 ${isReturn ? 'text-danger' : 'text-rose'}`}>
+                                Foyda: {formatUZS(sale.your_profit)}
+                              </p>
+                              <p className="text-xs text-muted/60 mt-1">{formatDate(sale.sold_at, true)}</p>
+                            </div>
+                            <p className={`font-display font-bold text-lg flex-shrink-0 ${isReturn ? 'text-danger' : 'text-success'}`}>{formatUZS(sale.amount)}</p>
+                          </div>
+                          {/* Action bar */}
+                          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-100">
+                            {!isReturn ? (
+                              <>
+                                <button onClick={() => openEdit(sale)} disabled={busy === sale.id}
+                                  className="flex items-center gap-1.5 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 px-3 py-2 rounded-full transition disabled:opacity-30">
+                                  <Pencil className="w-3.5 h-3.5" /> Tahrirlash
+                                </button>
+                                <button onClick={() => returnSale(sale)} disabled={busy === sale.id}
+                                  className="flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 hover:bg-orange-100 px-3 py-2 rounded-full transition disabled:opacity-30">
+                                  <RotateCcw className="w-3.5 h-3.5" /> Qaytarish
+                                </button>
+                              </>
+                            ) : <span className="text-xs text-muted">Qaytarilgan yozuv</span>}
                             <button onClick={() => deleteSale(sale.id)} disabled={busy === sale.id}
-                              className="text-danger/40 hover:text-danger transition disabled:opacity-30">
+                              className="ml-auto text-danger/40 hover:text-danger transition disabled:opacity-30 p-2">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        </div>
-                      </div>
+                        </>
+                      )}
                     </div>
                     )
                   })}
