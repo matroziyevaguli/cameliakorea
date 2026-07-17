@@ -1,41 +1,52 @@
 import { GetServerSideProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
 import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
+  // Portal to <body> so the menu escapes the sticky/backdrop-blur header, which on
+  // Android clips absolutely-positioned descendants (menu appeared "not showing up").
+  const menuContent = (
+    <div className="fixed inset-0 z-[100]">
+      <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
+      <div className="absolute right-4 top-16 w-60 max-w-[calc(100vw-2rem)] bg-surface rounded-2xl shadow-card p-2 border border-black/5">
+        <Link href="/login?as=admin" onClick={() => setOpen(false)}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
+          <span><span className="block text-sm font-semibold text-ink">Admin sifatida</span><span className="block text-xs text-muted">Boshqaruv paneli</span></span>
+        </Link>
+        <Link href="/login?as=seller" onClick={() => setOpen(false)}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
+          <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
+        </Link>
+        <a href="#mahsulotlar" onClick={() => setOpen(false)}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-lavender to-peach text-white grid place-items-center"><User className="w-4 h-4" /></span>
+          <span><span className="block text-sm font-semibold text-ink">Xaridor sifatida</span><span className="block text-xs text-muted">Katalogni ko'rish</span></span>
+        </a>
+      </div>
+    </div>
+  )
+  const menu = open && mounted
+    ? (createPortal(menuContent as any, document.body) as unknown as ReactNode)  // eslint-disable-line @typescript-eslint/no-explicit-any
+    : null
+
   return (
     <div className="relative">
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 bg-white text-ink text-sm font-semibold px-4 py-2 rounded-full shadow-card active:scale-95 transition">
         <User className="w-4 h-4 text-rose" /> Kirish
       </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-60 bg-surface rounded-2xl shadow-card p-2 z-40 border border-black/5">
-            <Link href="/login?as=admin" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
-              <span><span className="block text-sm font-semibold text-ink">Admin sifatida</span><span className="block text-xs text-muted">Boshqaruv paneli</span></span>
-            </Link>
-            <Link href="/login?as=seller" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
-              <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
-            </Link>
-            <a href="#mahsulotlar" onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-              <span className="w-9 h-9 rounded-full bg-gradient-to-br from-lavender to-peach text-white grid place-items-center"><User className="w-4 h-4" /></span>
-              <span><span className="block text-sm font-semibold text-ink">Xaridor sifatida</span><span className="block text-xs text-muted">Katalogni ko'rish</span></span>
-            </a>
-          </div>
-        </>
-      )}
+      {menu}
     </div>
   )
 }
