@@ -15,8 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { data: prof } = await svc.from('profiles').select('id, role').eq('user_id', user.id).single()
   if (!prof || prof.role !== 'admin') return res.status(403).json({ error: "Faqat admin" })
 
-  const { id, action, admin_note } = req.body as {
-    id?: string; action?: 'approve' | 'reject'; admin_note?: string
+  const { id, action, admin_note, bump_stock } = req.body as {
+    id?: string; action?: 'approve' | 'reject'; admin_note?: string; bump_stock?: boolean
   }
   if (!id || (action !== 'approve' && action !== 'reject')) {
     return res.status(400).json({ error: 'id va action kerak' })
@@ -35,15 +35,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: `${sold} ta sotilgan — bundan kam qilib bo'lmaydi` })
     }
 
-    // Apply the corrected allocation (create or replace). DB trigger enforces stock cap.
+    // Stock-cap: OTHER sellers' allocations + this request must fit the product's stock.
+    const [{ data: product }, { data: allocs }] = await Promise.all([
+      svc.from('products').select('total_qty').eq('id', reqRow.product_id).single(),
+      svc.from('allocations').select('seller_id, qty_allocated').eq('product_id', reqRow.product_id),
+    ])
+    const others = (allocs ?? [])
+      .filter(a => a.seller_id !== reqRow.seller_id)
+      .reduce((n, a) => n + a.qty_allocated, 0)
+    const neededTotal = others + reqRow.requested_qty
+    const stock = product?.total_qty ?? 0
+
+    if (neededTotal > stock) {
+      if (bump_stock) {
+        // Admin chose to raise stock to fit — the original total_qty was under-counted too.
+        const { error: bumpErr } = await svc.from('products').update({ total_qty: neededTotal }).eq('id', reqRow.product_id)
+        if (bumpErr) return res.status(400).json({ error: bumpErr.message })
+      } else {
+        return res.status(409).json({
+          error: `Tasdiqlansa jami taqsimot ${neededTotal} ta bo'ladi, lekin omborda ${stock} ta bor.`,
+          need_stock: { needed: neededTotal, current: stock },
+        })
+      }
+    }
+
+    // Apply the corrected allocation (create or replace).
     const { error: upErr } = await svc.from('allocations').upsert(
       { seller_id: reqRow.seller_id, product_id: reqRow.product_id, qty_allocated: reqRow.requested_qty },
       { onConflict: 'seller_id,product_id', ignoreDuplicates: false },
     )
-    if (upErr) {
-      // e.g. trg_alloc_within_stock — total across sellers would exceed stock.
-      return res.status(400).json({ error: upErr.message })
-    }
+    if (upErr) return res.status(400).json({ error: upErr.message })
   }
 
   const { error } = await svc.from('allocation_requests').update({

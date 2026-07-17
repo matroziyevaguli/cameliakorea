@@ -370,8 +370,8 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                     {/* Correction request — "the amount you gave me is wrong" */}
                     <div className="mb-3">
                       {pendingByProduct.has(p.product_id) ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
-                          <ClipboardList className="w-3.5 h-3.5" /> Tuzatish so'rovi yuborildi (kutilmoqda)
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 px-3 py-2 rounded-full">
+                          <ClipboardList className="w-3.5 h-3.5" /> Tuzatish so'rovi yuborildi
                         </span>
                       ) : correctOpen === p.product_id ? (
                         <div className="bg-cream rounded-xl p-3 space-y-2">
@@ -393,7 +393,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                         </div>
                       ) : (
                         <button onClick={() => openCorrect(p)}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-rose transition">
+                          className="inline-flex items-center gap-2 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 border border-rose/20 px-3.5 py-2 rounded-full active:scale-95 transition">
                           <Pencil className="w-3.5 h-3.5" /> Son noto'g'rimi? Tuzatish so'rash
                         </button>
                       )}

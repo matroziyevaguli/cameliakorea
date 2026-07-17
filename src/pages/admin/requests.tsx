@@ -35,19 +35,25 @@ export default function Requests({ requests }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notes, setNotes] = useState<Record<string, string>>({})
+  // Per-request "would exceed stock" prompt → offer to raise stock and approve.
+  const [needStock, setNeedStock] = useState<Record<string, { needed: number; current: number }>>({})
 
   const pending = requests.filter(r => r.status === 'pending')
   const resolved = requests.filter(r => r.status !== 'pending')
 
-  async function resolve(id: string, action: 'approve' | 'reject') {
+  async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
     setBusy(id + action); setError('')
     const res = await fetch('/api/resolve-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action, admin_note: notes[id] || '' }),
+      body: JSON.stringify({ id, action, admin_note: notes[id] || '', bump_stock: bumpStock }),
     })
     const json = await res.json().catch(() => ({}))
     setBusy(null)
-    if (!res.ok) { setError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) {
+      if (json.need_stock) { setNeedStock(n => ({ ...n, [id]: json.need_stock })); return }
+      setError(json.error ?? 'Xatolik'); return
+    }
+    setNeedStock(n => { const { [id]: _, ...rest } = n; return rest })
     router.replace(router.asPath)
   }
 
@@ -104,6 +110,21 @@ export default function Requests({ requests }: Props) {
                     <p className="text-xs font-semibold text-danger mb-2">
                       {r.qty_sold} ta sotilgan — bundan kam qilib bo'lmaydi.
                     </p>
+                  )}
+
+                  {needStock[r.id] && (
+                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-3">
+                      <p className="text-xs text-ink mb-2">
+                        Omborda faqat <strong>{needStock[r.id].current}</strong> ta bor, lekin tasdiqlansa jami
+                        taqsimot <strong>{needStock[r.id].needed}</strong> ta bo'ladi. Ombor sonini oshiramizmi?
+                      </p>
+                      <button
+                        onClick={() => resolve(r.id, 'approve', true)}
+                        disabled={busy !== null}
+                        className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
+                        <Check className="w-4 h-4" /> Ombor sonini {needStock[r.id].needed} ta qilib tasdiqlash
+                      </button>
+                    </div>
                   )}
 
                   <input
