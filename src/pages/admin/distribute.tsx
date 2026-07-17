@@ -61,8 +61,11 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
     setLoading(true); setError('')
     const supabase = createBrowser()
 
-    const toUpsert: { seller_id: string; product_id: string; qty_allocated: number }[] = []
-    const toDelete: string[] = []
+    // Build per-seller ops. Use explicit update/insert (NOT upsert): an upsert fires the
+    // BEFORE-INSERT stock trigger with a phantom new id that double-counts the seller's own
+    // current allocation, wrongly blocking valid edits.
+    type Op = { kind: 'update' | 'insert' | 'delete'; seller_id: string; qty: number; delta: number }
+    const ops: Op[] = []
 
     for (const s of sellers) {
       const current = cellFor(s.id).allocated
@@ -72,25 +75,29 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
 
       if (next === current) continue                 // no change
       if (next === 0) {
-        if (sold > 0) continue                        // guarded elsewhere; never delete sold-from rows
-        toDelete.push(s.id)                           // remove empty allocation
+        if (sold > 0) continue                        // never delete sold-from rows
+        ops.push({ kind: 'delete', seller_id: s.id, qty: 0, delta: -current })
+      } else if (current === 0) {
+        ops.push({ kind: 'insert', seller_id: s.id, qty: next, delta: next })
       } else {
-        toUpsert.push({ seller_id: s.id, product_id: productId, qty_allocated: next })
+        ops.push({ kind: 'update', seller_id: s.id, qty: next, delta: next - current })
       }
     }
 
-    if (!toUpsert.length && !toDelete.length) {
+    if (!ops.length) {
       setError("Hech qanday o'zgarish yo'q"); setLoading(false); return
     }
 
-    if (toUpsert.length) {
-      const { error: err } = await supabase.from('allocations')
-        .upsert(toUpsert, { onConflict: 'seller_id,product_id', ignoreDuplicates: false })
-      if (err) { setError(err.message); setLoading(false); return }
-    }
-    for (const sid of toDelete) {
-      const { error: err } = await supabase.from('allocations')
-        .delete().eq('seller_id', sid).eq('product_id', productId)
+    // Apply reductions before increases so a mix can't transiently exceed stock.
+    ops.sort((a, b) => a.delta - b.delta)
+    for (const op of ops) {
+      const q = supabase.from('allocations')
+      const err =
+        op.kind === 'delete'
+          ? (await q.delete().eq('seller_id', op.seller_id).eq('product_id', productId)).error
+          : op.kind === 'update'
+          ? (await q.update({ qty_allocated: op.qty }).eq('seller_id', op.seller_id).eq('product_id', productId)).error
+          : (await q.insert({ seller_id: op.seller_id, product_id: productId, qty_allocated: op.qty })).error
       if (err) { setError(err.message); setLoading(false); return }
     }
 

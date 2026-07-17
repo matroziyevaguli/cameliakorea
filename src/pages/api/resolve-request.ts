@@ -59,12 +59,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // Apply the corrected allocation (create or replace).
-    const { error: upErr } = await svc.from('allocations').upsert(
-      { seller_id: reqRow.seller_id, product_id: reqRow.product_id, qty_allocated: reqRow.requested_qty },
-      { onConflict: 'seller_id,product_id', ignoreDuplicates: false },
-    )
-    if (upErr) return res.status(400).json({ error: upErr.message })
+    // Apply the corrected allocation. Use explicit UPDATE when the row exists (not upsert):
+    // an upsert fires the BEFORE-INSERT stock trigger with a phantom new id, which double-counts
+    // the seller's own current allocation and wrongly blocks a valid change.
+    const existing = (allocs ?? []).find(a => a.seller_id === reqRow.seller_id)
+    const applyErr = existing
+      ? (await svc.from('allocations').update({ qty_allocated: reqRow.requested_qty })
+          .eq('seller_id', reqRow.seller_id).eq('product_id', reqRow.product_id)).error
+      : (await svc.from('allocations').insert({
+          seller_id: reqRow.seller_id, product_id: reqRow.product_id, qty_allocated: reqRow.requested_qty,
+        })).error
+    if (applyErr) return res.status(400).json({ error: applyErr.message })
   }
 
   const { error } = await svc.from('allocation_requests').update({
