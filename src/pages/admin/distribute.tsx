@@ -49,6 +49,15 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
   const unallocated = selected ? selected.total_qty - totalAssigning : 0
   const overLimit = selected ? totalAssigning > selected.total_qty : false
 
+  // Products with unallocated units left — recomputed from cells so it updates after saving.
+  const undistributedList = useMemo(() =>
+    products.map(p => {
+      const allocated = sellers.reduce((n, s) => n + (cells[`${p.id}|${s.id}`]?.allocated ?? 0), 0)
+      return { id: p.id, name: p.name, total: p.total_qty, allocated, left: p.total_qty - allocated }
+    }).filter(p => p.left > 0)
+  , [products, sellers, cells])
+  const totalLeft = undistributedList.reduce((n, p) => n + p.left, 0)
+
   // Per-seller validation: cannot set below what they've already sold.
   const belowSold = useMemo(() => sellers.filter(s => {
     const raw = qtys[s.id]
@@ -209,6 +218,47 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                 {loading ? 'Saqlanmoqda…' : 'Saqlash'}
               </button>
             </>
+          )}
+        </div>
+
+        {/* Undistributed products summary */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-bold text-ink text-lg">Taqsimlanmagan mahsulotlar</h3>
+            {undistributedList.length > 0 && (
+              <span className="text-xs font-semibold text-rose bg-rose/10 px-3 py-1.5 rounded-full">
+                {undistributedList.length} ta mahsulot · {totalLeft} ta qoldi
+              </span>
+            )}
+          </div>
+
+          {undistributedList.length === 0 ? (
+            <div className="bg-surface rounded-2xl shadow-card p-6 text-center text-success text-sm font-semibold">
+              Hammasi taqsimlangan ✅
+            </div>
+          ) : (
+            <div className="bg-surface rounded-2xl shadow-card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left px-5 py-3 font-semibold text-muted">Mahsulot</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">Jami</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">Taqsimlangan</th>
+                    <th className="text-right px-5 py-3 font-semibold text-muted">Qoldi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {undistributedList.map((p, i) => (
+                    <tr key={p.id} className={`${i % 2 === 1 ? 'bg-cream/50' : ''} hover:bg-rose/5 transition`}>
+                      <td className="px-5 py-3 font-medium text-ink">{p.name}</td>
+                      <td className="px-4 py-3 text-right text-muted">{p.total}</td>
+                      <td className="px-4 py-3 text-right text-muted">{p.allocated}</td>
+                      <td className="px-5 py-3 text-right font-display font-bold text-rose">{p.left}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </main>
