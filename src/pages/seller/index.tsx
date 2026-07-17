@@ -1,13 +1,13 @@
 import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
-import { formatUZS } from '@/lib/format'
+import { formatUZS, formatDate } from '@/lib/format'
 import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus } from 'lucide-react'
+import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2 } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
@@ -137,26 +137,64 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     setNewOpen(false)
     router.replace(router.asPath)
   }
-  const [correctOpen, setCorrectOpen] = useState<string | null>(null)
-  const [correctQty, setCorrectQty] = useState('')
-  const [correctReason, setCorrectReason] = useState('')
-  const [correctBusy, setCorrectBusy] = useState(false)
-  const [correctError, setCorrectError] = useState('')
+  // "Tuzatish" modal — fix Berilgan (received → admin request) + Sotilgan (own sales, direct)
+  const [fixProduct, setFixProduct] = useState<Product | null>(null)
+  // received correction (needs admin approval)
+  const [recvQty, setRecvQty] = useState('')
+  const [recvReason, setRecvReason] = useState('')
+  const [recvBusy, setRecvBusy] = useState(false)
+  const [recvError, setRecvError] = useState('')
+  const [recvDone, setRecvDone] = useState(false)
+  // sold: this product's sale rows (seller edits her own directly)
+  const [fixSales, setFixSales] = useState<{ id: string; qty: number; unit_price: number; sold_at: string }[]>([])
+  const [fixSalesLoading, setFixSalesLoading] = useState(false)
+  const [saleEditId, setSaleEditId] = useState<string | null>(null)
+  const [saleEditQty, setSaleEditQty] = useState(1)
+  const [saleBusy, setSaleBusy] = useState<string | null>(null)
+  const [saleError, setSaleError] = useState('')
 
-  function openCorrect(p: Product) {
-    setCorrectOpen(p.product_id); setCorrectQty(String(p.had)); setCorrectReason(''); setCorrectError('')
+  async function loadFixSales(productId: string) {
+    setFixSalesLoading(true)
+    const supabase = createBrowser()
+    const { data } = await supabase.from('sales').select('id, qty, unit_price, sold_at')
+      .eq('product_id', productId).order('sold_at', { ascending: false })
+    setFixSales(data ?? []); setFixSalesLoading(false)
   }
-  async function submitCorrect(productId: string) {
-    if (correctQty === '' || Number(correctQty) < 0) { setCorrectError("To'g'ri son kiriting"); return }
-    setCorrectBusy(true); setCorrectError('')
+  function openFix(p: Product) {
+    setFixProduct(p); setRecvQty(String(p.had)); setRecvReason(''); setRecvError(''); setRecvDone(false)
+    setSaleEditId(null); setSaleError(''); setFixSales([]); loadFixSales(p.product_id)
+  }
+  async function submitReceived() {
+    if (!fixProduct) return
+    if (recvQty === '' || Number(recvQty) < 0) { setRecvError("To'g'ri son kiriting"); return }
+    setRecvBusy(true); setRecvError('')
     const res = await fetch('/api/allocation-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ product_id: productId, requested_qty: Number(correctQty), reason: correctReason }),
+      body: JSON.stringify({ product_id: fixProduct.product_id, requested_qty: Number(recvQty), reason: recvReason }),
     })
     const json = await res.json().catch(() => ({}))
-    setCorrectBusy(false)
-    if (!res.ok) { setCorrectError(json.error ?? 'Xatolik'); return }
-    setCorrectOpen(null)
+    setRecvBusy(false)
+    if (!res.ok) { setRecvError(json.error ?? 'Xatolik'); return }
+    setRecvDone(true)
+    router.replace(router.asPath)
+  }
+  async function saveSaleQty(saleId: string) {
+    if (saleEditQty < 1) { setSaleError('Kamida 1 ta'); return }
+    setSaleBusy(saleId); setSaleError('')
+    const supabase = createBrowser()
+    const { error } = await supabase.from('sales').update({ qty: saleEditQty }).eq('id', saleId)
+    setSaleBusy(null)
+    if (error) { setSaleError(error.message); return }   // e.g. oversell guard
+    setSaleEditId(null)
+    if (fixProduct) await loadFixSales(fixProduct.product_id)
+    router.replace(router.asPath)
+  }
+  async function deleteSaleRow(saleId: string) {
+    setSaleBusy(saleId)
+    const supabase = createBrowser()
+    await supabase.from('sales').delete().eq('id', saleId)
+    setSaleBusy(null)
+    if (fixProduct) await loadFixSales(fixProduct.product_id)
     router.replace(router.asPath)
   }
 
@@ -362,35 +400,16 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                       <span>Sotilgan: <strong className="text-success">{p.sold}</strong></span>
                     </div>
 
-                    {/* Correction request — "the amount you gave me is wrong" */}
-                    <div className="mb-3">
-                      {pendingByProduct.has(p.product_id) ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 px-3 py-2 rounded-full">
-                          <ClipboardList className="w-3.5 h-3.5" /> Tuzatish so'rovi yuborildi
+                    {/* Fix received / sold — opens a modal */}
+                    <div className="mb-3 flex items-center gap-2 flex-wrap">
+                      <button onClick={() => openFix(p)}
+                        className="inline-flex items-center gap-2 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 border border-rose/20 px-3.5 py-2 rounded-full active:scale-95 transition">
+                        <Pencil className="w-3.5 h-3.5" /> Son noto'g'rimi? Tuzatish
+                      </button>
+                      {pendingByProduct.has(p.product_id) && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+                          <ClipboardList className="w-3.5 h-3.5" /> so'rov kutilmoqda
                         </span>
-                      ) : correctOpen === p.product_id ? (
-                        <div className="bg-cream rounded-xl p-3 space-y-2">
-                          <p className="text-xs font-semibold text-ink">Aslida nechta oldingiz?</p>
-                          <div className="flex items-center gap-2">
-                            <input type="number" min={0} value={correctQty} onChange={e => setCorrectQty(e.target.value)}
-                              className="w-20 bg-surface text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                            <input value={correctReason} onChange={e => setCorrectReason(e.target.value)} placeholder="Sabab (ixtiyoriy)…"
-                              className="flex-1 bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                          </div>
-                          {correctError && <p className="text-danger text-xs">{correctError}</p>}
-                          <div className="flex gap-2">
-                            <button disabled={correctBusy} onClick={() => submitCorrect(p.product_id)}
-                              className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
-                              {correctBusy ? 'Yuborilmoqda…' : "So'rov yuborish"}
-                            </button>
-                            <button onClick={() => setCorrectOpen(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button onClick={() => openCorrect(p)}
-                          className="inline-flex items-center gap-2 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 border border-rose/20 px-3.5 py-2 rounded-full active:scale-95 transition">
-                          <Pencil className="w-3.5 h-3.5" /> Son noto'g'rimi? Tuzatish so'rash
-                        </button>
                       )}
                     </div>
 
@@ -499,6 +518,106 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                 {posting ? 'Yuborilmoqda…' : "Telegram kanalga jo'natish"}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tuzatish (fix received + sold) modal ── */}
+      {fixProduct && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center sm:items-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setFixProduct(null)} />
+          <div className="relative bg-surface rounded-t-3xl sm:rounded-3xl p-5 pb-8 w-full sm:max-w-md max-h-[88vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-display font-bold text-ink text-base">Tuzatish</p>
+              <button onClick={() => setFixProduct(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-muted mb-4 truncate">{fixProduct.name}</p>
+
+            {/* Current summary */}
+            <div className="grid grid-cols-2 gap-2 mb-5">
+              <div className="bg-cream rounded-xl p-3 text-center">
+                <p className="text-xs text-muted mb-0.5">Berilgan</p>
+                <p className="font-display font-bold text-lg text-ink">{fixProduct.had}</p>
+              </div>
+              <div className="bg-cream rounded-xl p-3 text-center">
+                <p className="text-xs text-muted mb-0.5">Sotilgan</p>
+                <p className="font-display font-bold text-lg text-success">{fixProduct.sold}</p>
+              </div>
+            </div>
+
+            {/* Section 1 — Received (needs admin approval) */}
+            <div className="mb-5">
+              <p className="text-sm font-semibold text-ink mb-1">1. Sizga berilgan soni</p>
+              <p className="text-xs text-muted mb-2">Aslida nechta olganingizni yozing. Buni <b>admin tasdiqlaydi</b>.</p>
+              {pendingByProduct.has(fixProduct.product_id) ? (
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 px-3 py-2.5 rounded-xl">
+                  <ClipboardList className="w-4 h-4" /> So'rov yuborilgan — admin javobini kuting
+                </div>
+              ) : recvDone ? (
+                <div className="text-center py-2.5 rounded-xl bg-green-50 text-success font-semibold text-sm">✅ So'rov yuborildi</div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input type="number" min={0} value={recvQty} onChange={e => setRecvQty(e.target.value)}
+                      className="w-20 bg-cream text-ink text-right rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                    <input value={recvReason} onChange={e => setRecvReason(e.target.value)} placeholder="Sabab (ixtiyoriy)…"
+                      className="flex-1 bg-cream text-ink rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                  </div>
+                  {recvError && <p className="text-danger text-xs">{recvError}</p>}
+                  <button disabled={recvBusy} onClick={submitReceived}
+                    className="w-full bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold py-2.5 rounded-full disabled:opacity-50 active:scale-95 transition">
+                    {recvBusy ? 'Yuborilmoqda…' : "Admin'ga so'rov yuborish"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Section 2 — Sold (direct edit of her sales) */}
+            <div>
+              <p className="text-sm font-semibold text-ink mb-1">2. Sotilgan sonini tuzatish</p>
+              <p className="text-xs text-muted mb-2">Xato sotuvni to'g'rilang yoki o'chiring.</p>
+              {fixSalesLoading ? (
+                <p className="text-xs text-muted py-2">Yuklanmoqda…</p>
+              ) : fixSales.length === 0 ? (
+                <p className="text-xs text-muted bg-cream rounded-xl px-3 py-3">Hali sotuv yo'q.</p>
+              ) : (
+                <div className="space-y-2">
+                  {fixSales.map(s => (
+                    <div key={s.id} className="bg-cream rounded-xl p-3">
+                      {saleEditId === s.id ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-muted flex-1">{formatDate(s.sold_at)}</span>
+                            <button onClick={() => setSaleEditQty(q => Math.max(1, q - 1))}
+                              className="w-8 h-8 rounded-full bg-surface grid place-items-center active:scale-95 transition"><Minus className="w-4 h-4" /></button>
+                            <span className="font-display font-bold w-6 text-center">{saleEditQty}</span>
+                            <button onClick={() => setSaleEditQty(q => q + 1)}
+                              className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition"><Plus className="w-4 h-4" /></button>
+                          </div>
+                          {saleError && <p className="text-danger text-xs">{saleError}</p>}
+                          <div className="flex gap-2">
+                            <button disabled={saleBusy === s.id} onClick={() => saveSaleQty(s.id)}
+                              className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{saleBusy === s.id ? '…' : 'Saqlash'}</button>
+                            <button onClick={() => setSaleEditId(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-ink">{Math.abs(s.qty)} × {formatUZS(s.unit_price)}</p>
+                            <p className="text-xs text-muted/70">{formatDate(s.sold_at)}</p>
+                          </div>
+                          <button onClick={() => { setSaleEditId(s.id); setSaleEditQty(Math.abs(s.qty)); setSaleError('') }}
+                            className="text-xs font-semibold text-rose bg-rose/10 px-3 py-1.5 rounded-full">Tahrirlash</button>
+                          <button onClick={() => deleteSaleRow(s.id)} disabled={saleBusy === s.id}
+                            className="text-danger/40 hover:text-danger p-1.5 disabled:opacity-30"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
