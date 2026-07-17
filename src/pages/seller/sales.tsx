@@ -5,7 +5,7 @@ import { formatUZS, formatDate } from '@/lib/format'
 import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus } from 'lucide-react'
+import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, X } from 'lucide-react'
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
 
@@ -26,19 +26,30 @@ type Sale = {
   sold_at: string
 }
 
-export default function MySales({ sales }: { sales: Sale[] }) {
+export default function MySales({ sales, pricePending }: { sales: Sale[]; pricePending: string[] }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [month, setMonth] = useState('all')
   const [search, setSearch] = useState('')
 
-  // Inline edit — only the quantity (son) can be changed; price stays as recorded.
+  const pricePendingSet = new Set(pricePending)
+
+  // Inline edit — quantity (son) is changed directly; price goes through an admin request.
   const [editId, setEditId] = useState<string | null>(null)
   const [editQty, setEditQty] = useState(1)
   const [editError, setEditError] = useState('')
 
+  // Price-change request (needs admin approval, unlike qty)
+  const [priceOpen, setPriceOpen] = useState(false)
+  const [priceValue, setPriceValue] = useState('')
+  const [priceReason, setPriceReason] = useState('')
+  const [priceBusy, setPriceBusy] = useState(false)
+  const [priceErr, setPriceErr] = useState('')
+  const [priceDone, setPriceDone] = useState(false)
+
   function openEdit(sale: Sale) {
     setEditId(sale.id); setEditQty(Math.abs(sale.qty)); setEditError('')
+    setPriceOpen(false); setPriceValue(String(sale.unit_price)); setPriceReason(''); setPriceErr(''); setPriceDone(false)
   }
   async function saveEdit(sale: Sale) {
     if (editQty < 1) { setEditError('Kamida 1 ta'); return }
@@ -48,6 +59,20 @@ export default function MySales({ sales }: { sales: Sale[] }) {
     setBusy(null)
     if (error) { setEditError(error.message); return }   // e.g. oversell guard
     setEditId(null)
+    router.replace(router.asPath)
+  }
+  async function submitPriceRequest(sale: Sale) {
+    const price = Number(priceValue)
+    if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr("Narx noto'g'ri"); return }
+    setPriceBusy(true); setPriceErr('')
+    const res = await fetch('/api/sale-price-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sale_id: sale.id, requested_price: price, reason: priceReason }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setPriceBusy(false)
+    if (!res.ok) { setPriceErr(json.error ?? 'Xatolik'); return }
+    setPriceDone(true)
     router.replace(router.asPath)
   }
 
@@ -194,6 +219,38 @@ export default function MySales({ sales }: { sales: Sale[] }) {
                             </button>
                             <button onClick={() => setEditId(null)} className="px-5 text-muted text-sm">Bekor</button>
                           </div>
+
+                          {/* Price correction — goes through admin approval */}
+                          <div className="pt-3 border-t border-black/5">
+                            {pricePendingSet.has(sale.id) ? (
+                              <p className="text-xs font-semibold text-warning">💵 Narx so'rovi yuborildi — admin javobini kuting</p>
+                            ) : priceOpen ? (
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-ink">To'g'ri dona narxini yozing (admin tasdiqlaydi):</p>
+                                <div className="flex items-center gap-2">
+                                  <input type="number" min={0} value={priceValue} onChange={e => setPriceValue(e.target.value)}
+                                    className="w-28 bg-cream text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                                  <input value={priceReason} onChange={e => setPriceReason(e.target.value)} placeholder="Sabab (ixtiyoriy)…"
+                                    className="flex-1 bg-cream text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                                </div>
+                                {priceErr && <p className="text-danger text-xs">{priceErr}</p>}
+                                {priceDone ? (
+                                  <p className="text-success text-xs font-semibold">✅ Narx so'rovi yuborildi</p>
+                                ) : (
+                                  <div className="flex gap-2">
+                                    <button disabled={priceBusy} onClick={() => submitPriceRequest(sale)}
+                                      className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
+                                      {priceBusy ? 'Yuborilmoqda…' : "Narx so'rovini yuborish"}
+                                    </button>
+                                    <button onClick={() => setPriceOpen(false)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <button onClick={() => setPriceOpen(true)}
+                                className="text-xs font-semibold text-rose">💵 Narx noto'g'rimi? Narxni tuzatishni so'rash</button>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <>
@@ -247,11 +304,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const supabase = createClient(ctx)
   // v_my_sales exposes `amount` (revenue) + `your_profit`; there is no `revenue`/`note` column.
-  const { data: sales } = await supabase
-    .from('v_my_sales')
-    .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
-    .order('sold_at', { ascending: false })
-    .limit(300)
+  const [{ data: sales }, { data: priceReqs }] = await Promise.all([
+    supabase.from('v_my_sales')
+      .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
+      .order('sold_at', { ascending: false }).limit(300),
+    supabase.from('v_my_price_requests').select('sale_id, status'),
+  ])
 
-  return { props: { sales: sales ?? [] } }
+  const pricePending = (priceReqs ?? []).filter(r => r.status === 'pending').map(r => r.sale_id)
+
+  return { props: { sales: sales ?? [], pricePending } }
 }

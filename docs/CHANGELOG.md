@@ -6,6 +6,21 @@ All notable changes to the Camelia admin + seller app are tracked here.
 
 ## [2026-07-17] (latest)
 
+### Added — Sale price-change requests (approval-gated) + Gulshan 50%
+- Sellers edit a sale's **quantity** directly, but a **price** fix now goes through an admin
+  **request → approve** (price changes money/profit). New `sale_price_requests` table + RLS +
+  `v_my_price_requests` / `v_sale_price_requests`. Run `docs/sale-price-request-setup.md`.
+- Seller: in Tarix → Tahrirlash, a "Narx noto'g'rimi?" request (price + reason); status shows
+  in So'rovlarim. Admin: `/admin/requests` gets a "Narx so'rovlari" section; nav badge counts
+  both request types; Telegram DM on each. Approve writes `sales.unit_price` (money recomputes).
+- Gulshan commission → **0.50** (50/50), applies to all her sales. Plan: `docs/sale-price-request-plan.md`.
+
+### Added — Installable PWA
+- `manifest.webmanifest` (Camelia Korea Seller, start_url `/login?as=seller`, standalone) +
+  rose→peach "C" icons (192/512/maskable, generated via `yarn gen-icons`) + minimal no-cache
+  service worker registered in `_app`. Sellers can add it to the Android home screen; session
+  persists (supabase cookies, 400-day maxAge).
+
 ### Added — Product batches (partiyalar) + FEFO
 - New `product_batches` table: track each shipment separately with its own expiry + optional
   lot label, so you can tell old stock from new. Independent layer — `total_qty` unchanged.

@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/guards'
 import { useState } from 'react'
 import { useRouter } from 'next/router'
 import AdminNav from '@/components/AdminNav'
-import { formatDate } from '@/lib/format'
+import { formatDate, formatUZS } from '@/lib/format'
 import { Inbox, Check, X, ArrowRight, CheckCircle } from 'lucide-react'
 
 type Req = {
@@ -22,7 +22,20 @@ type Req = {
   qty_allocated_now: number
   qty_sold: number
 }
-type Props = { requests: Req[] }
+type PriceReq = {
+  id: string
+  seller_name: string
+  product_name: string
+  qty: number
+  current_price: number
+  requested_price: number
+  reason: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  admin_note: string | null
+  created_at: string
+  resolved_at: string | null
+}
+type Props = { requests: Req[]; priceRequests: PriceReq[] }
 
 const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
@@ -30,7 +43,7 @@ const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function Requests({ requests }: Props) {
+export default function Requests({ requests, priceRequests }: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -40,6 +53,9 @@ export default function Requests({ requests }: Props) {
 
   const pending = requests.filter(r => r.status === 'pending')
   const resolved = requests.filter(r => r.status !== 'pending')
+  const pricePending = priceRequests.filter(r => r.status === 'pending')
+  const priceResolved = priceRequests.filter(r => r.status !== 'pending')
+  const nothing = requests.length === 0 && priceRequests.length === 0
 
   async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
     setBusy(id + action); setError('')
@@ -57,6 +73,18 @@ export default function Requests({ requests }: Props) {
     router.replace(router.asPath)
   }
 
+  async function resolvePrice(id: string, action: 'approve' | 'reject') {
+    setBusy(id + action); setError('')
+    const res = await fetch('/api/resolve-price-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action, admin_note: notes[id] || '' }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setBusy(null)
+    if (!res.ok) { setError(json.error ?? 'Xatolik'); return }
+    router.replace(router.asPath)
+  }
+
   return (
     <div className="min-h-screen bg-cream">
       <AdminNav />
@@ -68,11 +96,15 @@ export default function Requests({ requests }: Props) {
 
         {error && <p className="text-danger text-sm mb-4">{error}</p>}
 
-        {requests.length === 0 && (
+        {nothing && (
           <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
             <Inbox className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">Hozircha so'rov yo'q</p>
           </div>
+        )}
+
+        {(pending.length > 0 || resolved.length > 0) && (
+          <h3 className="font-display font-bold text-ink text-sm mb-3 px-1">Taqsimot so'rovlari</h3>
         )}
 
         {/* Pending */}
@@ -179,6 +211,81 @@ export default function Requests({ requests }: Props) {
             </div>
           </div>
         )}
+
+        {/* ── Price change requests ── */}
+        {priceRequests.length > 0 && (
+          <h3 className="font-display font-bold text-ink text-sm mb-3 mt-8 px-1">Narx so'rovlari</h3>
+        )}
+
+        {pricePending.length > 0 && (
+          <div className="space-y-3 mb-8">
+            {pricePending.map(r => (
+              <div key={r.id} className="bg-surface rounded-2xl shadow-card p-4">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-ink text-sm">{r.seller_name}</p>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-peach/25 text-ink">Narx</span>
+                    </div>
+                    <p className="text-xs text-muted">{r.product_name} · {r.qty} ta</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_BADGE[r.status].cls}`}>
+                    {STATUS_BADGE[r.status].label}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 bg-cream rounded-xl px-4 py-3 mb-3">
+                  <span className="font-display font-bold text-base text-muted line-through">{formatUZS(r.current_price)}</span>
+                  <ArrowRight className="w-4 h-4 text-muted" />
+                  <span className="font-display font-bold text-base text-rose">{formatUZS(r.requested_price)}</span>
+                </div>
+
+                {r.reason && <p className="text-sm text-ink bg-lavender/10 rounded-xl px-3 py-2 mb-3">"{r.reason}"</p>}
+
+                <input
+                  value={notes[r.id] ?? ''}
+                  onChange={e => setNotes(n => ({ ...n, [r.id]: e.target.value }))}
+                  placeholder="Izoh (ixtiyoriy)…"
+                  className="w-full bg-cream text-ink rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent"
+                />
+
+                <div className="flex gap-2">
+                  <button onClick={() => resolvePrice(r.id, 'approve')} disabled={busy !== null}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
+                    <Check className="w-4 h-4" /> {busy === r.id + 'approve' ? '…' : 'Tasdiqlash'}
+                  </button>
+                  <button onClick={() => resolvePrice(r.id, 'reject')} disabled={busy !== null}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 text-danger font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">
+                    <X className="w-4 h-4" /> {busy === r.id + 'reject' ? '…' : 'Rad etish'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {priceResolved.length > 0 && (
+          <div>
+            <h3 className="font-display font-bold text-muted text-sm mb-3 px-1">Ko'rib chiqilgan (narx)</h3>
+            <div className="space-y-2">
+              {priceResolved.map(r => (
+                <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                  <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name}</p>
+                    <p className="text-xs text-muted">
+                      {formatUZS(r.current_price)} → {formatUZS(r.requested_price)} · {r.resolved_at ? formatDate(r.resolved_at) : ''}
+                      {r.admin_note ? ` · ${r.admin_note}` : ''}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
+                    {STATUS_BADGE[r.status].label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
@@ -189,7 +296,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (guard) return guard
   const supabase = createClient(ctx)
 
-  const { data } = await supabase.from('v_allocation_requests').select('*')
+  const [{ data }, { data: priceData }] = await Promise.all([
+    supabase.from('v_allocation_requests').select('*'),
+    supabase.from('v_sale_price_requests').select('*'),
+  ])
 
-  return { props: { requests: data ?? [] } }
+  return { props: { requests: data ?? [], priceRequests: priceData ?? [] } }
 }

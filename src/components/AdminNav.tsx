@@ -20,11 +20,13 @@ export default function AdminNav() {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(0)
 
-  // Live count of pending correction requests → red badge on the So'rovlar tab.
+  // Live count of pending requests (allocation + price) → red badge on the So'rovlar tab.
   useEffect(() => {
     const supabase = createClient()
-    supabase.from('allocation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
-      .then(({ count }) => setPending(count ?? 0))
+    Promise.all([
+      supabase.from('allocation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('sale_price_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    ]).then(([a, b]) => setPending((a.count ?? 0) + (b.count ?? 0))).catch(() => {})
   }, [router.pathname])
 
   async function signOut() {
