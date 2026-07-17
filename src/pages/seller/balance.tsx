@@ -21,9 +21,9 @@ type Summary = {
 type Payment = { id: string; amount: number; note: string | null; paid_at: string }
 type Monthly = { month: string; units_sold: number; revenue: number; your_profit: number }
 
-type Props = { summary: Summary | null; payments: Payment[]; monthly: Monthly[] }
+type Props = { summary: Summary | null; payments: Payment[]; monthly: Monthly[]; commissionPct: number }
 
-export default function MyBalance({ summary, payments, monthly }: Props) {
+export default function MyBalance({ summary, payments, monthly, commissionPct }: Props) {
   const [showBreakdown, setShowBreakdown] = useState(false)
 
   if (!summary) return (
@@ -51,7 +51,7 @@ export default function MyBalance({ summary, payments, monthly }: Props) {
             <p className="font-medium opacity-90">{S.myEarnings}</p>
           </div>
           <p className="font-display text-4xl font-bold">{formatUZS(summary.your_total_profit)}</p>
-          <p className="text-white/80 text-xs mt-2">{S.earningsHint}</p>
+          <p className="text-white/80 text-xs mt-2">{S.earningsHint(commissionPct)}</p>
         </div>
 
         {/* Hand-over block */}
@@ -90,7 +90,7 @@ export default function MyBalance({ summary, payments, monthly }: Props) {
 
             {/* Her profit — kept */}
             <div className="flex items-center justify-between py-3 pl-4 border-l-2 border-success/40 ml-1 mt-2">
-              <span className="text-sm text-ink flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-success" /> {S.yoursKept}</span>
+              <span className="text-sm text-ink flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-success" /> {S.yoursKept(commissionPct)}</span>
               <span className="font-display font-bold text-success">{formatUZS(summary.your_total_profit)}</span>
             </div>
 
@@ -109,7 +109,7 @@ export default function MyBalance({ summary, payments, monthly }: Props) {
             </div>
 
             <p className="text-xs text-muted leading-relaxed mt-4 bg-cream rounded-xl px-4 py-3">
-              {S.breakdownNote}
+              {S.breakdownNote(commissionPct)}
             </p>
           </div>
         )}
@@ -188,7 +188,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const { data: { session } } = await supabase.auth.getSession()
 
   const { data: profile } = await supabase
-    .from('profiles').select('id').eq('user_id', session!.user.id).single()
+    .from('profiles').select('id, commission_rate').eq('user_id', session!.user.id).single()
 
   // v_my_summary is a definer view → correct numbers even with the products-RLS cascade.
   // (v_seller_balances returns balance=0 for sellers — do NOT use it here.)
@@ -203,6 +203,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       summary: summaryRes.data ?? null,
       payments: paymentsRes.data ?? [],
       monthly: monthlyRes.data ?? [],
+      commissionPct: Math.round((profile?.commission_rate ?? 0.4) * 100),
     },
   }
 }

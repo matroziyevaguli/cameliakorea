@@ -39,8 +39,8 @@ export const S = {
 
   // Balance / earnings
   myBalance:      "Mening hisobim",
-  myEarnings:     "Sizning daromadingiz",   // seller's own 40% — hers to keep
-  earningsHint:   "40% foyda — sizniki",
+  myEarnings:     "Sizning daromadingiz",   // seller's own profit share — hers to keep
+  earningsHint:   (pct: number) => `${pct}% foyda — sizniki`,
   toHandOver:     "Topshirish kerak",       // total she must give admin
   handedOver:     "Topshirilgan",           // already paid
   stillOwed:      "Qolgan (topshirish)",    // still owed
@@ -50,11 +50,11 @@ export const S = {
   tapForDetails:  "Bosing — batafsil",
   breakdownTitle: "Pul qanday taqsimlanadi",
   collected:      "Mijozlardan yig'ilgan",
-  yoursKept:      "Sizning foydangiz (40%) — sizniki",
+  yoursKept:      (pct: number) => `Sizning foydangiz (${pct}%) — sizniki`,
   cameliaShare:   "Camelia'ga tegishli",
   ofWhichPaid:    "Topshirildi",
   ofWhichLeft:    "Qolgan (topshirilmagan)",
-  breakdownNote:  "Siz mijozlardan to'liq pul olasiz. 40% foyda sizda qoladi, qolganini Camelia'ga topshirasiz.",
+  breakdownNote:  (pct: number) => `Siz mijozlardan to'liq pul olasiz. ${pct}% foyda sizda qoladi, qolganini Camelia'ga topshirasiz.`,
   openingDebt:    "Boshlang'ich qarz",
   salesDebt:      "Sotuvlardan qarz",
   totalOwed:      "Sizning qarzingiz",

@@ -10,13 +10,14 @@ import { CheckCircle, PlusCircle, History, Trash2, TrendingUp, Wallet, HandCoins
 type Row = {
   seller_id: string
   seller_name: string
-  revenue: number        // customers paid the seller
-  their_profit: number   // seller keeps (40%)
-  my_profit: number      // owner keeps (60%)
-  cost: number           // owner's wholesale cost coming back
-  owed: number           // must hand over = cost + my_profit
-  received: number       // handed over so far
-  balance: number        // still owed (can be negative = overpaid)
+  revenue: number         // customers paid the seller
+  their_profit: number    // seller keeps (their commission %)
+  my_profit: number       // owner keeps (the rest)
+  cost: number            // owner's wholesale cost coming back
+  owed: number            // must hand over = cost + my_profit
+  received: number        // handed over so far
+  balance: number         // still owed (can be negative = overpaid)
+  commission_pct: number  // this seller's rate (e.g. 40 or 50)
 }
 type Payment = { id: string; seller_id: string; amount: number; note: string | null; paid_at: string }
 
@@ -92,10 +93,10 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
         <div className="bg-gradient-to-br from-sky/10 to-lavender/10 border border-lavender/30 rounded-2xl p-5 flex gap-3">
           <Info className="w-5 h-5 text-lavender flex-shrink-0 mt-0.5" />
           <div className="text-sm text-ink leading-relaxed">
-            <b>Qanday ishlaydi:</b> Sotuvchi mijozdan <b>to'liq pul</b> oladi. O'z foydasini
-            (<b>foydaning 40%</b>) o'zida qoldiradi. Qolganini — ya'ni <b>tovar puli + sizning 60% foydangiz</b> —
-            sizga topshiradi. Demak "Topshirish kerak" summasi hammasi foyda emas: ko'p qismi
-            tovaringiz puli qaytib kelmoqda.
+            <b>Qanday ishlaydi:</b> Sotuvchi mijozdan <b>to'liq pul</b> oladi. O'z foyda ulushini
+            (har bir sotuvchining kelishilgan foizi) o'zida qoldiradi. Qolganini — ya'ni
+            <b>tovar puli + sizning foyda ulushingiz</b> — sizga topshiradi. Demak "Topshirish
+            kerak" summasi hammasi foyda emas: ko'p qismi tovaringiz puli qaytib kelmoqda.
           </div>
         </div>
 
@@ -122,8 +123,8 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
               <tr className="border-b border-gray-100">
                 <th className="text-left px-5 py-4 font-semibold text-muted">Sotuvchi</th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">Sotgan</th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Ularning foydasi<br /><span className="font-normal text-[11px]">(40%, o'zida)</span></th>
-                <th className="text-right px-3 py-4 font-semibold text-success">Mening foydam<br /><span className="font-normal text-[11px]">(60%)</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">Ularning foydasi<br /><span className="font-normal text-[11px]">(ularning ulushi, o'zida)</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-success">Mening foydam<br /><span className="font-normal text-[11px]">(qolgan ulush)</span></th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">Topshirish kerak<br /><span className="font-normal text-[11px]">(tovar+foydam)</span></th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">Topshirilgan</th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">Qolgan</th>
@@ -133,7 +134,10 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
             <tbody>
               {rows.map((r, i) => (
                 <tr key={r.seller_id} className={i % 2 === 1 ? 'bg-cream/50' : ''}>
-                  <td className="px-5 py-4 font-semibold text-ink">{r.seller_name}</td>
+                  <td className="px-5 py-4 font-semibold text-ink">
+                    {r.seller_name}
+                    <span className="ml-2 text-[11px] font-bold text-rose bg-rose/10 px-1.5 py-0.5 rounded-full">{r.commission_pct}%</span>
+                  </td>
                   <td className="px-3 py-4 text-right text-ink">{formatUZS(r.revenue)}</td>
                   <td className="px-3 py-4 text-right text-muted">{formatUZS(r.their_profit)}</td>
                   <td className="px-3 py-4 text-right font-display font-bold text-success">{formatUZS(r.my_profit)}</td>
@@ -240,11 +244,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (guard) return guard
   const supabase = createClient(ctx)
 
-  const [salesRes, balRes, paymentsRes] = await Promise.all([
+  const [salesRes, balRes, paymentsRes, profilesRes] = await Promise.all([
     supabase.from('v_sales_enriched').select('seller_id, revenue, cost_total, seller_profit, my_profit, owed_to_me'),
     supabase.from('v_seller_balances').select('seller_id, seller_name, total_owed, received, balance').order('seller_name'),
     supabase.from('payments').select('id, seller_id, amount, note, paid_at').order('paid_at', { ascending: false }),
+    supabase.from('profiles').select('id, commission_rate'),
   ])
+  const rateOf: Record<string, number> = {}
+  for (const p of profilesRes.data ?? []) rateOf[p.id] = Math.round((p.commission_rate ?? 0.4) * 100)
 
   // Aggregate the profit split per seller from individual sales
   const agg: Record<string, { revenue: number; cost: number; their_profit: number; my_profit: number; owed: number }> = {}
@@ -265,6 +272,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       owed: b.total_owed,       // includes any opening_balance
       received: b.received,
       balance: b.balance,
+      commission_pct: rateOf[b.seller_id] ?? 40,
     }
   })
 
