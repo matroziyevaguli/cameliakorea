@@ -5,7 +5,7 @@ import { formatUZS, formatDate } from '@/lib/format'
 import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, RotateCcw } from 'lucide-react'
+import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus } from 'lucide-react'
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
 
@@ -52,22 +52,6 @@ export default function MySales({ sales }: { sales: Sale[] }) {
     if (error) { setEditError(error.message); return }   // e.g. oversell guard
     setEditId(null)
     router.replace(router.asPath)
-  }
-
-  // A return is stored as a sale with negative qty.
-  async function returnSale(sale: Sale) {
-    if (!confirm(`"${sale.product_name}" ni qaytarasizmi? Ombor va foyda qayta hisoblanadi.`)) return
-    setBusy(sale.id)
-    const supabase = createBrowser()
-    const { data: orig } = await supabase.from('sales').select('seller_id, product_id, qty, unit_price').eq('id', sale.id).single()
-    if (orig) {
-      await supabase.from('sales').insert({
-        seller_id: orig.seller_id, product_id: orig.product_id,
-        qty: -Math.abs(orig.qty), unit_price: orig.unit_price, note: 'Qaytarildi',
-      })
-      router.replace(router.asPath)
-    }
-    setBusy(null)
   }
 
   // Distinct months present, newest first
@@ -179,7 +163,7 @@ export default function MySales({ sales }: { sales: Sale[] }) {
             {/* Individual sales */}
             <div>
               <p className="font-display font-bold text-ink text-sm mb-1 px-1">Har bir sotuv ({filtered.length})</p>
-              <p className="text-xs text-muted mb-2 px-1">Xato yozdingizmi? <b className="text-rose">Tahrirlash</b> — sonini tuzatadi · <b className="text-warning">Qaytarish</b> — mijoz mahsulotni qaytarsa</p>
+              <p className="text-xs text-muted mb-2 px-1">Xato yozdingizmi? <b className="text-rose">Tahrirlash</b> orqali sonini yoki narxini tuzating.</p>
               {filtered.length === 0 ? (
                 <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">Bu filtr bo'yicha sotuv yo'q</div>
               ) : (
@@ -239,16 +223,10 @@ export default function MySales({ sales }: { sales: Sale[] }) {
                           {/* Action bar */}
                           <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-100">
                             {!isReturn ? (
-                              <>
-                                <button onClick={() => openEdit(sale)} disabled={busy === sale.id}
-                                  className="flex items-center gap-1.5 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 px-3 py-2 rounded-full transition disabled:opacity-30">
-                                  <Pencil className="w-3.5 h-3.5" /> Tahrirlash
-                                </button>
-                                <button onClick={() => returnSale(sale)} disabled={busy === sale.id}
-                                  className="flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 hover:bg-orange-100 px-3 py-2 rounded-full transition disabled:opacity-30">
-                                  <RotateCcw className="w-3.5 h-3.5" /> Qaytarish
-                                </button>
-                              </>
+                              <button onClick={() => openEdit(sale)} disabled={busy === sale.id}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 px-3 py-2 rounded-full transition disabled:opacity-30">
+                                <Pencil className="w-3.5 h-3.5" /> Tahrirlash
+                              </button>
                             ) : <span className="text-xs text-muted">Qaytarilgan yozuv</span>}
                             <button onClick={() => deleteSale(sale.id)} disabled={busy === sale.id}
                               className="ml-auto text-danger/40 hover:text-danger transition disabled:opacity-30 p-2">
