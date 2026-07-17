@@ -6,7 +6,17 @@ import React, { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import AdminNav from '@/components/AdminNav'
-import { Plus, Pencil, X, ImagePlus, Send, CheckCircle, Sparkles, Loader2, Link2, Crop as CropIcon, Images, GripVertical, Trash2 } from 'lucide-react'
+import { Plus, Pencil, X, ImagePlus, Send, CheckCircle, Sparkles, Loader2, Link2, Crop as CropIcon, Images, GripVertical, Trash2, CalendarClock, AlertTriangle } from 'lucide-react'
+import { formatDate } from '@/lib/format'
+import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
+
+const EXPIRY_STYLE: Record<ExpiryStatus, string> = {
+  expired: 'bg-red-100 text-danger',
+  critical: 'bg-orange-100 text-warning',
+  soon: 'bg-yellow-100 text-yellow-700',
+  ok: 'bg-green-50 text-success',
+  none: 'hidden',
+}
 import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop'
 import { compressImage } from '@/lib/image'
 // CSS imported in _app.tsx — never import CSS in page components (Next.js pages router restriction)
@@ -24,6 +34,7 @@ type Product = {
   image_url: string | null
   description: string | null
   link: string | null
+  expiry_date: string | null
 }
 
 type FormState = {
@@ -97,6 +108,7 @@ export default function Products({ products: initial }: { products: Product[] })
   const [description,  setDescription] = useState('')
   const [descLoading,  setDescLoading] = useState(false)
   const [link,         setLink]         = useState('')
+  const [expiry,       setExpiry]       = useState('')
   const [linkLoading,  setLinkLoading] = useState(false)
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState('')
@@ -120,12 +132,25 @@ export default function Products({ products: initial }: { products: Product[] })
   const [postError,  setPostError]  = useState('')
   const [postedId,   setPostedId]   = useState<string | null>(null)
 
+  // Expiry
+  const [reporting, setReporting] = useState(false)
+  const [reportMsg, setReportMsg] = useState('')
+  const expiringCount = products.filter(p => { const s = expiryInfo(p.expiry_date).status; return s === 'expired' || s === 'critical' }).length
+
+  async function sendExpiryReport() {
+    setReporting(true); setReportMsg('')
+    const res = await fetch('/api/expiry-check', { method: 'POST' })
+    const j = await res.json().catch(() => ({}))
+    setReporting(false)
+    setReportMsg(!res.ok ? (j.error ?? 'Xatolik') : j.skipped ? 'Telegram sozlanmagan (TELEGRAM_OWNER_CHAT_ID)' : `Telegramga yuborildi: ${j.expired} tugagan, ${j.critical} tez tugaydi`)
+  }
+
   const isOpen = showNew || !!editing
 
   // ── Form open/close ────────────────────────────────────────────────
   function openNew() {
     setShowNew(true); setEditing(null); setForm(EMPTY)
-    setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setError('')
+    setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setExpiry(''); setError('')
     setGallery([]); setDeletedGalleryIds([])
     closeAnnounce()
   }
@@ -134,7 +159,7 @@ export default function Products({ products: initial }: { products: Product[] })
     setEditing(p); setShowNew(false)
     setForm({ name: p.name, retail_price: String(p.retail_price), discount_price: p.discount_price != null ? String(p.discount_price) : '', cost: String(p.cost), total_qty: String(p.total_qty) })
     setImageFile(null); setImagePreview(p.image_url)
-    setDescription(p.description ?? ''); setLink(p.link ?? ''); setError('')
+    setDescription(p.description ?? ''); setLink(p.link ?? ''); setExpiry(p.expiry_date ?? ''); setError('')
     setGallery([]); setDeletedGalleryIds([])
     closeAnnounce()
 
@@ -152,7 +177,7 @@ export default function Products({ products: initial }: { products: Product[] })
     // Revoke any pending object URLs to avoid leaks
     gallery.forEach(g => { if (g.id === null && g.url.startsWith('blob:')) URL.revokeObjectURL(g.url) })
     setShowNew(false); setEditing(null)
-    setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setError('')
+    setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setExpiry(''); setError('')
     setGallery([]); setDeletedGalleryIds([])
   }
 
@@ -294,6 +319,7 @@ export default function Products({ products: initial }: { products: Product[] })
       total_qty: Number(form.total_qty),
       description: description || null,
       link: link || null,
+      expiry_date: expiry || null,
     }
 
     let productId: string
@@ -435,6 +461,15 @@ export default function Products({ products: initial }: { products: Product[] })
         )}
       </div>
 
+      {/* Expiry date */}
+      <div className="mt-4">
+        <label className="text-sm font-medium text-muted flex items-center gap-1.5 mb-2">
+          <CalendarClock className="w-4 h-4" /> Yaroqlilik muddati (ixtiyoriy)
+        </label>
+        <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
+          className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+      </div>
+
       {/* Gallery — result photos */}
       <div className="mt-5">
         <div className="flex items-center justify-between mb-2">
@@ -493,6 +528,22 @@ export default function Products({ products: initial }: { products: Product[] })
           </button>
         </div>
 
+        {/* Expiry summary + report */}
+        <div className={`rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3 ${expiringCount > 0 ? 'bg-orange-50 border border-orange-100' : 'bg-surface shadow-card'}`}>
+          <div className="flex items-center gap-2 text-sm">
+            {expiringCount > 0
+              ? <><AlertTriangle className="w-4 h-4 text-warning" /><span className="text-ink font-semibold">{expiringCount} ta mahsulot muddati tugagan yoki tez tugaydi</span></>
+              : <><CalendarClock className="w-4 h-4 text-success" /><span className="text-muted">Muddati tugayotgan mahsulot yo'q</span></>}
+          </div>
+          <div className="flex items-center gap-3">
+            {reportMsg && <span className="text-xs text-muted">{reportMsg}</span>}
+            <button onClick={sendExpiryReport} disabled={reporting}
+              className="text-xs font-semibold bg-gradient-to-br from-sky to-lavender text-white px-4 py-2 rounded-full active:scale-95 transition disabled:opacity-50 flex items-center gap-1.5">
+              <Send className="w-3.5 h-3.5" /> {reporting ? 'Yuborilmoqda…' : "Muddat hisobotini yuborish"}
+            </button>
+          </div>
+        </div>
+
         {/* ── Table ── always visible ── */}
         <div className="bg-surface rounded-2xl shadow-card overflow-x-auto">
           <table className="w-full text-sm min-w-[640px]">
@@ -519,7 +570,16 @@ export default function Products({ products: initial }: { products: Product[] })
                           </div>
                       }
                     </td>
-                    <td className="px-5 py-3 font-medium text-ink">{p.name}</td>
+                    <td className="px-5 py-3 font-medium text-ink">
+                      {p.name}
+                      {(() => {
+                        const { status, days } = expiryInfo(p.expiry_date)
+                        if (status === 'none' || status === 'ok') return null
+                        return <span className={`ml-2 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${EXPIRY_STYLE[status]}`}>
+                          {EXPIRY_LABEL[status]}{status === 'expired' ? '' : ` · ${days}k`}
+                        </span>
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-right text-ink">{formatUZS(p.retail_price)}</td>
                     <td className="px-4 py-3 text-right text-muted">{p.discount_price != null ? formatUZS(p.discount_price) : '—'}</td>
                     <td className="px-4 py-3 text-right text-muted">{formatUZS(p.cost)}</td>
