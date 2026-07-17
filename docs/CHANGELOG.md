@@ -4,7 +4,26 @@ All notable changes to the Camelia admin + seller app are tracked here.
 
 ---
 
-## [2026-07-16] (latest)
+## [2026-07-17] (latest)
+
+### Added — Allocation correction requests (seller verify → admin approve)
+- Sellers can flag that the quantity entered for them is wrong ("you gave me 4, I actually
+  have 3"). Fixes the risk from the hand-typed initial distribution.
+- Seller: "Son noto'g'rimi? Tuzatish so'rash" on each product card + a "So'rovlarim" section
+  showing request status (kutilmoqda/tasdiqlandi/rad etildi) and admin note
+- Admin: new **So'rovlar** tab (`/admin/requests`) inbox with pending-count badge on the nav;
+  approve/reject with optional note
+- Approve applies the corrected qty to `allocations`, guarded: can't drop below units already
+  sold; DB `trg_alloc_within_stock` blocks going over product stock
+- Telegram ping to the owner on each new request
+- New: `allocation_requests` table + `v_my_requests` (definer) + `v_allocation_requests`
+  (invoker) — run `docs/allocation-requests-setup.md`
+- API: `/api/allocation-request` (seller creates), `/api/resolve-request` (admin approve/reject)
+- Plan: `docs/allocation-requests-plan.md`
+
+---
+
+## [2026-07-16]
 
 ### Fixed — Seller balance showed 0 (critical)
 - `/seller/balance` read `v_seller_balances`, which returns balance=0 for sellers due to the

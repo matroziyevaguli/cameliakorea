@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock } from 'lucide-react'
+import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
@@ -27,7 +27,18 @@ type Product  = {
   expiry_date: string | null
   had: number; sold: number; remaining: number
 }
-type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number }
+type MyRequest = {
+  id: string; product_id: string; product_name: string
+  current_qty: number; requested_qty: number; reason: string | null
+  status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
+}
+type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[] }
+
+const REQ_BADGE: Record<MyRequest['status'], { label: string; cls: string }> = {
+  pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
+  approved: { label: 'Tasdiqlandi', cls: 'bg-green-100 text-success' },
+  rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
+}
 
 function RemainingBadge({ n }: { n: number }) {
   if (n === 0) return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-danger">Tugadi</span>
@@ -94,12 +105,37 @@ function buildCaption(p: Product) {
   return `✨ Yangi mahsulot!\n\n${p.name}\n${price}${desc}\n\n⚠️ Mahsulot soni cheklangan!\n\n🇰🇷 Koreyadan, sinab ko'rilgan\n📍 O'zbekistonda mavjud\n\n📞 Buyurtma uchun:\n🏙 Namangan: Gulshanoy +998 94 099 44 99\n🏙 Andijon: Saida +998 93 858 27 27\n🏙 Farg'ona: Adolat +998 33 408 61 83\n\n@cameliakorea`
 }
 
-export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit }: Props) {
+export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests }: Props) {
   const router = useRouter()
 
   // Settings menu + product search
   const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
+
+  // Correction request ("I actually received a different amount")
+  const pendingByProduct = new Set(requests.filter(r => r.status === 'pending').map(r => r.product_id))
+  const [correctOpen, setCorrectOpen] = useState<string | null>(null)
+  const [correctQty, setCorrectQty] = useState('')
+  const [correctReason, setCorrectReason] = useState('')
+  const [correctBusy, setCorrectBusy] = useState(false)
+  const [correctError, setCorrectError] = useState('')
+
+  function openCorrect(p: Product) {
+    setCorrectOpen(p.product_id); setCorrectQty(String(p.had)); setCorrectReason(''); setCorrectError('')
+  }
+  async function submitCorrect(productId: string) {
+    if (correctQty === '' || Number(correctQty) < 0) { setCorrectError("To'g'ri son kiriting"); return }
+    setCorrectBusy(true); setCorrectError('')
+    const res = await fetch('/api/allocation-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId, requested_qty: Number(correctQty), reason: correctReason }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setCorrectBusy(false)
+    if (!res.ok) { setCorrectError(json.error ?? 'Xatolik'); return }
+    setCorrectOpen(null)
+    router.replace(router.asPath)
+  }
 
   // Expiry set
   const [expiryOpen, setExpiryOpen] = useState<string | null>(null)
@@ -292,9 +328,41 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                     )}
 
                     {/* Stock info */}
-                    <div className="flex gap-3 text-xs text-muted mb-3">
+                    <div className="flex items-center gap-3 text-xs text-muted mb-2">
                       <span>Berilgan: <strong className="text-ink">{p.had}</strong></span>
                       <span>Sotilgan: <strong className="text-success">{p.sold}</strong></span>
+                    </div>
+
+                    {/* Correction request — "the amount you gave me is wrong" */}
+                    <div className="mb-3">
+                      {pendingByProduct.has(p.product_id) ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-warning">
+                          <ClipboardList className="w-3.5 h-3.5" /> Tuzatish so'rovi yuborildi (kutilmoqda)
+                        </span>
+                      ) : correctOpen === p.product_id ? (
+                        <div className="bg-cream rounded-xl p-3 space-y-2">
+                          <p className="text-xs font-semibold text-ink">Aslida nechta oldingiz?</p>
+                          <div className="flex items-center gap-2">
+                            <input type="number" min={0} value={correctQty} onChange={e => setCorrectQty(e.target.value)}
+                              className="w-20 bg-surface text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                            <input value={correctReason} onChange={e => setCorrectReason(e.target.value)} placeholder="Sabab (ixtiyoriy)…"
+                              className="flex-1 bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                          </div>
+                          {correctError && <p className="text-danger text-xs">{correctError}</p>}
+                          <div className="flex gap-2">
+                            <button disabled={correctBusy} onClick={() => submitCorrect(p.product_id)}
+                              className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
+                              {correctBusy ? 'Yuborilmoqda…' : "So'rov yuborish"}
+                            </button>
+                            <button onClick={() => setCorrectOpen(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => openCorrect(p)}
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-rose transition">
+                          <Pencil className="w-3.5 h-3.5" /> Son noto'g'rimi? Tuzatish so'rash
+                        </button>
+                      )}
                     </div>
 
                     {/* Expiry — seller can set it */}
@@ -354,6 +422,29 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
             </div>
           )}
         </div>
+        {/* ── My correction requests ── */}
+        {requests.length > 0 && (
+          <div>
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <ClipboardList className="w-4 h-4 text-rose" />
+              <h2 className="font-display font-bold text-ink text-base">So'rovlarim</h2>
+            </div>
+            <div className="space-y-2">
+              {requests.map(r => (
+                <div key={r.id} className="bg-surface rounded-xl shadow-card px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-ink truncate">{r.product_name}</p>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE[r.status].cls}`}>
+                      {REQ_BADGE[r.status].label}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted mt-0.5">{r.current_qty} → {r.requested_qty} ta{r.reason ? ` · "${r.reason}"` : ''}</p>
+                  {r.admin_note && <p className="text-xs text-muted mt-0.5">Admin: {r.admin_note}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ── Bottom nav ── */}
@@ -433,11 +524,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   // Product list: v_my_inventory (RLS-safe for sellers — v_inventory & the products table
   // both return 0 rows to sellers). Prices/images/gallery: v_catalog (a definer view sellers
   // CAN read), keyed by `id` = product_id.
-  const [summaryRes, monthlyRes, invRes, catalogRes] = await Promise.all([
+  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes] = await Promise.all([
     supabase.from('v_my_summary').select('*').maybeSingle(),
     supabase.from('v_my_monthly').select('*'),
     supabase.from('v_my_inventory').select('product_id, product_name, had, sold, remaining'),
     supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date'),
+    supabase.from('v_my_requests').select('*'),
   ])
 
   const inv = invRes.data ?? []
@@ -471,6 +563,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       monthly:        monthlyRes.data ?? [],
       products,
       thisMonthProfit,
+      requests:       requestsRes.data ?? [],
     }
   }
 }

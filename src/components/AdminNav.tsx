@@ -1,13 +1,14 @@
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
-import { LayoutDashboard, Package, Share2, Users, CreditCard, BarChart2, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Share2, Users, CreditCard, BarChart2, Inbox, LogOut, Menu, X } from 'lucide-react'
 
 const links = [
   { href: '/admin',             label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/admin/products',    label: 'Mahsulotlar',  icon: Package },
   { href: '/admin/distribute',  label: 'Taqsimlash',   icon: Share2 },
+  { href: '/admin/requests',    label: "So'rovlar",    icon: Inbox },
   { href: '/admin/sellers',     label: 'Sotuvchilar',  icon: Users },
   { href: '/admin/payments',    label: "To'lovlar",    icon: CreditCard },
   { href: '/admin/stats',       label: 'Statistika',   icon: BarChart2 },
@@ -16,6 +17,14 @@ const links = [
 export default function AdminNav() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [pending, setPending] = useState(0)
+
+  // Live count of pending correction requests → red badge on the So'rovlar tab.
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('allocation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending')
+      .then(({ count }) => setPending(count ?? 0))
+  }, [router.pathname])
 
   async function signOut() {
     const supabase = createClient()
@@ -37,11 +46,14 @@ export default function AdminNav() {
             const Icon = l.icon
             return (
               <Link key={l.href} href={l.href}
-                className={`flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm font-medium transition ${
+                className={`relative flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm font-medium transition ${
                   active ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'text-muted hover:text-ink hover:bg-cream'
                 }`}>
                 <Icon className="w-4 h-4" />
                 {l.label}
+                {l.href === '/admin/requests' && pending > 0 && (
+                  <span className="ml-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-danger text-white text-[10px] font-bold">{pending}</span>
+                )}
               </Link>
             )
           })}
@@ -69,6 +81,9 @@ export default function AdminNav() {
                 }`}>
                 <Icon className="w-5 h-5" />
                 {l.label}
+                {l.href === '/admin/requests' && pending > 0 && (
+                  <span className="ml-auto min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-danger text-white text-xs font-bold">{pending}</span>
+                )}
               </Link>
             )
           })}
