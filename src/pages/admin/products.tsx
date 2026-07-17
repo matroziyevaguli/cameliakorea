@@ -135,6 +135,9 @@ export default function Products({ products: initial }: { products: Product[] })
   // Expiry
   const [reporting, setReporting] = useState(false)
   const [reportMsg, setReportMsg] = useState('')
+
+  // Discount → channel announcement toast
+  const [toast, setToast] = useState('')
   const expiringCount = products.filter(p => { const s = expiryInfo(p.expiry_date).status; return s === 'expired' || s === 'critical' }).length
 
   async function sendExpiryReport() {
@@ -368,6 +371,20 @@ export default function Products({ products: initial }: { products: Product[] })
     // Re-fetch product list client-side — no router.replace needed
     const { data: refreshed } = await supabase.from('products').select('*').order('name')
     if (refreshed) setProducts(refreshed)
+
+    // If a discount was newly added or lowered on an existing product, announce it to the
+    // buyers' Telegram channel. Purely a message — doesn't affect any sale or profit.
+    const oldDiscount = editing?.discount_price ?? null
+    const discountJustMade = !!editing && discount != null && (oldDiscount == null || discount < oldDiscount)
+    if (discountJustMade) {
+      fetch('/api/announce-discount', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId }),
+      }).then(r => r.json())
+        .then(j => setToast(j.ok ? "Chegirma Telegram kanalga e'lon qilindi ✅" : (j.error ?? 'Telegram xatolik')))
+        .catch(() => setToast('Telegram xatolik'))
+        .finally(() => setTimeout(() => setToast(''), 5000))
+    }
 
     setLoading(false)
     cancel()
@@ -707,6 +724,13 @@ export default function Products({ products: initial }: { products: Product[] })
               <button onClick={cancelCrop} className="text-muted hover:text-ink text-sm px-4 py-2.5 transition">Bekor qilish</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Discount → channel announcement toast */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] bg-ink text-white text-sm font-medium px-5 py-3 rounded-full shadow-card max-w-[90vw] text-center">
+          {toast}
         </div>
       )}
     </div>
