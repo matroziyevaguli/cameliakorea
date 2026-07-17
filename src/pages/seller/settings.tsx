@@ -5,9 +5,10 @@ import { useState, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ChevronLeft, Lock, CheckCircle, LogOut, ClipboardList, HelpCircle, Type } from 'lucide-react'
+import { Lock, CheckCircle, LogOut, ClipboardList, HelpCircle, Type } from 'lucide-react'
 import { MiniSpinner } from '@/components/Loader'
 import HelpSheet from '@/components/HelpSheet'
+import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
 
 export default function SellerSettings({ sellerName }: { sellerName: string }) {
@@ -52,9 +53,6 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
     <div className="min-h-screen bg-cream">
       <header className="bg-gradient-to-br from-rose to-peach text-white px-5 pt-10 pb-14 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/4" />
-        <Link href="/seller" className="relative flex items-center gap-1.5 text-white/80 hover:text-white mb-4 transition">
-          <ChevronLeft className="w-5 h-5" /><span className="text-sm">Orqaga</span>
-        </Link>
         <h1 className="font-display text-2xl font-bold relative">Sozlamalar</h1>
         <p className="text-white/80 text-sm relative mt-1">{sellerName}</p>
       </header>
@@ -132,6 +130,7 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
       </main>
 
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <SellerNav />
     </div>
   )
 }

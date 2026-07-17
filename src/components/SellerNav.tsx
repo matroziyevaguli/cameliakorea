@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ShoppingBag, History, ClipboardList, Wallet } from 'lucide-react'
+import { House, ShoppingBag, Receipt, Wallet, Settings } from 'lucide-react'
 
 const items = [
-  { href: '/seller',          label: 'Mahsulotlar', icon: ShoppingBag },
-  { href: '/seller/sales',    label: 'Tarix',       icon: History },
-  { href: '/seller/requests', label: "So'rovlarim", icon: ClipboardList },
+  { href: '/seller',          label: 'Bosh sahifa', icon: House },
+  { href: '/seller/sell',     label: 'Sotish',      icon: ShoppingBag },
+  { href: '/seller/sales',    label: 'Sotuvlarim',  icon: Receipt },
   { href: '/seller/balance',  label: 'Hisobim',     icon: Wallet },
+  { href: '/seller/settings', label: 'Sozlamalar',  icon: Settings },
 ]
 
 export default function SellerNav() {
@@ -18,9 +19,9 @@ export default function SellerNav() {
         const Icon = it.icon
         return (
           <Link key={it.href} href={it.href}
-            className={`flex-1 flex flex-col items-center gap-1 py-3 transition ${active ? 'text-rose' : 'text-muted hover:text-rose'}`}>
-            <Icon className="w-5 h-5" />
-            <span className="text-[11px] font-medium">{it.label}</span>
+            className={`flex-1 flex flex-col items-center gap-1 py-2.5 transition ${active ? 'text-rose' : 'text-muted hover:text-rose'}`}>
+            <Icon className="w-[22px] h-[22px]" />
+            <span className="text-[10px] font-medium leading-none">{it.label}</span>
           </Link>
         )
       })}
