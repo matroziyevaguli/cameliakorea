@@ -77,9 +77,28 @@ her own allocation.
    the request approved. **Reject** → unchanged, with an admin note.
 5. Seller sees the outcome under **Mening so'rovlarim** (my requests).
 
-### C. New-product request *(phase 2 — the user said "later")*
-1. Seller taps **Yangi mahsulot so'rash**, picks a product she doesn't have, enters qty + note.
-2. Admin approves → an allocation is created (respecting Σ ≤ stock). Seller can now sell it.
+### C. New-product self-assignment + photo receipt *(phase 2)*
+The richer flow the owner described: sellers claim newly-arrived stock themselves, then
+**prove receipt with a photo** where the units are countable.
+
+1. **Admin announces arrival** — marks a product (or new batch) as "available to claim: N units".
+   (Or a seller requests a product she doesn't have via **Yangi mahsulot so'rash**.)
+2. **Seller self-assigns** — picks the product, enters how many she's taking (≤ available). This
+   creates a `new_product` request (status `pending`).
+3. **Admin approves the claim** (bounded by available stock).
+4. **Seller receives the goods → uploads a photo** per product, laid out so the count is visible.
+   Stored in Supabase Storage (reuse the `product-images` bucket); the request row gets
+   `receipt_photo_url` + `received_qty`.
+5. **Admin verifies by eye** — opens the photo, counts, confirms the number matches. Approve →
+   the allocation is finalized at the verified qty. Mismatch → reject/adjust with a note.
+
+**Why photo-proof:** it turns "did she really get N?" into visual evidence — the strongest
+trust mechanism for consignment. Counting stays **manual (admin eyeballs it)**; no auto/AI
+counting (unreliable on varied cosmetics, overkill at this scale).
+
+Extra columns for this flow on `allocation_requests`: `receipt_photo_url text`,
+`received_qty integer`, `available_qty integer` (context). Photo capture ideally at receipt
+time; store `created_at` so an old photo can't be silently reused.
 
 ---
 
@@ -137,12 +156,19 @@ her own allocation.
   corrections = the *original count* was wrong. Keep them separate.
 
 ## 11. Phased rollout
-- **Phase 1 (do first): Confirm + Correction.** Seller confirms/disputes each allocation;
-  admin approves corrections from an inbox; Telegram ping on new requests. This directly fixes
-  "was my manual entry right?"
-- **Phase 2: New-product requests.** Seller asks for a product she doesn't have → admin approves
-  → allocation created. (The user explicitly wants this *after* Phase 1.)
-- **Phase 3 (optional): batch-aware.** If we adopt `product_batches` (see
+- **Phase 1 — BUILD NOW: edit/correction requests only.** Sellers already physically received
+  their goods, so no self-assignment or photo-receipt is needed. The one real need is a way for
+  a seller to say *"the number you entered for me is wrong — it's actually M"*, so the owner can
+  see, check, and approve. This is mostly a **one-time true-up** of the hand-typed distribution,
+  but the feature stays useful for every future hand-off, so it's worth keeping (it's small and
+  low-risk — if you ever want it gone, the whole thing is one table + one page + one API route).
+  - Includes: seller "Xato ✏️" correction form + optional one-tap "To'g'ri ✅" confirm;
+    admin `/admin/requests` inbox with approve/reject under the sold-floor + stock-cap guards;
+    Telegram ping to the owner on each new request.
+- **Phase 2 — DEFERRED (not needed now): new-product self-assignment + photo receipt.** Only
+  relevant when a *future* batch arrives that sellers haven't received yet. Skipped for now
+  since everything on hand is already distributed.
+- **Phase 3 — optional: batch-aware.** If we adopt `product_batches` (see
   `docs/research-batch-expiry.md`), a new-product request can target a specific batch.
 
 ## 12. Open questions (decide before building)
