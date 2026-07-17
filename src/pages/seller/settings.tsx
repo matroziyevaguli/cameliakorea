@@ -1,12 +1,14 @@
 import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { ChevronLeft, Lock, CheckCircle, LogOut } from 'lucide-react'
+import { ChevronLeft, Lock, CheckCircle, LogOut, ClipboardList, HelpCircle, Type } from 'lucide-react'
 import { MiniSpinner } from '@/components/Loader'
+import HelpSheet from '@/components/HelpSheet'
+import { S } from '@/consts/strings'
 
 export default function SellerSettings({ sellerName }: { sellerName: string }) {
   const router = useRouter()
@@ -15,6 +17,17 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
+
+  // Katta shrift (bigger text) — per-device, persisted in localStorage, applied to <html>.
+  const [bigText, setBigText] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  useEffect(() => { setBigText(document.documentElement.classList.contains('big-text')) }, [])
+  function toggleBigText() {
+    const next = !bigText
+    setBigText(next)
+    document.documentElement.classList.toggle('big-text', next)
+    localStorage.setItem('camelia_big_text', next ? '1' : '0')
+  }
 
   async function changePassword(e: React.FormEvent) {
     e.preventDefault()
@@ -46,7 +59,36 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
         <p className="text-white/80 text-sm relative mt-1">{sellerName}</p>
       </header>
 
-      <main className="px-4 -mt-6 relative z-10 space-y-4 max-w-md mx-auto">
+      <main className="px-4 -mt-6 relative z-10 space-y-4 max-w-md mx-auto pb-28">
+        {/* Katta shrift (bigger text) */}
+        <div className="bg-surface rounded-2xl shadow-card p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-full bg-lavender/15 grid place-items-center"><Type className="w-5 h-5 text-lavender" /></span>
+            <div>
+              <p className="font-semibold text-ink text-sm">{S.bigText}</p>
+              <p className="text-xs text-muted">{S.bigTextSub}</p>
+            </div>
+          </div>
+          <button onClick={toggleBigText} aria-label={S.bigText}
+            className={`relative w-12 h-7 rounded-full transition ${bigText ? 'bg-rose' : 'bg-gray-300'}`}>
+            <span className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${bigText ? 'left-6' : 'left-1'}`} />
+          </button>
+        </div>
+
+        {/* My requests */}
+        <Link href="/seller/requests"
+          className="bg-surface rounded-2xl shadow-card p-4 flex items-center gap-3 active:scale-[0.98] transition">
+          <span className="w-10 h-10 rounded-full bg-rose/10 grid place-items-center"><ClipboardList className="w-5 h-5 text-rose" /></span>
+          <p className="font-semibold text-ink text-sm">{S.myRequests}</p>
+        </Link>
+
+        {/* Help */}
+        <button onClick={() => setHelpOpen(true)}
+          className="w-full bg-surface rounded-2xl shadow-card p-4 flex items-center gap-3 active:scale-[0.98] transition">
+          <span className="w-10 h-10 rounded-full bg-sky/15 grid place-items-center"><HelpCircle className="w-5 h-5 text-sky" /></span>
+          <p className="font-semibold text-ink text-sm">{S.help}</p>
+        </button>
+
         {/* Change password */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h2 className="font-display font-bold text-ink text-lg mb-1 flex items-center gap-2">
@@ -88,6 +130,8 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
           <LogOut className="w-4 h-4" /> Chiqish
         </button>
       </main>
+
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
 }

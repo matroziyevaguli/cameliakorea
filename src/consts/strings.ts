@@ -62,6 +62,28 @@ export const S = {
   remaining_bal:  "Qolgan qarz",
   noData:         "Ma'lumot topilmadi",
 
+  // Help (Yordam)
+  help:            "Yordam",
+  helpTitle:       "Yordam kerakmi?",
+  helpSubtitle:    "Hech qanday savol yo'q — biz yordam beramiz.",
+  helpTelegram:    "Guliga Telegram'da yozish",
+  helpCall:        "Guliga qo'ng'iroq qilish",
+  helpVideo:       "Video: qanday sotish kerak",
+  helpVideoSub:    "1 daqiqalik ko'rsatma",
+
+  // Settings (Sozlamalar)
+  settings:        "Sozlamalar",
+  bigText:         "Katta shrift",
+  bigTextSub:      "Matnlarni kattaroq ko'rsatish",
+  changePassword:  "Parolni o'zgartirish",
+  myRequests:      "Mening so'rovlarim",
+
+  // First-run welcome
+  welcomeTitle:    "Sotganda, shu tugmani bosing",
+  welcomeBody:     "Har bir mahsulot ostida katta yashil \"Sotildi\" tugmasi bor. Bosing — tamom.",
+  welcomeReassure: "Xato qilsangiz — hech narsa yo'qolmaydi. Bemalol sinab ko'ring! 🌸",
+  welcomeStart:    "Boshladik",
+
   // Units
   som:            "so'm",
   pcs:            "ta",

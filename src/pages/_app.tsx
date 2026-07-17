@@ -10,6 +10,10 @@ export default function App({ Component, pageProps }: AppProps) {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {})
     }
+    // Apply the seller's "Katta shrift" (bigger text) preference app-wide.
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('camelia_big_text') === '1') {
+      document.documentElement.classList.add('big-text')
+    }
   }, [])
 
   return (

@@ -3,11 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
 import Link from 'next/link'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2 } from 'lucide-react'
+import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart } from 'lucide-react'
+import HelpSheet from '@/components/HelpSheet'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
@@ -107,6 +108,17 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   // Settings menu + product search
   const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [helpOpen, setHelpOpen] = useState(false)
+
+  // First-run welcome (shown once per device)
+  const [showWelcome, setShowWelcome] = useState(false)
+  useEffect(() => {
+    if (localStorage.getItem('camelia_seller_welcome_v1') !== '1') setShowWelcome(true)
+  }, [])
+  function dismissWelcome() {
+    localStorage.setItem('camelia_seller_welcome_v1', '1')
+    setShowWelcome(false)
+  }
 
   // Correction request ("I actually received a different amount")
   const pendingByProduct = new Set(requests.filter(r => r.status === 'pending').map(r => r.product_id))
@@ -267,7 +279,10 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               <span className="font-display font-bold text-white text-base">{formatUZS(thisMonthProfit)}</span>
             </p>
           </div>
-          <div className="relative">
+          <div className="relative flex items-center gap-1">
+            <button onClick={() => setHelpOpen(true)} aria-label={S.help} className="text-white/70 hover:text-white p-2 transition">
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <button onClick={() => setMenuOpen(o => !o)} className="text-white/70 hover:text-white p-2 transition">
               <Settings className="w-5 h-5" />
             </button>
@@ -473,6 +488,29 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
       </main>
 
       <SellerNav />
+
+      <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      {/* ── First-run welcome ── */}
+      {showWelcome && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-black/50" onClick={dismissWelcome} />
+          <div className="relative bg-surface rounded-3xl shadow-card p-7 max-w-xs w-full text-center">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-rose to-peach grid place-items-center mx-auto mb-5">
+              <HandHeart className="w-9 h-9 text-white" />
+            </div>
+            <p className="font-display font-bold text-ink text-lg mb-2">{S.welcomeTitle}</p>
+            <p className="text-sm text-muted leading-relaxed mb-4">{S.welcomeBody}</p>
+            <div className="bg-orange-50 rounded-xl px-4 py-3 mb-5">
+              <p className="text-xs text-yellow-800 leading-relaxed">{S.welcomeReassure}</p>
+            </div>
+            <button onClick={dismissWelcome}
+              className="w-full bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3.5 rounded-full shadow-rose active:scale-95 transition">
+              {S.welcomeStart}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Telegram post sheet ── */}
       {postProduct && (
