@@ -21,7 +21,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const channel = process.env.TELEGRAM_CHANNEL
 
   if (!token || !channel) {
-    return res.status(500).json({ error: 'Telegram credentials not configured' })
+    // Name the missing var(s) so it's obvious what this deployment can't see (no values leaked).
+    const missing = [!token && 'TELEGRAM_BOT_TOKEN', !channel && 'TELEGRAM_CHANNEL'].filter(Boolean).join(', ')
+    return res.status(500).json({ error: `Telegram credentials not configured (missing: ${missing})` })
   }
 
   const body: Record<string, unknown> = {
