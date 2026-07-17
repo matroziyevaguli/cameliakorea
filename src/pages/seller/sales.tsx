@@ -32,22 +32,19 @@ export default function MySales({ sales }: { sales: Sale[] }) {
   const [month, setMonth] = useState('all')
   const [search, setSearch] = useState('')
 
-  // Inline edit (fix a mistyped quantity or price)
+  // Inline edit — only the quantity (son) can be changed; price stays as recorded.
   const [editId, setEditId] = useState<string | null>(null)
   const [editQty, setEditQty] = useState(1)
-  const [editPrice, setEditPrice] = useState('')
   const [editError, setEditError] = useState('')
 
   function openEdit(sale: Sale) {
-    setEditId(sale.id); setEditQty(Math.abs(sale.qty)); setEditPrice(String(sale.unit_price)); setEditError('')
+    setEditId(sale.id); setEditQty(Math.abs(sale.qty)); setEditError('')
   }
   async function saveEdit(sale: Sale) {
-    const price = Number(editPrice)
     if (editQty < 1) { setEditError('Kamida 1 ta'); return }
-    if (Number.isNaN(price) || price < 0) { setEditError("Narx noto'g'ri"); return }
     setBusy(sale.id); setEditError('')
     const supabase = createBrowser()
-    const { error } = await supabase.from('sales').update({ qty: editQty, unit_price: price }).eq('id', sale.id)
+    const { error } = await supabase.from('sales').update({ qty: editQty }).eq('id', sale.id)
     setBusy(null)
     if (error) { setEditError(error.message); return }   // e.g. oversell guard
     setEditId(null)
@@ -185,15 +182,9 @@ export default function MySales({ sales }: { sales: Sale[] }) {
                             <button onClick={() => setEditQty(q => q + 1)}
                               className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition shadow-rose"><Plus className="w-4 h-4" /></button>
                           </div>
-                          {/* Unit price */}
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-muted flex-1">Dona narxi</span>
-                            <input type="number" min={0} value={editPrice} onChange={e => setEditPrice(e.target.value)}
-                              className="w-36 bg-cream text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                          </div>
                           <div className="flex justify-between items-center pt-1">
-                            <span className="text-sm text-muted">Jami</span>
-                            <span className="font-display font-bold text-ink">{formatUZS(editQty * (Number(editPrice) || 0))}</span>
+                            <span className="text-sm text-muted">Jami ({formatUZS(sale.unit_price)} × {editQty})</span>
+                            <span className="font-display font-bold text-ink">{formatUZS(editQty * sale.unit_price)}</span>
                           </div>
                           {editError && <p className="text-danger text-xs">{editError}</p>}
                           <div className="flex gap-2">
