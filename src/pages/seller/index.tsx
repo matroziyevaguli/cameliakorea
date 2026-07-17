@@ -6,9 +6,10 @@ import Link from 'next/link'
 import { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
-import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock } from 'lucide-react'
+import { ShoppingBag, LogOut, History, Wallet, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
 
 // Uzbek month names by number (1–12). v_my_monthly returns month as "YYYY-MM".
 const UZ_MONTH_BY_NUM = ['', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
@@ -23,6 +24,7 @@ type Monthly  = { month: string; your_profit: number; units_sold: number }
 type Product  = {
   product_id: string; name: string; retail_price: number; discount_price: number | null
   image_url: string | null; description: string | null; link: string | null; gallery: string[]
+  expiry_date: string | null
   had: number; sold: number; remaining: number
 }
 type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number }
@@ -98,6 +100,19 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   // Settings menu + product search
   const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
+
+  // Expiry set
+  const [expiryOpen, setExpiryOpen] = useState<string | null>(null)
+  const [savingExpiry, setSavingExpiry] = useState(false)
+  async function saveExpiry(productId: string, date: string) {
+    setSavingExpiry(true)
+    await fetch('/api/set-expiry', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId, expiry_date: date || null }),
+    }).catch(() => {})
+    setSavingExpiry(false); setExpiryOpen(null)
+    router.replace(router.asPath)
+  }
   const visibleProducts = search.trim()
     ? products.filter(p => p.name.toLowerCase().includes(search.trim().toLowerCase()))
     : products
@@ -277,10 +292,37 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                     )}
 
                     {/* Stock info */}
-                    <div className="flex gap-3 text-xs text-muted mb-4">
+                    <div className="flex gap-3 text-xs text-muted mb-3">
                       <span>Berilgan: <strong className="text-ink">{p.had}</strong></span>
                       <span>Sotilgan: <strong className="text-success">{p.sold}</strong></span>
                     </div>
+
+                    {/* Expiry — seller can set it */}
+                    {(() => {
+                      const { status, days } = expiryInfo(p.expiry_date)
+                      const open = expiryOpen === p.product_id
+                      return (
+                        <div className="mb-4">
+                          {open ? (
+                            <div className="flex items-center gap-2">
+                              <input type="date" defaultValue={p.expiry_date ?? ''} id={`exp-${p.product_id}`}
+                                className="flex-1 bg-cream text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                              <button disabled={savingExpiry} onClick={() => saveExpiry(p.product_id, (document.getElementById(`exp-${p.product_id}`) as HTMLInputElement)?.value ?? '')}
+                                className="text-xs font-semibold bg-rose text-white px-3 py-2 rounded-lg disabled:opacity-50">Saqlash</button>
+                              <button onClick={() => setExpiryOpen(null)} className="text-muted"><X className="w-4 h-4" /></button>
+                            </div>
+                          ) : (
+                            <button onClick={() => setExpiryOpen(p.product_id)}
+                              className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-rose transition">
+                              <CalendarClock className="w-3.5 h-3.5" />
+                              {p.expiry_date
+                                ? <>Muddat: <span className={status === 'expired' ? 'text-danger font-semibold' : status === 'critical' ? 'text-warning font-semibold' : 'text-ink'}>{p.expiry_date}{status !== 'ok' && status !== 'none' ? ` (${EXPIRY_LABEL[status]})` : ''}</span></>
+                                : "Yaroqlilik muddatini belgilash"}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {/* Actions */}
                     <div className="space-y-2">
@@ -395,7 +437,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     supabase.from('v_my_summary').select('*').maybeSingle(),
     supabase.from('v_my_monthly').select('*'),
     supabase.from('v_my_inventory').select('product_id, product_name, had, sold, remaining'),
-    supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery'),
+    supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date'),
   ])
 
   const inv = invRes.data ?? []
@@ -412,6 +454,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       description:    c.description ?? null,
       link:           c.link ?? null,
       gallery:        Array.isArray(c.gallery) ? c.gallery : [],
+      expiry_date:    c.expiry_date ?? null,
       had:            i.had,
       sold:           i.sold,
       remaining:      i.remaining,
