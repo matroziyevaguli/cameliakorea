@@ -24,9 +24,9 @@ seller reads via definer views; writes only to `sales` + existing APIs. Admin/st
 - [x] **T1 Katta shrift (big text) toggle** — settings switch + root class, localStorage. *(safe/additive)*
 - [x] **T2 Yordam (Help) sheet** — floating "?" on Home; Telegram/call/video, config-driven. *(additive)*
 - [x] **T3 First-run welcome modal** — Home, localStorage `camelia_seller_welcome_v1`. *(additive)*
-- [ ] **T4 Home card → "⋯" sheet** — card shows photo+name+tags+big Sotildi; move Tuzatish/
+- [x] **T4 Home card → "⋯" sheet** — card shows photo+name+tags+big Sotildi; move Tuzatish/
   Telegram/Video/Expiry into a per-product bottom sheet (reuse existing modals).
-- [ ] **T5 Home chrome** — tappable "Bu oy siz ishladingiz → Batafsil" card (→ Hisobim);
+- [x] **T5 Home chrome** — tappable "Bu oy siz ishladingiz → Batafsil" card (→ Hisobim);
   collapsible monthly chart; Help + Settings icons in header.
 - [x] **T6 SellerNav 5-tab** — Bosh sahifa · Sotish · Sotuvlarim · Hisobim · Sozlamalar.
 - [x] **T7 Sell 3-step flow** — (1) product grid w/ photos → (2) qty stepper + price buttons +

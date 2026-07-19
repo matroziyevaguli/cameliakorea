@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles } from 'lucide-react'
+import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
 import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
@@ -110,6 +110,12 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [helpOpen, setHelpOpen] = useState(false)
+  const [chartOpen, setChartOpen] = useState(false)
+
+  // Per-product "⋯" (more actions) sheet
+  const [moreProduct, setMoreProduct] = useState<Product | null>(null)
+  const [moreExpiry, setMoreExpiry] = useState('')
+  function openMore(p: Product) { setMoreProduct(p); setMoreExpiry(p.expiry_date ?? '') }
 
   // First-run welcome (shown once per device)
   const [showWelcome, setShowWelcome] = useState(false)
@@ -231,8 +237,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     router.replace(router.asPath)
   }
 
-  // Expiry set
-  const [expiryOpen, setExpiryOpen] = useState<string | null>(null)
+  // Expiry set (from the ⋯ sheet)
   const [savingExpiry, setSavingExpiry] = useState(false)
   async function saveExpiry(productId: string, date: string) {
     setSavingExpiry(true)
@@ -240,7 +245,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ product_id: productId, expiry_date: date || null }),
     }).catch(() => {})
-    setSavingExpiry(false); setExpiryOpen(null)
+    setSavingExpiry(false)
     router.replace(router.asPath)
   }
   const visibleProducts = search.trim()
@@ -366,13 +371,17 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           </Link>
         </div>
 
-        {/* ── Monthly chart ── */}
+        {/* ── Monthly chart (collapsed by default — progressive disclosure) ── */}
         {chartData.length > 0 && (
-          <div className="bg-surface rounded-2xl shadow-card p-5">
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-rose" />
-              <h2 className="font-display font-bold text-ink text-base">Oylik foyda</h2>
-            </div>
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
+            <button onClick={() => setChartOpen(o => !o)} className="w-full flex items-center justify-between px-5 py-4">
+              <span className="flex items-center gap-2 font-display font-bold text-ink text-base">
+                <TrendingUp className="w-4 h-4 text-rose" /> Oylik grafik
+              </span>
+              <ChevronDown className={`w-5 h-5 text-muted transition ${chartOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {chartOpen && (
+            <div className="px-5 pb-5">
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={chartData} margin={{ left: -10, right: 0 }}>
                 <XAxis dataKey="label" tick={{ fill: '#8A7F8C', fontSize: 11 }} />
@@ -386,6 +395,8 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
+            )}
           </div>
         )}
 
@@ -431,7 +442,13 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                   />
 
                   <div className="p-4">
-                    <h3 className="font-display font-semibold text-ink text-base leading-snug">{p.name}</h3>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-display font-semibold text-ink text-base leading-snug">{p.name}</h3>
+                      <button onClick={() => openMore(p)} aria-label="Qo'shimcha"
+                        className="w-8 h-8 -mr-1 rounded-full grid place-items-center text-muted hover:text-ink hover:bg-cream transition flex-shrink-0">
+                        <MoreHorizontal className="w-5 h-5" />
+                      </button>
+                    </div>
 
                     {/* Price */}
                     <div className="flex items-center gap-3 mt-1 mb-2">
@@ -445,81 +462,36 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                       )}
                     </div>
 
-                    {/* Description */}
-                    {p.description && (
-                      <p className="text-xs text-muted leading-relaxed mb-3 line-clamp-3">{p.description}</p>
-                    )}
-
-                    {/* Stock info */}
-                    <div className="flex items-center gap-3 text-xs text-muted mb-2">
-                      <span>Berilgan: <strong className="text-ink">{p.had}</strong></span>
-                      <span>Sotilgan: <strong className="text-success">{p.sold}</strong></span>
-                    </div>
-
-                    {/* Fix received / sold — opens a modal */}
-                    <div className="mb-3 flex items-center gap-2 flex-wrap">
-                      <button onClick={() => openFix(p)}
-                        className="inline-flex items-center gap-2 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 border border-rose/20 px-3.5 py-2 rounded-full active:scale-95 transition">
-                        <Pencil className="w-3.5 h-3.5" /> Son noto'g'rimi? Tuzatish
-                      </button>
-                      {pendingByProduct.has(p.product_id) && (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
-                          <ClipboardList className="w-3.5 h-3.5" /> so'rov kutilmoqda
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Expiry — seller can set it */}
+                    {/* Status tags: expiry + pending request (the rest lives in the ⋯ sheet) */}
                     {(() => {
-                      const { status, days } = expiryInfo(p.expiry_date)
-                      const open = expiryOpen === p.product_id
+                      const { status } = expiryInfo(p.expiry_date)
+                      const showExp = status === 'expired' || status === 'critical' || status === 'soon'
+                      if (!showExp && !pendingByProduct.has(p.product_id)) return null
                       return (
-                        <div className="mb-4">
-                          {open ? (
-                            <div className="flex items-center gap-2">
-                              <input type="date" defaultValue={p.expiry_date ?? ''} id={`exp-${p.product_id}`}
-                                className="flex-1 bg-cream text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                              <button disabled={savingExpiry} onClick={() => saveExpiry(p.product_id, (document.getElementById(`exp-${p.product_id}`) as HTMLInputElement)?.value ?? '')}
-                                className="text-xs font-semibold bg-rose text-white px-3 py-2 rounded-lg disabled:opacity-50">Saqlash</button>
-                              <button onClick={() => setExpiryOpen(null)} className="text-muted"><X className="w-4 h-4" /></button>
-                            </div>
-                          ) : (
-                            <button onClick={() => setExpiryOpen(p.product_id)}
-                              className="flex items-center gap-1.5 text-xs font-medium text-muted hover:text-rose transition">
-                              <CalendarClock className="w-3.5 h-3.5" />
-                              {p.expiry_date
-                                ? <>Muddat: <span className={status === 'expired' ? 'text-danger font-semibold' : status === 'critical' ? 'text-warning font-semibold' : 'text-ink'}>{p.expiry_date}{status !== 'ok' && status !== 'none' ? ` (${EXPIRY_LABEL[status]})` : ''}</span></>
-                                : "Yaroqlilik muddatini belgilash"}
-                            </button>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {showExp && (
+                            <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${status === 'expired' ? 'bg-red-100 text-danger' : status === 'critical' ? 'bg-orange-100 text-warning' : 'bg-yellow-100 text-yellow-700'}`}>
+                              <CalendarClock className="w-3 h-3" /> {EXPIRY_LABEL[status]}
+                            </span>
+                          )}
+                          {pendingByProduct.has(p.product_id) && (
+                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-warning bg-orange-50 px-2.5 py-1 rounded-full">
+                              <ClipboardList className="w-3 h-3" /> so'rov kutilmoqda
+                            </span>
                           )}
                         </div>
                       )
                     })()}
 
-                    {/* Actions */}
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-2">
-                        {p.remaining > 0 && (
-                          <Link href={`/seller/sell?product=${p.product_id}`}
-                            className="flex-1 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3 rounded-full text-sm text-center shadow-rose active:scale-95 transition">
-                            {S.soldBtn}
-                          </Link>
-                        )}
-                        {p.link && (
-                          <a href={p.link} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-4 py-3 rounded-full bg-red-50 text-red-600 text-sm font-semibold active:scale-95 transition border border-red-100">
-                            ▶️ Videoni ko'rish
-                          </a>
-                        )}
-                      </div>
-                      {p.image_url && (
-                        <button onClick={() => openPost(p)}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-gradient-to-br from-sky to-lavender text-white text-sm font-display font-bold active:scale-95 transition shadow-sm">
-                          <Send className="w-4 h-4" />
-                          Telegram kanalga jo'natish
-                        </button>
-                      )}
-                    </div>
+                    {/* Primary action — one big Sotildi */}
+                    {p.remaining > 0 ? (
+                      <Link href={`/seller/sell?product=${p.product_id}`}
+                        className="block w-full bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3.5 rounded-full text-base text-center shadow-rose active:scale-95 transition">
+                        {S.soldBtn}
+                      </Link>
+                    ) : (
+                      <div className="w-full bg-cream text-muted font-display font-bold py-3.5 rounded-full text-base text-center">Tugadi</div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -531,6 +503,55 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
       <SellerNav />
 
       <HelpSheet open={helpOpen} onClose={() => setHelpOpen(false)} />
+
+      {/* ── Per-product "⋯" more-actions sheet ── */}
+      {moreProduct && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setMoreProduct(null)} />
+          <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-display font-bold text-ink text-base truncate">{moreProduct.name}</p>
+              <button onClick={() => setMoreProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-xs text-muted mb-4">Qo'shimcha amallar</p>
+
+            <div className="space-y-1">
+              <button onClick={() => { const p = moreProduct; setMoreProduct(null); openFix(p) }}
+                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
+                <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center flex-shrink-0"><Pencil className="w-4 h-4 text-rose" /></span>
+                <span className="font-semibold text-sm text-ink">Son noto'g'ri — Tuzatish</span>
+              </button>
+              {moreProduct.image_url && (
+                <button onClick={() => { const p = moreProduct; setMoreProduct(null); openPost(p) }}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
+                  <span className="w-9 h-9 rounded-full bg-sky/15 grid place-items-center flex-shrink-0"><Send className="w-4 h-4 text-sky" /></span>
+                  <span className="font-semibold text-sm text-ink">Telegram kanalga yuborish</span>
+                </button>
+              )}
+              {moreProduct.link && (
+                <a href={moreProduct.link} target="_blank" rel="noopener noreferrer" onClick={() => setMoreProduct(null)}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition">
+                  <span className="w-9 h-9 rounded-full bg-red-50 grid place-items-center flex-shrink-0"><PlayCircle className="w-4 h-4 text-red-600" /></span>
+                  <span className="font-semibold text-sm text-ink">Videoni ko'rish</span>
+                </a>
+              )}
+            </div>
+
+            {/* Expiry editor */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-xs font-semibold text-muted mb-2 flex items-center gap-1.5"><CalendarClock className="w-3.5 h-3.5" /> Yaroqlilik muddati</p>
+              <div className="flex items-center gap-2">
+                <input type="date" value={moreExpiry} onChange={e => setMoreExpiry(e.target.value)}
+                  className="flex-1 bg-cream text-ink rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+                <button disabled={savingExpiry}
+                  onClick={async () => { const p = moreProduct; await saveExpiry(p.product_id, moreExpiry); setMoreProduct(null) }}
+                  className="text-sm font-semibold bg-rose text-white px-4 py-2.5 rounded-lg disabled:opacity-50">Saqlash</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── First-run welcome ── */}
       {showWelcome && (
