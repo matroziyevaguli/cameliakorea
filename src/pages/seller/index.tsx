@@ -36,7 +36,8 @@ type MyRequest = {
   status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
 }
 type Available = { id: string; name: string; retail_price: number; discount_price: number | null }
-type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[]; totalUnitsSold: number; totalRevenue: number; otherSellers: { id: string; full_name: string }[] }
+type Incoming = { id: string; from_name: string; product_name: string; qty: number }
+type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[]; totalUnitsSold: number; totalRevenue: number; otherSellers: { id: string; full_name: string }[]; incomingTransfers: Incoming[] }
 
 function RemainingBadge({ n }: { n: number }) {
   if (n === 0) return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-danger">Tugadi</span>
@@ -103,7 +104,7 @@ function buildCaption(p: Product) {
   return `✨ Yangi mahsulot!\n\n${p.name}\n${price}${desc}\n\n⚠️ Mahsulot soni cheklangan!\n\n🇰🇷 Koreyadan, sinab ko'rilgan\n📍 O'zbekistonda mavjud\n\n📞 Buyurtma uchun:\n🏙 Namangan: Gulshanoy +998 94 099 44 99\n🏙 Andijon: Saida +998 93 858 27 27\n🏙 Farg'ona: Adolat +998 33 408 61 83\n\n@cameliakorea`
 }
 
-export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue, otherSellers }: Props) {
+export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue, otherSellers, incomingTransfers }: Props) {
   const router = useRouter()
 
   const [search, setSearch] = useState('')
@@ -127,6 +128,23 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     setMoreProduct(null); setTransferProduct(p)
     setTransferTo(mainSeller?.id ?? ''); setTransferQty(1); setTransferError(''); setTransferDone(false)
   }
+  // Incoming returns waiting for THIS seller to confirm she received them
+  const [incoming, setIncoming] = useState(incomingTransfers)
+  const [txBusy, setTxBusy] = useState<string | null>(null)
+  const [txError, setTxError] = useState('')
+  async function confirmTransfer(id: string, action: 'approve' | 'reject') {
+    setTxBusy(id + action); setTxError('')
+    const res = await fetch('/api/confirm-transfer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setTxBusy(null)
+    if (!res.ok) { setTxError(json.error ?? 'Xatolik'); return }
+    setIncoming(list => list.filter(t => t.id !== id))
+    router.replace(router.asPath)
+  }
+
   async function submitTransfer() {
     if (!transferProduct || !transferTo) { setTransferError('Qabul qiluvchini tanlang'); return }
     setTransferBusy(true); setTransferError('')
@@ -345,6 +363,28 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
         )}
         {pendingCount > 0 && (
           <div className="bg-orange-50 text-warning text-sm font-semibold rounded-xl px-4 py-2.5 text-center">{S.pendingWaiting(pendingCount)}</div>
+        )}
+
+        {/* Incoming returns — this seller confirms she received them */}
+        {incoming.length > 0 && (
+          <div className="space-y-2">
+            {incoming.map(t => (
+              <div key={t.id} className="bg-mint/10 border border-mint/30 rounded-2xl p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <RotateCcw className="w-4 h-4 text-success" />
+                  <p className="text-sm font-semibold text-ink">{t.from_name} sizga qaytarmoqchi</p>
+                </div>
+                <p className="text-sm text-muted mb-3">{t.product_name} — <strong className="text-ink">{t.qty} ta</strong></p>
+                <div className="flex gap-2">
+                  <button onClick={() => confirmTransfer(t.id, 'approve')} disabled={txBusy !== null}
+                    className="flex-1 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">Qabul qildim</button>
+                  <button onClick={() => confirmTransfer(t.id, 'reject')} disabled={txBusy !== null}
+                    className="flex-1 bg-red-50 text-danger font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">Rad etish</button>
+                </div>
+              </div>
+            ))}
+            {txError && <p className="text-danger text-xs px-1">{txError}</p>}
+          </div>
         )}
 
         {/* ── Money summary: 4 cards (sold · earned · to hand over · handed over) ── */}
@@ -825,7 +865,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   // Product list: v_my_inventory (RLS-safe for sellers — v_inventory & the products table
   // both return 0 rows to sellers). Prices/images/gallery: v_catalog (a definer view sellers
   // CAN read), keyed by `id` = product_id.
-  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes, availableRes, sellersRes] = await Promise.all([
+  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes, availableRes, sellersRes, transfersRes] = await Promise.all([
     supabase.from('v_my_summary').select('*').maybeSingle(),
     supabase.from('v_my_monthly').select('*'),
     supabase.from('v_my_inventory').select('product_id, product_name, had, sold, remaining'),
@@ -833,6 +873,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     supabase.from('v_my_requests').select('*'),
     supabase.from('v_available_products').select('id, name, retail_price, discount_price'),
     supabase.from('v_seller_names').select('id, full_name'),
+    supabase.from('v_my_transfers').select('id, from_name, product_name, qty, status, is_outgoing'),
   ])
 
   const inv = invRes.data ?? []
@@ -875,6 +916,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       totalUnitsSold,
       totalRevenue,
       otherSellers:   (sellersRes.data ?? []).filter((s: any) => s.id !== profile?.id),
+      incomingTransfers: (transfersRes.data ?? [])
+        .filter((t: any) => !t.is_outgoing && t.status === 'pending')
+        .map((t: any) => ({ id: t.id, from_name: t.from_name, product_name: t.product_name, qty: t.qty })),
     }
   }
 }

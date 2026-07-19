@@ -35,24 +35,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: `Sizda faqat ${remaining} ta sotilmagan bor` })
   }
 
+  // The request goes to the RECEIVING seller to confirm (she sees it in her app) — not to
+  // the admin. We don't Telegram anyone here (only the owner's chat id is stored).
   const { error } = await svc.from('transfers').insert({
     from_seller_id: prof.id, to_seller_id, product_id, qty: Number(qty), note: note?.trim() || null,
   })
   if (error) return res.status(400).json({ error: error.message })
-
-  const ownerChat = process.env.TELEGRAM_OWNER_CHAT_ID
-  const token = process.env.TELEGRAM_BOT_TOKEN
-  if (ownerChat && token) {
-    const [{ data: product }, { data: toS }] = await Promise.all([
-      svc.from('products').select('name').eq('id', product_id).single(),
-      svc.from('profiles').select('full_name').eq('id', to_seller_id).single(),
-    ])
-    const msg = `♻️ QAYTARISH SO'ROVI\n${prof.full_name} → ${toS?.full_name ?? ''}: "${product?.name ?? ''}" — ${qty} ta`
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: ownerChat, text: msg }),
-    }).catch(() => {})
-  }
 
   return res.status(200).json({ ok: true })
 }

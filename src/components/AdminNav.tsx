@@ -28,8 +28,7 @@ export default function AdminNav() {
     const count = () => Promise.all([
       supabase.from('allocation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('sale_price_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('transfers').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-    ]).then(([a, b, c]) => setPending((a.count ?? 0) + (b.count ?? 0) + (c.count ?? 0))).catch(() => {})
+    ]).then(([a, b]) => setPending((a.count ?? 0) + (b.count ?? 0))).catch(() => {})
     count()
     window.addEventListener('camelia-requests-changed', count)
     return () => window.removeEventListener('camelia-requests-changed', count)
