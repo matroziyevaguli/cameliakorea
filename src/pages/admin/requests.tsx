@@ -49,9 +49,8 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
   const [priceRequests, setPriceRequests] = useState(initPrice)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [notes, setNotes] = useState<Record<string, string>>({})
-  // Per-request "would exceed stock" prompt → offer to raise stock and approve.
-  const [needStock, setNeedStock] = useState<Record<string, { needed: number; current: number }>>({})
   const [showResolved, setShowResolved] = useState(false)
 
   const pending = requests.filter(r => r.status === 'pending')
@@ -62,26 +61,35 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
   const resolvedCount = resolved.length + priceResolved.length
 
   async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
-    setBusy(id + action); setError('')
+    setBusy(id + action); setError(''); setInfo('')
     const res = await fetch('/api/resolve-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, admin_note: notes[id] || '', bump_stock: bumpStock }),
     })
     const json = await res.json().catch(() => ({}))
-    setBusy(null)
     if (!res.ok) {
-      if (json.need_stock) { setNeedStock(n => ({ ...n, [id]: json.need_stock })); return }
+      setBusy(null)
+      // Approving would exceed recorded stock (the seller received more than was logged) →
+      // ask once, then re-approve while raising the product's total to fit. One clear step.
+      if (json.need_stock && !bumpStock) {
+        const ns = json.need_stock
+        const ok = window.confirm(`Omborda ${ns.current} ta bor. Tasdiqlansa ombor ${ns.needed} ta ga oshiriladi. Davom etamizmi?`)
+        if (ok) return resolve(id, action, true)
+        return
+      }
       setError(json.error ?? 'Xatolik'); return
     }
-    setNeedStock(n => { const { [id]: _, ...rest } = n; return rest })
+    setBusy(null)
     const now = new Date().toISOString()
     setRequests(rs => rs.map(r => r.id === id
       ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
       : r))
+    setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
+    setTimeout(() => setInfo(''), 3000)
   }
 
   async function resolvePrice(id: string, action: 'approve' | 'reject') {
-    setBusy(id + action); setError('')
+    setBusy(id + action); setError(''); setInfo('')
     const res = await fetch('/api/resolve-price-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action, admin_note: notes[id] || '' }),
@@ -93,6 +101,8 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
     setPriceRequests(rs => rs.map(r => r.id === id
       ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
       : r))
+    setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
+    setTimeout(() => setInfo(''), 3000)
   }
 
   return (
@@ -105,6 +115,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
         </div>
 
         {error && <p className="text-danger text-sm mb-4">{error}</p>}
+        {info && <p className="text-success text-sm font-semibold mb-4 bg-green-50 rounded-xl px-4 py-2.5">{info}</p>}
 
         {nothing && (
           <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
@@ -152,21 +163,6 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
                     <p className="text-xs font-semibold text-danger mb-2">
                       {r.qty_sold} ta sotilgan — bundan kam qilib bo'lmaydi.
                     </p>
-                  )}
-
-                  {needStock[r.id] && (
-                    <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-3">
-                      <p className="text-xs text-ink mb-2">
-                        Omborda faqat <strong>{needStock[r.id].current}</strong> ta bor, lekin tasdiqlansa jami
-                        taqsimot <strong>{needStock[r.id].needed}</strong> ta bo'ladi. Ombor sonini oshiramizmi?
-                      </p>
-                      <button
-                        onClick={() => resolve(r.id, 'approve', true)}
-                        disabled={busy !== null}
-                        className="w-full flex items-center justify-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
-                        <Check className="w-4 h-4" /> Ombor sonini {needStock[r.id].needed} ta qilib tasdiqlash
-                      </button>
-                    </div>
                   )}
 
                   <input
