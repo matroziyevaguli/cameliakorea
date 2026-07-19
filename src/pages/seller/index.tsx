@@ -326,8 +326,8 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           {/* Sotilgan — units + revenue */}
           <Link href="/seller/sales" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
             <p className="text-xs font-semibold text-muted mb-1 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5 text-rose" /> Sotilgan</p>
-            <p className="font-display text-xl font-bold text-ink">{totalUnitsSold} ta</p>
-            <p className="text-xs text-muted mt-0.5">{formatUZS(totalRevenue)}</p>
+            <p className="font-display text-xl font-bold text-ink">{formatUZS(totalRevenue)}</p>
+            <p className="text-xs text-muted mt-0.5">{totalUnitsSold} ta sotilgan</p>
           </Link>
           {/* Daromadingiz — their earnings */}
           <Link href="/seller/balance" className="bg-gradient-to-br from-success to-mint text-white rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
