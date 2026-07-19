@@ -6,7 +6,17 @@ import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
 import { Share2, CheckCircle } from 'lucide-react'
 
-type Product = { id: string; name: string; total_qty: number }
+type Product = { id: string; name: string; total_qty: number; image_url: string | null }
+
+const GRADS = ['from-rose to-peach', 'from-lavender to-sky', 'from-mint to-sky', 'from-peach to-rose']
+function Thumb({ name, url, i, className = '' }: { name: string; url: string | null; i: number; className?: string }) {
+  if (url) return <img src={url} alt={name} className={`object-cover ${className}`} />
+  return (
+    <div className={`bg-gradient-to-br ${GRADS[i % GRADS.length]} grid place-items-center ${className}`}>
+      <span className="font-display font-bold text-white/80">{name.charAt(0).toUpperCase()}</span>
+    </div>
+  )
+}
 type Seller = { id: string; full_name: string }
 // current allocation + sold, keyed "productId|sellerId"
 type Cell = { allocated: number; sold: number }
@@ -53,7 +63,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
   const undistributedList = useMemo(() =>
     products.map(p => {
       const allocated = sellers.reduce((n, s) => n + (cells[`${p.id}|${s.id}`]?.allocated ?? 0), 0)
-      return { id: p.id, name: p.name, total: p.total_qty, allocated, left: p.total_qty - allocated }
+      return { id: p.id, name: p.name, image_url: p.image_url, total: p.total_qty, allocated, left: p.total_qty - allocated }
     }).filter(p => p.left > 0)
   , [products, sellers, cells])
   const totalLeft = undistributedList.reduce((n, p) => n + p.left, 0)
@@ -143,6 +153,13 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                 return <option key={p.id} value={p.id}>{p.name} — {p.total_qty - alloc} ta bo'sh</option>
               })}
             </select>
+            {/* Selected product photo (a select can't show it inline) */}
+            {selected && (
+              <div className="flex items-center gap-3 mt-3">
+                <Thumb name={selected.name} url={selected.image_url} i={products.indexOf(selected)} className="w-14 h-14 rounded-xl flex-shrink-0" />
+                <p className="font-display font-semibold text-ink text-sm">{selected.name}</p>
+              </div>
+            )}
           </div>
 
           {selected && (
@@ -250,7 +267,12 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                 <tbody>
                   {undistributedList.map((p, i) => (
                     <tr key={p.id} className={`${i % 2 === 1 ? 'bg-cream/50' : ''} hover:bg-rose/5 transition`}>
-                      <td className="px-5 py-3 font-medium text-ink">{p.name}</td>
+                      <td className="px-5 py-3 font-medium text-ink">
+                        <div className="flex items-center gap-3">
+                          <Thumb name={p.name} url={p.image_url} i={i} className="w-9 h-9 rounded-lg flex-shrink-0" />
+                          <span>{p.name}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-right text-muted">{p.total}</td>
                       <td className="px-4 py-3 text-right text-muted">{p.allocated}</td>
                       <td className="px-5 py-3 text-right font-display font-bold text-rose">{p.left}</td>
@@ -272,7 +294,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const supabase = createClient(ctx)
 
   const [{ data: products }, { data: sellers }, { data: inv }] = await Promise.all([
-    supabase.from('products').select('id, name, total_qty').order('name'),
+    supabase.from('products').select('id, name, total_qty, image_url').order('name'),
     supabase.from('profiles').select('id, full_name').eq('role', 'seller').eq('active', true).order('full_name'),
     supabase.from('v_inventory').select('seller_id, product_id, qty_allocated, qty_sold'),
   ])
