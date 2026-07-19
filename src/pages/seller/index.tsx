@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart } from 'lucide-react'
+import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -35,7 +35,7 @@ type MyRequest = {
   status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
 }
 type Available = { id: string; name: string; retail_price: number; discount_price: number | null }
-type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[] }
+type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[]; totalUnitsSold: number; totalRevenue: number }
 
 function RemainingBadge({ n }: { n: number }) {
   if (n === 0) return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-danger">Tugadi</span>
@@ -102,7 +102,7 @@ function buildCaption(p: Product) {
   return `✨ Yangi mahsulot!\n\n${p.name}\n${price}${desc}\n\n⚠️ Mahsulot soni cheklangan!\n\n🇰🇷 Koreyadan, sinab ko'rilgan\n📍 O'zbekistonda mavjud\n\n📞 Buyurtma uchun:\n🏙 Namangan: Gulshanoy +998 94 099 44 99\n🏙 Andijon: Saida +998 93 858 27 27\n🏙 Farg'ona: Adolat +998 33 408 61 83\n\n@cameliakorea`
 }
 
-export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available }: Props) {
+export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
   const router = useRouter()
 
   // Settings menu + product search
@@ -309,21 +309,33 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
 
       <main className="px-4 -mt-12 relative z-10 space-y-4">
 
-        {/* ── Money box ── */}
-        {summary && (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-surface rounded-2xl shadow-card p-4">
-              <p className="text-xs font-semibold text-muted mb-2">Topshirilishi kerak</p>
-              <p className={`font-display text-xl font-bold ${summary.not_submitted > 0 ? 'text-danger' : 'text-success'}`}>
-                {formatUZS(summary.not_submitted)}
-              </p>
-            </div>
-            <div className="bg-surface rounded-2xl shadow-card p-4">
-              <p className="text-xs font-semibold text-muted mb-2">Topshirilgan</p>
-              <p className="font-display text-xl font-bold text-success">{formatUZS(summary.submitted)}</p>
-            </div>
-          </div>
-        )}
+        {/* ── Money summary: 4 cards (sold · earned · to hand over · handed over) ── */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Sotilgan — units + revenue */}
+          <Link href="/seller/sales" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
+            <p className="text-xs font-semibold text-muted mb-1 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5 text-rose" /> Sotilgan</p>
+            <p className="font-display text-xl font-bold text-ink">{totalUnitsSold} ta</p>
+            <p className="text-xs text-muted mt-0.5">{formatUZS(totalRevenue)}</p>
+          </Link>
+          {/* Daromadingiz — their earnings */}
+          <Link href="/seller/balance" className="bg-gradient-to-br from-success to-mint text-white rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
+            <p className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Daromadingiz</p>
+            <p className="font-display text-xl font-bold">{formatUZS(summary?.your_total_profit ?? 0)}</p>
+            <p className="text-xs opacity-80 mt-0.5">jami ishlagan pulingiz</p>
+          </Link>
+          {/* Topshirilishi kerak */}
+          <Link href="/seller/balance" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
+            <p className="text-xs font-semibold text-muted mb-1">Topshirilishi kerak</p>
+            <p className={`font-display text-xl font-bold ${(summary?.not_submitted ?? 0) > 0 ? 'text-danger' : 'text-success'}`}>
+              {formatUZS(Math.max(0, summary?.not_submitted ?? 0))}
+            </p>
+          </Link>
+          {/* Topshirilgan */}
+          <Link href="/seller/balance" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
+            <p className="text-xs font-semibold text-muted mb-1">Topshirilgan</p>
+            <p className="font-display text-xl font-bold text-success">{formatUZS(summary?.submitted ?? 0)}</p>
+          </Link>
+        </div>
 
         {/* ── Monthly chart ── */}
         {chartData.length > 0 && (
@@ -744,6 +756,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const currentMonth = new Date().toISOString().slice(0, 7)
   const thisMonthProfit = (monthlyRes.data ?? []).find(m => m.month === currentMonth)?.your_profit ?? 0
 
+  // Totals for the home summary cards (all-time)
+  const totalUnitsSold = products.reduce((n, p) => n + (p.sold ?? 0), 0)
+  const totalRevenue = (monthlyRes.data ?? []).reduce((n: number, m: any) => n + (m.revenue ?? 0), 0)
+
   return {
     props: {
       sellerName:     profile?.full_name ?? '',
@@ -753,6 +769,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       thisMonthProfit,
       requests:       requestsRes.data ?? [],
       available:      availableRes.data ?? [],
+      totalUnitsSold,
+      totalRevenue,
     }
   }
 }
