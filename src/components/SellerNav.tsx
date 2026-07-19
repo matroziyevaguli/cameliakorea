@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { House, ShoppingBag, Receipt, Wallet, Settings } from 'lucide-react'
+import { House, Receipt, Wallet, Settings } from 'lucide-react'
 
 const items = [
   { href: '/seller',          label: 'Bosh sahifa', icon: House },
-  { href: '/seller/sell',     label: 'Sotish',      icon: ShoppingBag },
+  // "Sotish" tab commented out — selling is done from the "Sotildi" button on each product
+  // card on the home page, so a separate tab is redundant. (/seller/sell still works.)
+  // { href: '/seller/sell',     label: 'Sotish',      icon: ShoppingBag },
   { href: '/seller/sales',    label: 'Sotuvlarim',  icon: Receipt },
   { href: '/seller/balance',  label: 'Hisobim',     icon: Wallet },
   { href: '/seller/settings', label: 'Sozlamalar',  icon: Settings },
