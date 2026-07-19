@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle } from 'lucide-react'
+import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
 import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
@@ -106,8 +106,6 @@ function buildCaption(p: Product) {
 export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
   const router = useRouter()
 
-  // Settings menu + product search
-  const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [helpOpen, setHelpOpen] = useState(false)
   const [chartOpen, setChartOpen] = useState(false)
@@ -229,6 +227,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     router.replace(router.asPath)
   }
   async function deleteSaleRow(saleId: string) {
+    if (!confirm(S.deleteConfirm)) return   // destructive → always confirm
     setSaleBusy(saleId)
     const supabase = createBrowser()
     await supabase.from('sales').delete().eq('id', saleId)
@@ -278,11 +277,6 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     setTimeout(() => setPostProduct(null), 1400)
   }
 
-  async function signOut() {
-    const supabase = createBrowser()
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
 
   const chartData = monthly.map(m => ({
     label: uzMonth(m.month),
@@ -305,30 +299,14 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               <span className="font-display font-bold text-white text-base">{formatUZS(thisMonthProfit)}</span>
             </p>
           </div>
-          <div className="relative flex items-center gap-1">
+          <div className="flex items-center gap-1">
             <button onClick={() => setHelpOpen(true)} aria-label={S.help} className="text-white/70 hover:text-white p-2 transition">
               <HelpCircle className="w-5 h-5" />
             </button>
-            <button onClick={() => setMenuOpen(o => !o)} className="text-white/70 hover:text-white p-2 transition">
+            {/* One way to Settings (password / logout / big-text all live there) */}
+            <Link href="/seller/settings" aria-label={S.settings} className="text-white/70 hover:text-white p-2 transition">
               <Settings className="w-5 h-5" />
-            </button>
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 mt-2 w-56 bg-surface rounded-2xl shadow-card p-2 z-40 text-ink">
-                  <Link href="/seller/settings" onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-sm font-medium">
-                    <span className="w-8 h-8 rounded-full bg-rose/10 grid place-items-center"><Lock className="w-4 h-4 text-rose" /></span>
-                    Parolni o'zgartirish
-                  </Link>
-                  <button onClick={signOut}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-sm font-medium text-danger">
-                    <span className="w-8 h-8 rounded-full bg-red-50 grid place-items-center"><LogOut className="w-4 h-4" /></span>
-                    Chiqish
-                  </button>
-                </div>
-              </>
-            )}
+            </Link>
           </div>
         </div>
       </header>

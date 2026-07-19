@@ -39,7 +39,10 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
     const supabase = createBrowser()
     const { error: err } = await supabase.auth.updateUser({ password: pw1 })
     setLoading(false)
-    if (err) { setError(err.message); return }
+    if (err) {
+      setError(/different/i.test(err.message) ? "Yangi parol eskisidan farq qilishi kerak" : "Parolni o'zgartirib bo'lmadi. Qayta urinib ko'ring")
+      return
+    }
     setDone(true); setPw1(''); setPw2('')
   }
 

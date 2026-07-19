@@ -84,6 +84,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
     setRequests(rs => rs.map(r => r.id === id
       ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
       : r))
+    window.dispatchEvent(new Event('camelia-requests-changed'))   // refresh the nav badge
     setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
     setTimeout(() => setInfo(''), 3000)
   }
@@ -101,6 +102,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
     setPriceRequests(rs => rs.map(r => r.id === id
       ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
       : r))
+    window.dispatchEvent(new Event('camelia-requests-changed'))   // refresh the nav badge
     setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
     setTimeout(() => setInfo(''), 3000)
   }

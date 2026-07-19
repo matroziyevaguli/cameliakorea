@@ -21,12 +21,16 @@ export default function AdminNav() {
   const [pending, setPending] = useState(0)
 
   // Live count of pending requests (allocation + price) → red badge on the So'rovlar tab.
+  // Re-counts on navigation and whenever a request is resolved (custom event).
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
+    const count = () => Promise.all([
       supabase.from('allocation_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabase.from('sale_price_requests').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     ]).then(([a, b]) => setPending((a.count ?? 0) + (b.count ?? 0))).catch(() => {})
+    count()
+    window.addEventListener('camelia-requests-changed', count)
+    return () => window.removeEventListener('camelia-requests-changed', count)
   }, [router.pathname])
 
   async function signOut() {

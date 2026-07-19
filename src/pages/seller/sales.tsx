@@ -9,6 +9,16 @@ import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, X } from 'luc
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
 
+const GRADIENTS = ['from-rose to-peach', 'from-lavender to-sky', 'from-mint to-sky', 'from-peach to-rose']
+function Thumb({ name, url, i, className = '' }: { name: string; url?: string | null; i: number; className?: string }) {
+  if (url) return <img src={url} alt={name} className={`object-cover ${className}`} />
+  return (
+    <div className={`bg-gradient-to-br ${GRADIENTS[i % GRADIENTS.length]} grid place-items-center ${className}`}>
+      <span className="font-display font-bold text-white/80 text-lg">{name.charAt(0).toUpperCase()}</span>
+    </div>
+  )
+}
+
 const UZ_MONTH = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 function monthLabel(ym: string) {
   const [y, m] = ym.split('-')
@@ -26,11 +36,12 @@ type Sale = {
   sold_at: string
 }
 
-export default function MySales({ sales, pricePending }: { sales: Sale[]; pricePending: string[] }) {
+export default function MySales({ sales, pricePending, images }: { sales: Sale[]; pricePending: string[]; images: Record<string, string | null> }) {
   const router = useRouter()
   const [busy, setBusy] = useState<string | null>(null)
   const [month, setMonth] = useState('all')
   const [search, setSearch] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   const pricePendingSet = new Set(pricePending)
 
@@ -104,11 +115,12 @@ export default function MySales({ sales, pricePending }: { sales: Sale[]; priceP
     return Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.qty - a.qty)
   }, [filtered])
 
-  async function deleteSale(id: string) {
-    if (!confirm(S.deleteConfirm)) return
+  // Delete uses a friendly inline confirm card (not a scary native popup).
+  async function doDelete(id: string) {
     setBusy(id)
     const supabase = createBrowser()
     await supabase.from('sales').delete().eq('id', id)
+    setConfirmDeleteId(null)
     router.replace(router.asPath)
     setBusy(null)
   }
@@ -190,11 +202,11 @@ export default function MySales({ sales, pricePending }: { sales: Sale[]; priceP
                 <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">Bu filtr bo'yicha sotuv yo'q</div>
               ) : (
                 <div className="space-y-3">
-                  {filtered.map(sale => {
+                  {filtered.map((sale, fi) => {
                     const isReturn = sale.qty < 0
                     const isEditing = editId === sale.id
                     return (
-                    <div key={sale.id} className={`rounded-2xl shadow-card p-4 ${isReturn ? 'bg-red-50' : 'bg-surface'}`}>
+                    <div key={sale.id} className={`rounded-2xl shadow-card p-4 ${confirmDeleteId === sale.id ? 'border-2 border-danger bg-surface' : isReturn ? 'bg-red-50' : 'bg-surface'}`}>
                       {isEditing ? (
                         <div className="space-y-3">
                           <p className="font-display font-semibold text-ink">{sale.product_name}</p>
@@ -254,33 +266,46 @@ export default function MySales({ sales, pricePending }: { sales: Sale[]; priceP
                         </div>
                       ) : (
                         <>
-                          <div className="flex justify-between items-start gap-3">
+                          <div className="flex items-start gap-3">
+                            <Thumb name={sale.product_name} url={images[sale.product_name]} i={fi} className="w-12 h-12 rounded-xl flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
                                 {isReturn && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full flex-shrink-0">Qaytarilgan</span>}
                               </div>
-                              <p className="text-sm text-muted mt-1">{Math.abs(sale.qty)} × {formatUZS(sale.unit_price)}</p>
-                              <p className={`text-xs font-semibold mt-1 ${isReturn ? 'text-danger' : 'text-rose'}`}>
+                              <p className="text-sm text-muted mt-0.5">{Math.abs(sale.qty)} × {formatUZS(sale.unit_price)}</p>
+                              <p className={`text-xs font-semibold mt-0.5 ${isReturn ? 'text-danger' : 'text-rose'}`}>
                                 Foyda: {formatUZS(sale.your_profit)}
                               </p>
-                              <p className="text-xs text-muted/60 mt-1">{formatDate(sale.sold_at, true)}</p>
+                              <p className="text-xs text-muted/60 mt-0.5">{formatDate(sale.sold_at, true)}</p>
                             </div>
                             <p className={`font-display font-bold text-lg flex-shrink-0 ${isReturn ? 'text-danger' : 'text-success'}`}>{formatUZS(sale.amount)}</p>
                           </div>
-                          {/* Action bar */}
-                          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-100">
-                            {!isReturn ? (
-                              <button onClick={() => openEdit(sale)} disabled={busy === sale.id}
-                                className="flex items-center gap-1.5 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 px-3 py-2 rounded-full transition disabled:opacity-30">
-                                <Pencil className="w-3.5 h-3.5" /> Tahrirlash
+
+                          {confirmDeleteId === sale.id ? (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <p className="text-sm text-ink mb-2 leading-snug">{S.deleteConfirm}</p>
+                              <div className="flex gap-2">
+                                <button onClick={() => setConfirmDeleteId(null)}
+                                  className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">Bekor qilish</button>
+                                <button onClick={() => doDelete(sale.id)} disabled={busy === sale.id}
+                                  className="flex-1 bg-danger text-white text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50">Ha, o'chirish</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-100">
+                              {!isReturn ? (
+                                <button onClick={() => openEdit(sale)} disabled={busy === sale.id}
+                                  className="flex items-center gap-1.5 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 px-3 py-2 rounded-full transition disabled:opacity-30">
+                                  <Pencil className="w-3.5 h-3.5" /> Tahrirlash
+                                </button>
+                              ) : <span className="text-xs text-muted">Qaytarilgan yozuv</span>}
+                              <button onClick={() => setConfirmDeleteId(sale.id)} disabled={busy === sale.id}
+                                className="ml-auto text-danger/40 hover:text-danger transition disabled:opacity-30 p-2">
+                                <Trash2 className="w-4 h-4" />
                               </button>
-                            ) : <span className="text-xs text-muted">Qaytarilgan yozuv</span>}
-                            <button onClick={() => deleteSale(sale.id)} disabled={busy === sale.id}
-                              className="ml-auto text-danger/40 hover:text-danger transition disabled:opacity-30 p-2">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -304,14 +329,18 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const supabase = createClient(ctx)
   // v_my_sales exposes `amount` (revenue) + `your_profit`; there is no `revenue`/`note` column.
-  const [{ data: sales }, { data: priceReqs }] = await Promise.all([
+  const [{ data: sales }, { data: priceReqs }, { data: catalog }] = await Promise.all([
     supabase.from('v_my_sales')
       .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
       .order('sold_at', { ascending: false }).limit(300),
     supabase.from('v_my_price_requests').select('sale_id, status'),
+    supabase.from('v_catalog').select('name, image_url'),
   ])
 
   const pricePending = (priceReqs ?? []).filter(r => r.status === 'pending').map(r => r.sale_id)
+  // Photo per sale, matched by product name (v_my_sales has no product_id).
+  const images: Record<string, string | null> = {}
+  for (const c of catalog ?? []) images[(c as any).name] = (c as any).image_url ?? null
 
-  return { props: { sales: sales ?? [], pricePending } }
+  return { props: { sales: sales ?? [], pricePending, images } }
 }

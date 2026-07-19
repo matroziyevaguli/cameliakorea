@@ -33,9 +33,9 @@ seller reads via definer views; writes only to `sales` + existing APIs. Admin/st
   live total → (3) confirm (amount only) → success + **Undo (10s)**. Preselect from Home card.
 - [x] **T8 Offline-safe sale queue** — localStorage queue on network failure; flush on load +
   `online`; dedupe by `client_ts`; "Saqlandi ⏳" state. *(spec Task 1)*
-- [ ] **T9 Sotuvlarim (history) visual pass** — photo rows + month chips; keep our edit/price-
+- [x] **T9 Sotuvlarim (history) visual pass** — photo rows + month chips; keep our edit/price-
   request/delete + inline delete-confirm.
-- [ ] **T10 Consistency pass** — Sozlamalar back-path + So'rovlarim row + Yordam row; no raw
+- [x] **T10 Consistency pass** — Sozlamalar back-path + So'rovlarim row + Yordam row; no raw
   English errors; every destructive action confirmed. *(spec Task 4)*
 
 ## Notes
