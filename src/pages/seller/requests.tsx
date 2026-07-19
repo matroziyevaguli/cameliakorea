@@ -15,11 +15,7 @@ type MyPriceRequest = {
   current_price: number; requested_price: number; reason: string | null
   status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
 }
-type MyTransfer = {
-  id: string; product_name: string; qty: number; from_name: string; to_name: string
-  is_outgoing: boolean; status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
-}
-type Props = { requests: MyRequest[]; priceRequests: MyPriceRequest[]; transfers: MyTransfer[] }
+type Props = { requests: MyRequest[]; priceRequests: MyPriceRequest[] }
 
 const REQ_BADGE: Record<MyRequest['status'], { label: string; cls: string }> = {
   pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
@@ -27,8 +23,8 @@ const REQ_BADGE: Record<MyRequest['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function SellerRequests({ requests, priceRequests, transfers }: Props) {
-  const nothing = requests.length === 0 && priceRequests.length === 0 && transfers.length === 0
+export default function SellerRequests({ requests, priceRequests }: Props) {
+  const nothing = requests.length === 0 && priceRequests.length === 0
   return (
     <div className="min-h-screen bg-cream pb-28">
       <header className="bg-gradient-to-br from-rose to-peach text-white px-5 pt-10 pb-8">
@@ -88,25 +84,6 @@ export default function SellerRequests({ requests, priceRequests, transfers }: P
           </div>
         ))}
 
-        {transfers.map(r => (
-          <div key={r.id} className="bg-surface rounded-2xl shadow-card px-4 py-3">
-            <div className="flex items-center justify-between gap-3 mb-1">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-sm font-semibold text-ink truncate">{r.product_name}</p>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 bg-mint/25 text-ink">
-                  {r.is_outgoing ? 'Qaytarildi' : 'Qabul'}
-                </span>
-              </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE[r.status].cls}`}>
-                {REQ_BADGE[r.status].label}
-              </span>
-            </div>
-            <p className="text-xs text-muted">
-              {r.from_name} → {r.to_name} · {r.qty} ta · {formatDate(r.created_at)}
-            </p>
-            {r.admin_note && <p className="text-xs text-muted mt-0.5">Admin: {r.admin_note}</p>}
-          </div>
-        ))}
       </main>
 
       <SellerNav />
@@ -118,10 +95,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const guard = await requireRole(ctx, 'seller')
   if (guard) return guard
   const supabase = createClient(ctx)
-  const [{ data }, { data: priceData }, { data: transferData }] = await Promise.all([
+  const [{ data }, { data: priceData }] = await Promise.all([
     supabase.from('v_my_requests').select('*'),
     supabase.from('v_my_price_requests').select('*'),
-    supabase.from('v_my_transfers').select('*'),
   ])
-  return { props: { requests: data ?? [], priceRequests: priceData ?? [], transfers: transferData ?? [] } }
+  return { props: { requests: data ?? [], priceRequests: priceData ?? [] } }
 }

@@ -98,7 +98,7 @@ export default function Giveaways({ products, sellers, giveaways }: Props) {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-muted mb-1">G'olib (ism / @username) — ixtiyoriy</label>
+            <label className="block text-xs font-semibold text-muted mb-1">G'olib (ism / @username) — Telfon raqami</label>
             <input value={winner} onChange={e => setWinner(e.target.value)} placeholder="@username yoki ism"
               className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
           </div>
