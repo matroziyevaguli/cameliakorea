@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
-import { LayoutDashboard, Package, Layers, Share2, Users, CreditCard, BarChart2, Inbox, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Layers, Share2, Users, CreditCard, BarChart2, Inbox, Gift, LogOut, Menu, X } from 'lucide-react'
 
 const links = [
   { href: '/admin',             label: 'Dashboard',    icon: LayoutDashboard },
@@ -10,6 +10,7 @@ const links = [
   { href: '/admin/batches',     label: 'Partiyalar',   icon: Layers },
   { href: '/admin/distribute',  label: 'Taqsimlash',   icon: Share2 },
   { href: '/admin/requests',    label: "So'rovlar",    icon: Inbox },
+  { href: '/admin/giveaways',   label: "Sovg'alar",    icon: Gift },
   { href: '/admin/sellers',     label: 'Sotuvchilar',  icon: Users },
   { href: '/admin/payments',    label: "To'lovlar",    icon: CreditCard },
   { href: '/admin/stats',       label: 'Statistika',   icon: BarChart2 },
