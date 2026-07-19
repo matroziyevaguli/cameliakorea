@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getApiUser } from '@/lib/apiAuth'
+import { mdToTelegramHtml } from '@/lib/telegramFormat'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -29,7 +30,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const body: Record<string, unknown> = {
     chat_id: channel,
     photo: image_url,
-    caption,
+    caption: mdToTelegramHtml(caption),   // render **bold** / ~~strike~~ / *italic*
+    parse_mode: 'HTML',
   }
 
   if (link) {

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { getApiUser } from '@/lib/apiAuth'
 import { createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
+import { mdToTelegramHtml } from '@/lib/telegramFormat'
 
 // Posts a discount announcement to the public buyers channel (@cameliakorea).
 // Admin-only. Purely a message — never touches sales/allocations/profit.
@@ -42,10 +43,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     `🏙 Farg'ona: Adolat +998 33 408 61 83\n\n` +
     `@cameliakorea`
 
-  const body: Record<string, unknown> = { chat_id: channel }
+  const html = mdToTelegramHtml(caption)
+  const body: Record<string, unknown> = { chat_id: channel, parse_mode: 'HTML' }
   const method = p.image_url ? 'sendPhoto' : 'sendMessage'
-  if (p.image_url) { body.photo = p.image_url; body.caption = caption }
-  else { body.text = caption }
+  if (p.image_url) { body.photo = p.image_url; body.caption = html }
+  else { body.text = html }
   if (p.link) body.reply_markup = { inline_keyboard: [[{ text: "▶️ Videoni ko'rish", url: p.link }]] }
 
   const tg = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
