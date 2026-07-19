@@ -2,10 +2,9 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { useState } from 'react'
-import { useRouter } from 'next/router'
 import AdminNav from '@/components/AdminNav'
 import { formatDate, formatUZS } from '@/lib/format'
-import { Inbox, Check, X, ArrowRight, CheckCircle } from 'lucide-react'
+import { Inbox, Check, X, ArrowRight, CheckCircle, ChevronDown } from 'lucide-react'
 
 type Req = {
   id: string
@@ -43,19 +42,24 @@ const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function Requests({ requests, priceRequests }: Props) {
-  const router = useRouter()
+export default function Requests({ requests: initReq, priceRequests: initPrice }: Props) {
+  // Local state so an approved/rejected request leaves the pending list IMMEDIATELY
+  // (don't depend on a server re-fetch — that's why approvals looked "stuck").
+  const [requests, setRequests] = useState(initReq)
+  const [priceRequests, setPriceRequests] = useState(initPrice)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [notes, setNotes] = useState<Record<string, string>>({})
   // Per-request "would exceed stock" prompt → offer to raise stock and approve.
   const [needStock, setNeedStock] = useState<Record<string, { needed: number; current: number }>>({})
+  const [showResolved, setShowResolved] = useState(false)
 
   const pending = requests.filter(r => r.status === 'pending')
   const resolved = requests.filter(r => r.status !== 'pending')
   const pricePending = priceRequests.filter(r => r.status === 'pending')
   const priceResolved = priceRequests.filter(r => r.status !== 'pending')
   const nothing = requests.length === 0 && priceRequests.length === 0
+  const resolvedCount = resolved.length + priceResolved.length
 
   async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
     setBusy(id + action); setError('')
@@ -70,7 +74,10 @@ export default function Requests({ requests, priceRequests }: Props) {
       setError(json.error ?? 'Xatolik'); return
     }
     setNeedStock(n => { const { [id]: _, ...rest } = n; return rest })
-    router.replace(router.asPath)
+    const now = new Date().toISOString()
+    setRequests(rs => rs.map(r => r.id === id
+      ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
+      : r))
   }
 
   async function resolvePrice(id: string, action: 'approve' | 'reject') {
@@ -82,7 +89,10 @@ export default function Requests({ requests, priceRequests }: Props) {
     const json = await res.json().catch(() => ({}))
     setBusy(null)
     if (!res.ok) { setError(json.error ?? 'Xatolik'); return }
-    router.replace(router.asPath)
+    const now = new Date().toISOString()
+    setPriceRequests(rs => rs.map(r => r.id === id
+      ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
+      : r))
   }
 
   return (
@@ -103,7 +113,7 @@ export default function Requests({ requests, priceRequests }: Props) {
           </div>
         )}
 
-        {(pending.length > 0 || resolved.length > 0) && (
+        {(pending.length > 0 || (showResolved && resolved.length > 0)) && (
           <h3 className="font-display font-bold text-ink text-sm mb-3 px-1">Taqsimot so'rovlari</h3>
         )}
 
@@ -188,32 +198,8 @@ export default function Requests({ requests, priceRequests }: Props) {
           </div>
         )}
 
-        {/* Resolved history */}
-        {resolved.length > 0 && (
-          <div>
-            <h3 className="font-display font-bold text-muted text-sm mb-3 px-1">Ko'rib chiqilgan</h3>
-            <div className="space-y-2">
-              {resolved.map(r => (
-                <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
-                  <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name}</p>
-                    <p className="text-xs text-muted">
-                      {r.current_qty} → {r.requested_qty} ta · {r.resolved_at ? formatDate(r.resolved_at) : ''}
-                      {r.admin_note ? ` · ${r.admin_note}` : ''}
-                    </p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
-                    {STATUS_BADGE[r.status].label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ── Price change requests ── */}
-        {priceRequests.length > 0 && (
+        {(pricePending.length > 0 || (showResolved && priceResolved.length > 0)) && (
           <h3 className="font-display font-bold text-ink text-sm mb-3 mt-8 px-1">Narx so'rovlari</h3>
         )}
 
@@ -264,26 +250,47 @@ export default function Requests({ requests, priceRequests }: Props) {
           </div>
         )}
 
-        {priceResolved.length > 0 && (
-          <div>
-            <h3 className="font-display font-bold text-muted text-sm mb-3 px-1">Ko'rib chiqilgan (narx)</h3>
-            <div className="space-y-2">
-              {priceResolved.map(r => (
-                <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
-                  <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name}</p>
-                    <p className="text-xs text-muted">
-                      {formatUZS(r.current_price)} → {formatUZS(r.requested_price)} · {r.resolved_at ? formatDate(r.resolved_at) : ''}
-                      {r.admin_note ? ` · ${r.admin_note}` : ''}
-                    </p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
-                    {STATUS_BADGE[r.status].label}
-                  </span>
+        {/* ── Collapsible resolved history (both types) — keeps the inbox focused ── */}
+        {resolvedCount > 0 && (
+          <button onClick={() => setShowResolved(v => !v)}
+            className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-muted mt-8 mb-4 py-2">
+            Ko'rib chiqilgan ({resolvedCount})
+            <ChevronDown className={`w-4 h-4 transition ${showResolved ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+
+        {showResolved && (
+          <div className="space-y-2">
+            {resolved.map(r => (
+              <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name}</p>
+                  <p className="text-xs text-muted">
+                    {r.current_qty} → {r.requested_qty} ta · {r.resolved_at ? formatDate(r.resolved_at) : ''}
+                    {r.admin_note ? ` · ${r.admin_note}` : ''}
+                  </p>
                 </div>
-              ))}
-            </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
+                  {STATUS_BADGE[r.status].label}
+                </span>
+              </div>
+            ))}
+            {priceResolved.map(r => (
+              <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name} <span className="text-[10px] text-peach">(narx)</span></p>
+                  <p className="text-xs text-muted">
+                    {formatUZS(r.current_price)} → {formatUZS(r.requested_price)} · {r.resolved_at ? formatDate(r.resolved_at) : ''}
+                    {r.admin_note ? ` · ${r.admin_note}` : ''}
+                  </p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
+                  {STATUS_BADGE[r.status].label}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </main>
