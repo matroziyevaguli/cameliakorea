@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/guards'
 import { useState } from 'react'
 import AdminNav from '@/components/AdminNav'
 import { formatDate, formatUZS } from '@/lib/format'
-import { Inbox, Check, X, ArrowRight, CheckCircle, ChevronDown } from 'lucide-react'
+import { Inbox, Check, X, ArrowRight, CheckCircle, ChevronDown, RotateCcw } from 'lucide-react'
 
 type Req = {
   id: string
@@ -34,7 +34,12 @@ type PriceReq = {
   created_at: string
   resolved_at: string | null
 }
-type Props = { requests: Req[]; priceRequests: PriceReq[] }
+// Read-only for the admin — transfers are confirmed by the receiving seller, not the admin.
+type Transfer = {
+  id: string; from_name: string; to_name: string; product_name: string; qty: number
+  status: 'pending' | 'approved' | 'rejected'; created_at: string
+}
+type Props = { requests: Req[]; priceRequests: PriceReq[]; transfers: Transfer[] }
 
 const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
@@ -42,7 +47,7 @@ const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function Requests({ requests: initReq, priceRequests: initPrice }: Props) {
+export default function Requests({ requests: initReq, priceRequests: initPrice, transfers }: Props) {
   // Local state so an approved/rejected request leaves the pending list IMMEDIATELY
   // (don't depend on a server re-fetch — that's why approvals looked "stuck").
   const [requests, setRequests] = useState(initReq)
@@ -57,7 +62,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
   const resolved = requests.filter(r => r.status !== 'pending')
   const pricePending = priceRequests.filter(r => r.status === 'pending')
   const priceResolved = priceRequests.filter(r => r.status !== 'pending')
-  const nothing = requests.length === 0 && priceRequests.length === 0
+  const nothing = requests.length === 0 && priceRequests.length === 0 && transfers.length === 0
   const resolvedCount = resolved.length + priceResolved.length
 
   async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
@@ -248,6 +253,32 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
           </div>
         )}
 
+        {/* ── Transfers (Qaytarishlar) — READ-ONLY: the receiving seller confirms these ── */}
+        {transfers.length > 0 && (
+          <div className="mt-8">
+            <h3 className="font-display font-bold text-ink text-sm mb-1 px-1">
+              Qaytarishlar <span className="font-normal text-muted">(kuzatuv)</span>
+            </h3>
+            <p className="text-xs text-muted mb-3 px-1">Sotuvchilar o'zaro qaytarishi — qabul qiluvchi tasdiqlaydi.</p>
+            <div className="space-y-2">
+              {transfers.map(t => (
+                <div key={t.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                  <RotateCcw className={`w-4 h-4 flex-shrink-0 ${t.status === 'approved' ? 'text-success' : t.status === 'rejected' ? 'text-muted' : 'text-warning'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-ink truncate"><strong>{t.from_name} → {t.to_name}</strong> · {t.product_name}</p>
+                    <p className="text-xs text-muted">
+                      {t.qty} ta · {formatDate(t.created_at)}{t.status === 'pending' ? ' · qabul kutilmoqda' : ''}
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[t.status].cls}`}>
+                    {STATUS_BADGE[t.status].label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Collapsible resolved history (both types) — keeps the inbox focused ── */}
         {resolvedCount > 0 && (
           <button onClick={() => setShowResolved(v => !v)}
@@ -301,10 +332,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (guard) return guard
   const supabase = createClient(ctx)
 
-  const [{ data }, { data: priceData }] = await Promise.all([
+  const [{ data }, { data: priceData }, { data: transferData }] = await Promise.all([
     supabase.from('v_allocation_requests').select('*'),
     supabase.from('v_sale_price_requests').select('*'),
+    supabase.from('v_transfers').select('id, from_name, to_name, product_name, qty, status, created_at'),
   ])
 
-  return { props: { requests: data ?? [], priceRequests: priceData ?? [] } }
+  return { props: { requests: data ?? [], priceRequests: priceData ?? [], transfers: transferData ?? [] } }
 }
