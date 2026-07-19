@@ -34,7 +34,19 @@ type PriceReq = {
   created_at: string
   resolved_at: string | null
 }
-type Props = { requests: Req[]; priceRequests: PriceReq[] }
+type Transfer = {
+  id: string
+  from_name: string
+  to_name: string
+  product_name: string
+  qty: number
+  note: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  admin_note: string | null
+  created_at: string
+  resolved_at: string | null
+}
+type Props = { requests: Req[]; priceRequests: PriceReq[]; transfers: Transfer[] }
 
 const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
@@ -42,11 +54,12 @@ const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function Requests({ requests: initReq, priceRequests: initPrice }: Props) {
+export default function Requests({ requests: initReq, priceRequests: initPrice, transfers: initTransfers }: Props) {
   // Local state so an approved/rejected request leaves the pending list IMMEDIATELY
   // (don't depend on a server re-fetch — that's why approvals looked "stuck").
   const [requests, setRequests] = useState(initReq)
   const [priceRequests, setPriceRequests] = useState(initPrice)
+  const [transfers, setTransfers] = useState(initTransfers)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
@@ -57,8 +70,28 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
   const resolved = requests.filter(r => r.status !== 'pending')
   const pricePending = priceRequests.filter(r => r.status === 'pending')
   const priceResolved = priceRequests.filter(r => r.status !== 'pending')
-  const nothing = requests.length === 0 && priceRequests.length === 0
-  const resolvedCount = resolved.length + priceResolved.length
+  const transferPending = transfers.filter(r => r.status === 'pending')
+  const transferResolved = transfers.filter(r => r.status !== 'pending')
+  const nothing = requests.length === 0 && priceRequests.length === 0 && transfers.length === 0
+  const resolvedCount = resolved.length + priceResolved.length + transferResolved.length
+
+  async function resolveTransfer(id: string, action: 'approve' | 'reject') {
+    setBusy(id + action); setError(''); setInfo('')
+    const res = await fetch('/api/resolve-transfer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action, admin_note: notes[id] || '' }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setBusy(null)
+    if (!res.ok) { setError(json.error ?? 'Xatolik'); return }
+    const now = new Date().toISOString()
+    setTransfers(rs => rs.map(r => r.id === id
+      ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
+      : r))
+    window.dispatchEvent(new Event('camelia-requests-changed'))
+    setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
+    setTimeout(() => setInfo(''), 3000)
+  }
 
   async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
     setBusy(id + action); setError(''); setInfo('')
@@ -248,6 +281,49 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
           </div>
         )}
 
+        {/* ── Transfers (Qaytarishlar) ── */}
+        {(transferPending.length > 0 || (showResolved && transferResolved.length > 0)) && (
+          <h3 className="font-display font-bold text-ink text-sm mb-3 mt-8 px-1">Qaytarishlar</h3>
+        )}
+
+        {transferPending.length > 0 && (
+          <div className="space-y-3 mb-8">
+            {transferPending.map(r => (
+              <div key={r.id} className="bg-surface rounded-2xl shadow-card p-4">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-ink text-sm">{r.from_name} → {r.to_name}</p>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-mint/25 text-ink">Qaytarish</span>
+                    </div>
+                    <p className="text-xs text-muted">{r.product_name} · <strong className="text-ink">{r.qty} ta</strong></p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_BADGE[r.status].cls}`}>
+                    {STATUS_BADGE[r.status].label}
+                  </span>
+                </div>
+
+                {r.note && <p className="text-sm text-ink bg-lavender/10 rounded-xl px-3 py-2 mb-3">"{r.note}"</p>}
+
+                <input value={notes[r.id] ?? ''} onChange={e => setNotes(n => ({ ...n, [r.id]: e.target.value }))}
+                  placeholder="Izoh (ixtiyoriy)…"
+                  className="w-full bg-cream text-ink rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
+
+                <div className="flex gap-2">
+                  <button onClick={() => resolveTransfer(r.id, 'approve')} disabled={busy !== null}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
+                    <Check className="w-4 h-4" /> {busy === r.id + 'approve' ? '…' : 'Tasdiqlash'}
+                  </button>
+                  <button onClick={() => resolveTransfer(r.id, 'reject')} disabled={busy !== null}
+                    className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 text-danger font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">
+                    <X className="w-4 h-4" /> {busy === r.id + 'reject' ? '…' : 'Rad etish'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── Collapsible resolved history (both types) — keeps the inbox focused ── */}
         {resolvedCount > 0 && (
           <button onClick={() => setShowResolved(v => !v)}
@@ -289,6 +365,20 @@ export default function Requests({ requests: initReq, priceRequests: initPrice }
                 </span>
               </div>
             ))}
+            {transferResolved.map(r => (
+              <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-ink truncate"><strong>{r.from_name} → {r.to_name}</strong> · {r.product_name} <span className="text-[10px] text-success">(qaytarish)</span></p>
+                  <p className="text-xs text-muted">
+                    {r.qty} ta · {r.resolved_at ? formatDate(r.resolved_at) : ''}{r.admin_note ? ` · ${r.admin_note}` : ''}
+                  </p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
+                  {STATUS_BADGE[r.status].label}
+                </span>
+              </div>
+            ))}
           </div>
         )}
       </main>
@@ -301,10 +391,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   if (guard) return guard
   const supabase = createClient(ctx)
 
-  const [{ data }, { data: priceData }] = await Promise.all([
+  const [{ data }, { data: priceData }, { data: transferData }] = await Promise.all([
     supabase.from('v_allocation_requests').select('*'),
     supabase.from('v_sale_price_requests').select('*'),
+    supabase.from('v_transfers').select('*'),
   ])
 
-  return { props: { requests: data ?? [], priceRequests: priceData ?? [] } }
+  return { props: { requests: data ?? [], priceRequests: priceData ?? [], transfers: transferData ?? [] } }
 }

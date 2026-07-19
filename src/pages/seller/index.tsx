@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle } from 'lucide-react'
+import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle, RotateCcw } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
 import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
@@ -36,7 +36,7 @@ type MyRequest = {
   status: 'pending' | 'approved' | 'rejected'; admin_note: string | null; created_at: string
 }
 type Available = { id: string; name: string; retail_price: number; discount_price: number | null }
-type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[]; totalUnitsSold: number; totalRevenue: number }
+type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[]; totalUnitsSold: number; totalRevenue: number; otherSellers: { id: string; full_name: string }[] }
 
 function RemainingBadge({ n }: { n: number }) {
   if (n === 0) return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-danger">Tugadi</span>
@@ -103,7 +103,7 @@ function buildCaption(p: Product) {
   return `✨ Yangi mahsulot!\n\n${p.name}\n${price}${desc}\n\n⚠️ Mahsulot soni cheklangan!\n\n🇰🇷 Koreyadan, sinab ko'rilgan\n📍 O'zbekistonda mavjud\n\n📞 Buyurtma uchun:\n🏙 Namangan: Gulshanoy +998 94 099 44 99\n🏙 Andijon: Saida +998 93 858 27 27\n🏙 Farg'ona: Adolat +998 33 408 61 83\n\n@cameliakorea`
 }
 
-export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
+export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue, otherSellers }: Props) {
   const router = useRouter()
 
   const [search, setSearch] = useState('')
@@ -114,6 +114,32 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   const [moreProduct, setMoreProduct] = useState<Product | null>(null)
   const [moreExpiry, setMoreExpiry] = useState('')
   function openMore(p: Product) { setMoreProduct(p); setMoreExpiry(p.expiry_date ?? '') }
+
+  // Return unsold units to another seller (transfer)
+  const mainSeller = otherSellers.find(s => /gulshan/i.test(s.full_name)) ?? otherSellers[0]
+  const [transferProduct, setTransferProduct] = useState<Product | null>(null)
+  const [transferTo, setTransferTo] = useState('')
+  const [transferQty, setTransferQty] = useState(1)
+  const [transferBusy, setTransferBusy] = useState(false)
+  const [transferError, setTransferError] = useState('')
+  const [transferDone, setTransferDone] = useState(false)
+  function openTransfer(p: Product) {
+    setMoreProduct(null); setTransferProduct(p)
+    setTransferTo(mainSeller?.id ?? ''); setTransferQty(1); setTransferError(''); setTransferDone(false)
+  }
+  async function submitTransfer() {
+    if (!transferProduct || !transferTo) { setTransferError('Qabul qiluvchini tanlang'); return }
+    setTransferBusy(true); setTransferError('')
+    const res = await fetch('/api/transfer-request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: transferProduct.product_id, to_seller_id: transferTo, qty: transferQty }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setTransferBusy(false)
+    if (!res.ok) { setTransferError(json.error ?? 'Xatolik'); return }
+    setTransferDone(true)
+    router.replace(router.asPath)
+  }
 
   // First-run welcome (shown once per device)
   const [showWelcome, setShowWelcome] = useState(false)
@@ -514,6 +540,13 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                   <span className="font-semibold text-sm text-ink">Videoni ko'rish</span>
                 </a>
               )}
+              {moreProduct.remaining > 0 && otherSellers.length > 0 && (
+                <button onClick={() => openTransfer(moreProduct)}
+                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
+                  <span className="w-9 h-9 rounded-full bg-mint/20 grid place-items-center flex-shrink-0"><RotateCcw className="w-4 h-4 text-success" /></span>
+                  <span className="font-semibold text-sm text-ink">Boshqa sotuvchiga qaytarish</span>
+                </button>
+              )}
             </div>
 
             {/* Expiry editor */}
@@ -527,6 +560,47 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                   className="text-sm font-semibold bg-rose text-white px-4 py-2.5 rounded-lg disabled:opacity-50">Saqlash</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Transfer (Qaytarish) sheet ── */}
+      {transferProduct && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setTransferProduct(null)} />
+          <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-display font-bold text-ink text-base">♻️ Qaytarish</p>
+              <button onClick={() => setTransferProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
+            </div>
+            <p className="text-sm text-muted truncate">{transferProduct.name}</p>
+            <p className="text-xs text-muted mt-1 mb-4">Sotilmagan mahsulotni boshqa sotuvchiga qaytaring. Pul o'zgarmaydi — admin tasdiqlaydi.</p>
+
+            <label className="block text-xs font-semibold text-muted mb-1">Kimga</label>
+            <select value={transferTo} onChange={e => setTransferTo(e.target.value)}
+              className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
+              {otherSellers.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
+            </select>
+
+            <label className="block text-xs font-semibold text-muted mb-2">Nechta? (mavjud: {transferProduct.remaining})</label>
+            <div className="flex items-center justify-center gap-6 mb-4">
+              <button onClick={() => setTransferQty(q => Math.max(1, q - 1))}
+                className="w-12 h-12 rounded-full bg-cream text-ink grid place-items-center active:scale-90 transition"><Minus className="w-5 h-5" /></button>
+              <span className="font-display text-3xl font-bold text-ink w-12 text-center">{transferQty}</span>
+              <button onClick={() => setTransferQty(q => Math.min(transferProduct.remaining, q + 1))}
+                className="w-12 h-12 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition shadow-rose"><Plus className="w-5 h-5" /></button>
+            </div>
+
+            {transferError && <p className="text-danger text-xs mb-2 text-center">{transferError}</p>}
+            {transferDone ? (
+              <div className="text-center py-3 rounded-full bg-green-50 text-success font-semibold text-sm">✅ So'rov yuborildi — admin tasdiqlaydi</div>
+            ) : (
+              <button onClick={submitTransfer} disabled={transferBusy}
+                className="w-full bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
+                {transferBusy ? 'Yuborilmoqda…' : "Qaytarish so'rovini yuborish"}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -751,13 +825,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   // Product list: v_my_inventory (RLS-safe for sellers — v_inventory & the products table
   // both return 0 rows to sellers). Prices/images/gallery: v_catalog (a definer view sellers
   // CAN read), keyed by `id` = product_id.
-  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes, availableRes] = await Promise.all([
+  const [summaryRes, monthlyRes, invRes, catalogRes, requestsRes, availableRes, sellersRes] = await Promise.all([
     supabase.from('v_my_summary').select('*').maybeSingle(),
     supabase.from('v_my_monthly').select('*'),
     supabase.from('v_my_inventory').select('product_id, product_name, had, sold, remaining'),
     supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date'),
     supabase.from('v_my_requests').select('*'),
     supabase.from('v_available_products').select('id, name, retail_price, discount_price'),
+    supabase.from('v_seller_names').select('id, full_name'),
   ])
 
   const inv = invRes.data ?? []
@@ -799,6 +874,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       available:      availableRes.data ?? [],
       totalUnitsSold,
       totalRevenue,
+      otherSellers:   (sellersRes.data ?? []).filter((s: any) => s.id !== profile?.id),
     }
   }
 }
