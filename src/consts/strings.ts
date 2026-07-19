@@ -84,6 +84,25 @@ export const S = {
   welcomeReassure: "Xato qilsangiz — hech narsa yo'qolmaydi. Bemalol sinab ko'ring! 🌸",
   welcomeStart:    "Boshladik",
 
+  // Sell flow (3 steps)
+  sellStep1:       "Nimani sotdingiz?",
+  sellStep2:       "Nechta va necha pulga?",
+  sellStep3:       "Tasdiqlaysizmi?",
+  onlyInStock:     "Faqat omborda bor mahsulotlar ko'rsatiladi",
+  noStockToSell:   "Sotish uchun mahsulot yo'q",
+  continueBtn:     "Davom etish",
+  reviewLine:      (qty: number, name: string, amount: string) => `Siz ${qty} ta ${name}ni ${amount} ga sotdingiz.`,
+  youEarned:       "Siz ishladingiz:",
+  confirmYes:      "Ha, to'g'ri",
+  confirmNo:       "Yo'q, orqaga",
+  undoBtn:         (s: number) => `Bekor qilish (${s}s)`,
+  sellAgain:       "Yana sotish",
+  goHome:          "Bosh sahifa",
+  offlineSaved:    "Saqlandi ⏳",
+  offlineSavedSub: "Internet yo'q — internet kelganda avtomatik yuboriladi.",
+  pendingFlushed:  (n: number) => `${n} ta sotuv yuborildi ✓`,
+  pendingWaiting:  (n: number) => `⏳ ${n} ta sotuv internetni kutmoqda`,
+
   // Units
   som:            "so'm",
   pcs:            "ta",

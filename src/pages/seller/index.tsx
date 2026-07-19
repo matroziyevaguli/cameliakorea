@@ -9,6 +9,7 @@ import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
 import { ShoppingBag, LogOut, TrendingUp, Send, X, Settings, Search, Lock, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
+import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
@@ -115,6 +116,26 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   useEffect(() => {
     if (localStorage.getItem('camelia_seller_welcome_v1') !== '1') setShowWelcome(true)
   }, [])
+
+  // Offline sale queue — flush any sales saved with no signal, on load and when back online.
+  const [pendingCount, setPendingCount] = useState(0)
+  const [flushMsg, setFlushMsg] = useState('')
+  useEffect(() => {
+    const supabase = createBrowser()
+    async function sync() {
+      if (getPending().length === 0) { setPendingCount(0); return }
+      if (navigator.onLine) {
+        const sent = await flushPending(supabase)
+        setPendingCount(getPending().length)
+        if (sent > 0) { setFlushMsg(S.pendingFlushed(sent)); setTimeout(() => setFlushMsg(''), 4000); router.replace(router.asPath) }
+      } else {
+        setPendingCount(getPending().length)
+      }
+    }
+    sync()
+    window.addEventListener('online', sync)
+    return () => window.removeEventListener('online', sync)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   function dismissWelcome() {
     localStorage.setItem('camelia_seller_welcome_v1', '1')
     setShowWelcome(false)
@@ -308,6 +329,14 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
       </header>
 
       <main className="px-4 -mt-12 relative z-10 space-y-4">
+
+        {/* Offline sale queue status */}
+        {flushMsg && (
+          <div className="bg-green-50 text-success text-sm font-semibold rounded-xl px-4 py-2.5 text-center">{flushMsg}</div>
+        )}
+        {pendingCount > 0 && (
+          <div className="bg-orange-50 text-warning text-sm font-semibold rounded-xl px-4 py-2.5 text-center">{S.pendingWaiting(pendingCount)}</div>
+        )}
 
         {/* ── Money summary: 4 cards (sold · earned · to hand over · handed over) ── */}
         <div className="grid grid-cols-2 gap-3">

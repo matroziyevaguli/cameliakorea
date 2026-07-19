@@ -29,9 +29,9 @@ seller reads via definer views; writes only to `sales` + existing APIs. Admin/st
 - [ ] **T5 Home chrome** — tappable "Bu oy siz ishladingiz → Batafsil" card (→ Hisobim);
   collapsible monthly chart; Help + Settings icons in header.
 - [x] **T6 SellerNav 5-tab** — Bosh sahifa · Sotish · Sotuvlarim · Hisobim · Sozlamalar.
-- [ ] **T7 Sell 3-step flow** — (1) product grid w/ photos → (2) qty stepper + price buttons +
+- [x] **T7 Sell 3-step flow** — (1) product grid w/ photos → (2) qty stepper + price buttons +
   live total → (3) confirm (amount only) → success + **Undo (10s)**. Preselect from Home card.
-- [ ] **T8 Offline-safe sale queue** — localStorage queue on network failure; flush on load +
+- [x] **T8 Offline-safe sale queue** — localStorage queue on network failure; flush on load +
   `online`; dedupe by `client_ts`; "Saqlandi ⏳" state. *(spec Task 1)*
 - [ ] **T9 Sotuvlarim (history) visual pass** — photo rows + month chips; keep our edit/price-
   request/delete + inline delete-confirm.
