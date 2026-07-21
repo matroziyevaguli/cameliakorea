@@ -11,6 +11,23 @@ Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 block
 **Migration status verified 2026-07-22** via `docs/migration-status-check.sql` —
 D1–D5 and D7 all `true`, **stock drift `0`**, **cost leak in `v_shop` `0`**.
 
+## Tests
+
+| Suite | Command | Needs | Status |
+|---|---|---|---|
+| Unit — stock state machine | `yarn test` | nothing | ✅ **11/11 pass** |
+| Integration — real database | `yarn test:db` | `.env.local` | ⏳ **not yet run** (no credentials in the dev checkout) |
+
+`yarn test` compiles `src/lib/availability.ts` and exercises the state machine that
+decides every product badge: DB-state-wins, the pre-migration fallback, the low
+threshold, negative/missing stock, buyability, label/style completeness, the
+`sold_out` vs `sold_out_incoming` distinction, and a full SKU lifecycle.
+
+`yarn test:db` (`scripts/test-camelia.mjs`) creates a `__TEST__`-tagged product, walks
+it through ordered → arrived → sold → cancelled → restored against the live database,
+asserts the money and stock reverse **exactly**, then **deletes everything it made**
+(with `--keep` to opt out, and a sweep for strays from any crashed earlier run).
+
 **Build status:** `yarn build` ✅ passes · `tsc --noEmit` → **1** error, pre-existing:
 the recharts `Tooltip formatter` typing in `admin/index.tsx`. (The second one lived in
 `admin/stats.tsx`, which is now a redirect, so it's gone.) `next.config.js` sets

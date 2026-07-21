@@ -10,7 +10,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "gen-icons": "node scripts/gen-icons.mjs"
+    "gen-icons": "node scripts/gen-icons.mjs",
+    "test": "tsc src/lib/availability.ts --outDir .test-build --module es2022 --target es2022 --types --skipLibCheck && node --test tests/",
+    "test:db": "node scripts/test-camelia.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
