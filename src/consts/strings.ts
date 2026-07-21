@@ -110,6 +110,8 @@ export const S = {
   confirmYes:      "Ha, to'g'ri",
   confirmNo:       "Yo'q, orqaga",
   undoBtn:         (s: number) => `Bekor qilish (${s}s)`,
+  undoExpired:     "Tuzatish uchun «Sotuvlarim» ga kiring",
+  pickFromHome:    "Sotish uchun bosh sahifadagi mahsulotni tanlang.",
   sellAgain:       "Yana sotish",
   goHome:          "Bosh sahifa",
   offlineSaved:    "Saqlandi ⏳",

@@ -1,15 +1,15 @@
 import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
-import { formatUZS, formatDate } from '@/lib/format'
+import { formatUZS } from '@/lib/format'
 import Link from 'next/link'
 import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle, RotateCcw } from 'lucide-react'
+import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, HelpCircle, HandHeart, Receipt, ChevronDown, PlayCircle, RotateCcw } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
-import ConfirmBar from '@/components/ConfirmBar'
+import NotificationBell from '@/components/NotificationBell'
 import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -149,7 +149,7 @@ function buildCaption(p: Product) {
   return `✨ Yangi mahsulot!\n\n${p.name}\n${price}${desc}\n\n⚠️ Mahsulot soni cheklangan!\n\n🇰🇷 Koreyadan, sinab ko'rilgan\n📍 O'zbekistonda mavjud\n\n📞 Buyurtma uchun:\n🏙 Namangan: Gulshanoy +998 94 099 44 99\n🏙 Andijon: Saida +998 93 858 27 27\n🏙 Farg'ona: Adolat +998 33 408 61 83\n\n@cameliakorea`
 }
 
-export default function SellerHome({ sellerName, summary, monthly, products, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
+export default function SellerHome({ sellerName, summary, monthly, products: initialProducts, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
   const router = useRouter()
 
   const [search, setSearch] = useState('')
@@ -192,7 +192,11 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
   }
 
   // Correction request ("I actually received a different amount")
-  const pendingByProduct = new Set(requests.filter(r => r.status === 'pending').map(r => r.product_id))
+  // G2 — local so a new request marks its card instantly, with no page reload.
+  const [pendingIds, setPendingIds] = useState<string[]>(
+    requests.filter(r => r.status === 'pending').map(r => r.product_id)
+  )
+  const pendingByProduct = new Set(pendingIds)
 
   // Request a NEW product she doesn't have yet (self-assignment)
   const availableToRequest = available.filter(a => !pendingByProduct.has(a.id))
@@ -218,34 +222,19 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     setNewBusy(false)
     if (!res.ok) { setNewError(json.error ?? 'Xatolik'); return }
     setNewOpen(false)
-    router.replace(router.asPath)
+    setPendingIds(ids => [...ids, newProductId])   // G2: instant, no reload
   }
-  // "Tuzatish" modal — fix Berilgan (received → admin request) + Sotilgan (own sales, direct)
+  // "Boshqacha son oldim" sheet — a STOCK correction that the admin approves.
+  // Sale editing lives on /seller/sales, the single sale editor (redesign.md §4.3).
   const [fixProduct, setFixProduct] = useState<Product | null>(null)
-  // received correction (needs admin approval)
   const [recvQty, setRecvQty] = useState('')
   const [recvReason, setRecvReason] = useState('')
   const [recvBusy, setRecvBusy] = useState(false)
   const [recvError, setRecvError] = useState('')
   const [recvDone, setRecvDone] = useState(false)
-  // sold: this product's sale rows (seller edits her own directly)
-  const [fixSales, setFixSales] = useState<{ id: string; qty: number; unit_price: number; sold_at: string }[]>([])
-  const [fixSalesLoading, setFixSalesLoading] = useState(false)
-  const [saleEditId, setSaleEditId] = useState<string | null>(null)
-  const [saleEditQty, setSaleEditQty] = useState(1)
-  const [saleBusy, setSaleBusy] = useState<string | null>(null)
-  const [saleError, setSaleError] = useState('')
 
-  async function loadFixSales(productId: string) {
-    setFixSalesLoading(true)
-    const supabase = createBrowser()
-    const { data } = await supabase.from('sales').select('id, qty, unit_price, sold_at')
-      .eq('product_id', productId).order('sold_at', { ascending: false })
-    setFixSales(data ?? []); setFixSalesLoading(false)
-  }
   function openFix(p: Product) {
     setFixProduct(p); setRecvQty(String(p.had)); setRecvReason(''); setRecvError(''); setRecvDone(false)
-    setSaleEditId(null); setSaleError(''); setFixSales([]); loadFixSales(p.product_id)
   }
   async function submitReceived() {
     if (!fixProduct) return
@@ -259,30 +248,14 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     setRecvBusy(false)
     if (!res.ok) { setRecvError(json.error ?? 'Xatolik'); return }
     setRecvDone(true)
-    router.replace(router.asPath)
-  }
-  async function saveSaleQty(saleId: string) {
-    if (saleEditQty < 1) { setSaleError('Kamida 1 ta'); return }
-    setSaleBusy(saleId); setSaleError('')
-    const supabase = createBrowser()
-    const { error } = await supabase.from('sales').update({ qty: saleEditQty }).eq('id', saleId)
-    setSaleBusy(null)
-    if (error) { setSaleError(error.message); return }   // e.g. oversell guard
-    setSaleEditId(null)
-    if (fixProduct) await loadFixSales(fixProduct.product_id)
-    router.replace(router.asPath)
-  }
-  const [saleConfirmId, setSaleConfirmId] = useState<string | null>(null)
-  async function deleteSaleRow(saleId: string) {
-    setSaleBusy(saleId)
-    const supabase = createBrowser()
-    await supabase.from('sales').delete().eq('id', saleId)
-    setSaleBusy(null); setSaleConfirmId(null)
-    if (fixProduct) await loadFixSales(fixProduct.product_id)
-    router.replace(router.asPath)
+    // G2: mark the card "so'rov kutilmoqda" immediately, no page reload.
+    setPendingIds(ids => [...ids, fixProduct.product_id])
   }
 
-  // Expiry set (from the ⋯ sheet)
+  // G2 — products live in local state so writes show instantly.
+  const [products, setProducts] = useState<Product[]>(initialProducts)
+
+  // Expiry set (from the stock sheet)
   const [savingExpiry, setSavingExpiry] = useState(false)
   async function saveExpiry(productId: string, date: string) {
     setSavingExpiry(true)
@@ -291,7 +264,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
       body: JSON.stringify({ product_id: productId, expiry_date: date || null }),
     }).catch(() => {})
     setSavingExpiry(false)
-    router.replace(router.asPath)
+    setProducts(list => list.map(p => p.product_id === productId ? { ...p, expiry_date: date || null } : p))
   }
   const visibleProducts = search.trim()
     ? products.filter(p => p.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -341,15 +314,16 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
             <p className="text-white/70 text-sm font-medium">Camelia</p>
             <h1 className="font-display text-2xl font-bold mt-1">{S.greeting(sellerName)}</h1>
             <p className="text-white/80 text-sm mt-2">
-              Bu oy foydangiz:{' '}
+              Bu oy daromadingiz:{' '}
               <span className="font-display font-bold text-white text-base">{formatUZS(thisMonthProfit)}</span>
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          {/* 🔔 = everything waiting on her; ⚙ = settings. Neither takes a tab slot. */}
+          <div className="flex items-center gap-0.5">
             <button onClick={() => setHelpOpen(true)} aria-label={S.help} className="text-white/70 hover:text-white p-2 transition">
               <HelpCircle className="w-5 h-5" />
             </button>
-            {/* One way to Settings (password / logout / big-text all live there) */}
+            <NotificationBell />
             <Link href="/seller/settings" aria-label={S.settings} className="text-white/70 hover:text-white p-2 transition">
               <Settings className="w-5 h-5" />
             </Link>
@@ -367,32 +341,21 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           <div className="bg-orange-50 text-warning text-sm font-semibold rounded-xl px-4 py-2.5 text-center">{S.pendingWaiting(pendingCount)}</div>
         )}
 
-        {/* ── Money summary: 4 cards (sold · earned · to hand over · handed over) ── */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Sotilgan — units + revenue */}
-          <Link href="/seller/sales" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold text-muted mb-1 flex items-center gap-1.5"><Receipt className="w-3.5 h-3.5 text-rose" /> Sotilgan</p>
-            <p className="font-display text-xl font-bold text-ink">{formatUZS(totalRevenue)}</p>
-            <p className="text-xs text-muted mt-0.5">{totalUnitsSold} ta sotilgan</p>
-          </Link>
-          {/* Daromadingiz — their earnings */}
-          <Link href="/seller/balance" className="bg-gradient-to-br from-success to-mint text-white rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> {S.earningsSeller}</p>
-            <p className="font-display text-xl font-bold">{formatUZS(summary?.your_total_profit ?? 0)}</p>
-            <p className="text-xs opacity-80 mt-0.5">jami ishlagan pulingiz</p>
-          </Link>
-          {/* Yig'ilishi kerak (canonical — same word the admin sees) */}
-          <Link href="/seller/balance" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold text-muted mb-1">{S.moneyCollect}</p>
-            <p className={`font-display text-xl font-bold ${(summary?.not_submitted ?? 0) > 0 ? 'text-danger' : 'text-success'}`}>
-              {formatUZS(Math.max(0, summary?.not_submitted ?? 0))}
-            </p>
-          </Link>
-          {/* Topshirildi */}
-          <Link href="/seller/balance" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold text-muted mb-1">{S.moneyHandedOver}</p>
-            <p className="font-display text-xl font-bold text-success">{formatUZS(summary?.submitted ?? 0)}</p>
-          </Link>
+        {/* ── Money strip (redesign.md §4.1) ── The star metric is already in the
+            header, so this is a compact secondary summary, not four competing cards.
+            Selling is the job of this screen; money lives one tap away in Hisobim. ── */}
+        <div className="bg-surface rounded-2xl shadow-card grid grid-cols-4 divide-x divide-gray-100 overflow-hidden">
+          {[
+            { label: 'Sotilgan',        value: formatUZS(totalRevenue),                                    cls: 'text-ink',     href: '/seller/sales' },
+            { label: S.earningsSeller,  value: formatUZS(summary?.your_total_profit ?? 0),                 cls: 'text-success', href: '/seller/balance' },
+            { label: S.moneyCollect,    value: formatUZS(Math.max(0, summary?.not_submitted ?? 0)),        cls: (summary?.not_submitted ?? 0) > 0 ? 'text-danger' : 'text-success', href: '/seller/balance' },
+            { label: S.moneyHandedOver, value: formatUZS(summary?.submitted ?? 0),                         cls: 'text-ink',     href: '/seller/balance' },
+          ].map(t => (
+            <Link key={t.label} href={t.href} className="px-2 py-3 text-center active:bg-cream transition">
+              <p className="text-[10px] font-semibold text-muted leading-tight mb-1">{t.label}</p>
+              <p className={`font-display text-sm font-bold leading-tight ${t.cls}`}>{t.value}</p>
+            </Link>
+          ))}
         </div>
 
         {/* ── Monthly chart (collapsed by default — progressive disclosure) ── */}
@@ -465,17 +428,13 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                     badge={<RemainingBadge n={p.remaining} />}
                   />
 
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-display font-semibold text-ink text-base leading-snug">{p.name}</h3>
-                      <button onClick={() => openMore(p)} aria-label="Qo'shimcha"
-                        className="w-8 h-8 -mr-1 rounded-full grid place-items-center text-muted hover:text-ink hover:bg-cream transition flex-shrink-0">
-                        <MoreHorizontal className="w-5 h-5" />
-                      </button>
-                    </div>
+                  {/* Card BODY opens the stock sheet; the BUTTON sells. Two clearly
+                      different targets (redesign.md §4.1). */}
+                  <button onClick={() => openMore(p)} className="w-full text-left px-4 pt-4 pb-2 active:bg-cream/50 transition">
+                    <h3 className="font-display font-semibold text-ink text-base leading-snug">{p.name}</h3>
 
                     {/* Price */}
-                    <div className="flex items-center gap-3 mt-1 mb-2">
+                    <div className="flex items-center gap-3 mt-1">
                       {p.discount_price != null ? (
                         <>
                           <span className="text-xs text-muted line-through">{formatUZS(p.retail_price)}</span>
@@ -486,16 +445,14 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                       )}
                     </div>
 
-                    {/* Sold progress — "3 tadan 1 sotildi" + bar */}
-                    <SoldProgress had={p.had} sold={p.sold} remaining={p.remaining} />
-
-                    {/* Status tags: expiry + pending request (the rest lives in the ⋯ sheet) */}
+                    {/* Status tags: expiry + pending request. The per-unit pills moved
+                        into the stock sheet — ONE stock signal on the card (the badge). */}
                     {(() => {
                       const { status } = expiryInfo(p.expiry_date)
                       const showExp = status === 'expired' || status === 'critical' || status === 'soon'
                       if (!showExp && !pendingByProduct.has(p.product_id)) return null
                       return (
-                        <div className="flex flex-wrap gap-2 mb-3">
+                        <div className="flex flex-wrap gap-2 mt-2">
                           {showExp && (
                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${status === 'expired' ? 'bg-red-100 text-danger' : status === 'critical' ? 'bg-orange-100 text-warning' : 'bg-yellow-100 text-yellow-700'}`}>
                               <CalendarClock className="w-3 h-3" /> {EXPIRY_LABEL[status]}
@@ -509,7 +466,9 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                         </div>
                       )
                     })()}
+                  </button>
 
+                  <div className="px-4 pb-4">
                     {/* Primary action — one big Sotildi */}
                     {p.remaining > 0 ? (
                       <Link href={`/seller/sell?product=${p.product_id}`}
@@ -537,17 +496,31 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           <div className="absolute inset-0 bg-black/40" onClick={() => setMoreProduct(null)} />
           <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center justify-between mb-3">
               <p className="font-display font-bold text-ink text-base truncate">{moreProduct.name}</p>
               <button aria-label="Yopish" onClick={() => setMoreProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
             </div>
-            <p className="text-xs text-muted mb-4">Qo'shimcha amallar</p>
+            {/* Where this product stands — the per-unit detail that used to crowd the
+                card now lives here, where there is room for it. */}
+            <div className="bg-cream rounded-2xl p-4 mb-4">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-muted">Sizda <b className="text-ink">{moreProduct.remaining} ta</b></span>
+                <span className="text-muted"><b className="text-ink">{moreProduct.sold} ta</b> sotildi</span>
+              </div>
+              <SoldProgress had={moreProduct.had} sold={moreProduct.sold} remaining={moreProduct.remaining} />
+            </div>
 
             <div className="space-y-1">
+              {/* The only survivor of the old Tuzatish modal's approval-gated half —
+                  reframed as a STOCK action, not a sale edit. Sale edits live on
+                  Sotuvlarim, the single sale editor. */}
               <button onClick={() => { const p = moreProduct; setMoreProduct(null); openFix(p) }}
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
                 <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center flex-shrink-0"><Pencil className="w-4 h-4 text-rose" /></span>
-                <span className="font-semibold text-sm text-ink">Son noto'g'ri — Tuzatish</span>
+                <span>
+                  <span className="block font-semibold text-sm text-ink">Boshqacha son oldim</span>
+                  <span className="block text-xs text-muted">Admin tasdiqlaydi</span>
+                </span>
               </button>
               {moreProduct.image_url && (
                 <button onClick={() => { const p = moreProduct; setMoreProduct(null); openPost(p) }}
@@ -662,7 +635,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           <div className="absolute inset-0 bg-black/40" onClick={() => setFixProduct(null)} />
           <div className="relative bg-surface rounded-t-3xl sm:rounded-3xl p-5 pb-8 w-full sm:max-w-md max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
-              <p className="font-display font-bold text-ink text-base">Tuzatish</p>
+              <p className="font-display font-bold text-ink text-base">Boshqacha son oldim</p>
               <button aria-label="Yopish" onClick={() => setFixProduct(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-muted mb-4 truncate">{fixProduct.name}</p>
@@ -679,9 +652,9 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               </div>
             </div>
 
-            {/* Section 1 — Received (needs admin approval) */}
+            {/* Received-quantity correction — the one thing here that needs approval */}
             <div className="mb-5">
-              <p className="text-sm font-semibold text-ink mb-1">1. Sizga berilgan soni</p>
+              <p className="text-sm font-semibold text-ink mb-1">Sizga berilgan soni</p>
               <p className="text-xs text-muted mb-2">Aslida nechta olganingizni yozing. Buni <b>admin tasdiqlaydi</b>.</p>
               {pendingByProduct.has(fixProduct.product_id) ? (
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 px-3 py-2.5 rounded-xl">
@@ -706,61 +679,16 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
               )}
             </div>
 
-            {/* Section 2 — Sold (direct edit of her sales) */}
-            <div>
-              <p className="text-sm font-semibold text-ink mb-1">2. Sotilgan sonini tuzatish</p>
-              <p className="text-xs text-muted mb-2">Xato sotuvni to'g'rilang yoki o'chiring.</p>
-              {fixSalesLoading ? (
-                <p className="text-xs text-muted py-2">Yuklanmoqda…</p>
-              ) : fixSales.length === 0 ? (
-                <p className="text-xs text-muted bg-cream rounded-xl px-3 py-3">Hali sotuv yo'q.</p>
-              ) : (
-                <div className="space-y-2">
-                  {fixSales.map(s => (
-                    <div key={s.id} className="bg-cream rounded-xl p-3">
-                      {saleEditId === s.id ? (
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-muted flex-1">{formatDate(s.sold_at)}</span>
-                            <button aria-label="Kamaytirish" onClick={() => setSaleEditQty(q => Math.max(1, q - 1))}
-                              className="w-8 h-8 rounded-full bg-surface grid place-items-center active:scale-95 transition"><Minus className="w-4 h-4" /></button>
-                            <span className="font-display font-bold w-6 text-center">{saleEditQty}</span>
-                            <button aria-label="Ko'paytirish" onClick={() => setSaleEditQty(q => q + 1)}
-                              className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition"><Plus className="w-4 h-4" /></button>
-                          </div>
-                          {saleError && <p className="text-danger text-xs">{saleError}</p>}
-                          <div className="flex gap-2">
-                            <button disabled={saleBusy === s.id} onClick={() => saveSaleQty(s.id)}
-                              className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{saleBusy === s.id ? '…' : 'Saqlash'}</button>
-                            <button aria-label="Yopish" onClick={() => setSaleEditId(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
-                          </div>
-                        </div>
-                      ) : saleConfirmId === s.id ? (
-                        <ConfirmBar
-                          question={S.deleteConfirm}
-                          confirmLabel="Ha, o'chirish"
-                          busy={saleBusy === s.id}
-                          onConfirm={() => deleteSaleRow(s.id)}
-                          onCancel={() => setSaleConfirmId(null)}
-                        />
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-ink">{Math.abs(s.qty)} × {formatUZS(s.unit_price)}</p>
-                            <p className="text-xs text-muted/70">{formatDate(s.sold_at)}</p>
-                          </div>
-                          <button onClick={() => { setSaleEditId(s.id); setSaleEditQty(Math.abs(s.qty)); setSaleError('') }}
-                            className="text-xs font-semibold text-rose bg-rose/10 px-3 py-1.5 rounded-full">Tahrirlash</button>
-                          <button onClick={() => setSaleConfirmId(s.id)} disabled={saleBusy === s.id}
-                            aria-label="Sotuvni o'chirish"
-                            className="text-danger/40 hover:text-danger p-1.5 disabled:opacity-30"><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Sale edits are NOT here any more — Sotuvlarim is the single sale
+                editor (redesign.md §4.3). This sheet is stock only. */}
+            <Link href="/seller/sales" onClick={() => setFixProduct(null)}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl bg-cream hover:bg-cream/70 transition">
+              <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center flex-shrink-0"><Receipt className="w-4 h-4 text-rose" /></span>
+              <span>
+                <span className="block font-semibold text-sm text-ink">Sotuvni tuzatish kerakmi?</span>
+                <span className="block text-xs text-muted">«Sotuvlarim» sahifasida tuzating</span>
+              </span>
+            </Link>
           </div>
         </div>
       )}

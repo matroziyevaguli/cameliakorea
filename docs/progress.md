@@ -6,7 +6,12 @@ the "proof" column says how it was checked.
 
 Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 blocked on SQL
 
-**Last updated:** 2026-07-22 · **Phase 1: ✅ complete** (pending your visual check)
+**Last updated:** 2026-07-22 · **Phases 1 + 3: ✅ complete** (pending your visual check)
+
+**Build status:** `yarn build` ✅ passes · `tsc --noEmit` → 2 errors, both **pre-existing**
+recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
+(verified by stashing all changes and re-running: same 2). `next.config.js` sets
+`ignoreBuildErrors: true`, so they don't block deploys.
 
 ---
 
@@ -16,7 +21,7 @@ Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 block
 |---|---|---|
 | **1 · Grammar pass** | nothing | ✅ **done** |
 | **2 · Single stock signal** | D4, D5 | 🔒 SQL not written yet |
-| **3 · Seller IA** | nothing | ⬜ next up |
+| **3 · Seller IA** | nothing | 🟡 **done except G4** (needs SQL) |
 | **4 · Admin Stock Hub** | D1, D2 | 🔒 |
 | **5 · Admin regroup + money truth** | D6 | 🔒 |
 | **6 · Polish** | — | ⬜ |
@@ -30,6 +35,7 @@ Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 block
 | D4 | `v_product_availability` (`state` enum) | ⬜ |
 | D5 | `v_catalog` (anon, no cost, exposes `state`) | ⬜ |
 | D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ |
+| **D7** | *(new)* `sales.cancelled_at` + `cancel_reason`, `sale_edits` audit table — needed by **G4** | ⬜ |
 
 > ⚠ **`v_upcoming` must stay un-run.** `availability_plan.md` §7 retires it.
 > `docs/upcoming-products-setup.md` is superseded — do not execute it.
@@ -133,20 +139,45 @@ Blocked: needs D4 + D5.
 
 ---
 
-## Phase 3 — Seller IA ⬜ (next; no data dependency)
+## Phase 3 — Seller IA 🟡 (everything except G4)
 
-- [ ] Nav → 4 tabs (Sotish · Sotuvlar · Hisob · Qaytarish); Settings behind ⚙
-- [ ] 🔔 notification centre (request results, incoming transfers, payments recorded)
-- [ ] Delete the standalone sell grid; home card → 2-step sell
-- [ ] Success screen: full 10s undo, **no auto-nav**
-- [ ] Unify sale editing on Sotuvlar; **remove the home Tuzatish modal**
-- [ ] G4 symmetric trust + audit rows; hard delete → **Bekor qilingan**
-- [ ] Stock-detail sheet with "Boshqacha son oldim"
-- [ ] Hisob relabel to Pipeline B; payment recorded → 🔔
-- [ ] Finish G2 on `seller/index.tsx` (deferred from Phase 1)
+- [x] **Nav → 4 tabs** — Sotish · Sotuvlarim · Hisobim · Qaytarish. Settings dropped out
+      of the tab bar (now the ⚙ in the header), so the four that remain get bigger
+      targets (`w-6` icons, `py-3`). `src/components/SellerNav.tsx`.
+- [x] **🔔 notification centre** — `src/components/NotificationBell.tsx`. Aggregates four
+      sources: answered allocation requests, answered price requests, returns awaiting
+      her confirmation, and payments the admin recorded. Unread count on the bell; rows
+      deep-link to the right page. Read-state is a `lastSeen` timestamp in
+      `localStorage` — **no schema change**, and unread-ness is per-device anyway.
+- [x] **Standalone sell grid deleted** — the home list is the only product picker.
+      `/seller/sell` without `?product=` now shows a short "pick from home" card instead
+      of a second grid. "Yana sotish" returns home rather than re-opening a picker.
+- [x] **Success screen no longer auto-navigates** — the 10s undo runs its full life and
+      then reads "Tuzatish uchun «Sotuvlarim» ga kiring". She is never bounced away.
+- [x] **Two steps, not three** — step dots now show 2. Price mode defaults to the
+      discount when the product has one (logic moved off the deleted `pickProduct`).
+- [x] **Sale editing unified on Sotuvlarim** — the home Tuzatish modal's *sale-editing
+      half is gone* (~3.9k chars removed), replaced by a link across to the single sale
+      editor. One sale list, one sale editor.
+- [x] **Stock-detail sheet** — tapping the card **body** opens it; the **button** sells.
+      Two clearly different targets. The sheet holds the per-unit `SoldProgress` detail,
+      "Boshqacha son oldim" (the one approval-gated action, correctly reframed as
+      *stock*, not a sale edit), expiry, transfer, Telegram post, video.
+- [x] **One stock signal on the card** — the per-unit pills moved into the sheet; the
+      card keeps only the corner badge.
+- [x] **Money strip** — the 2×2 cards became a compact 4-cell strip. The star metric is
+      already in the header, so this is a secondary summary that no longer competes with
+      the Sotildi buttons.
+- [x] **G2 finished on `seller/index.tsx`** — expiry save and both request flows now
+      update local state instead of reloading the page.
+- [ ] **G4 symmetric trust + audit rows; hard delete → "Bekor qilingan"** 🔒
+      **Blocked: needs SQL.** Requires `sales.cancelled_at` + `cancel_reason` and a
+      `sale_edits` audit table before the UI can stop hard-deleting and let her edit her
+      own price without approval. Not covered by D1–D6 — needs its own migration.
 
-**Done when:** requests reachable in ≤1 tap via 🔔; exactly one sale list and one sale
-editor; selling is 2 taps from a card; nothing is hard-deleted.
+**Still true after this phase:** requests reachable in 1 tap via 🔔 ✅; exactly one sale
+list and one sale editor ✅; selling is 2 taps from a card ✅; **nothing is hard-deleted
+❌ — still outstanding until G4's SQL exists.**
 
 ---
 

@@ -2,15 +2,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/browser'
-import { House, RotateCcw, Receipt, Wallet, Settings } from 'lucide-react'
+import { House, Receipt, Wallet, RotateCcw } from 'lucide-react'
 
+// Four tabs (redesign.md §4.0). Settings lives behind the ⚙ in the page header and
+// Requests behind 🔔 — neither competes for a tab slot, so the four that remain get
+// big, thumb-friendly targets.
 const items = [
-  { href: '/seller',           label: 'Bosh sahifa', icon: House },
-  // "Sotish" tab removed — selling is done from the "Sotildi" button on each product card.
-  { href: '/seller/transfers', label: 'Qaytarish',   icon: RotateCcw },
-  { href: '/seller/sales',     label: 'Sotuvlarim',  icon: Receipt },
-  { href: '/seller/balance',   label: 'Hisobim',     icon: Wallet },
-  { href: '/seller/settings',  label: 'Sozlamalar',  icon: Settings },
+  { href: '/seller',           label: 'Sotish',     icon: House },
+  { href: '/seller/sales',     label: 'Sotuvlarim', icon: Receipt },
+  { href: '/seller/balance',   label: 'Hisobim',    icon: Wallet },
+  { href: '/seller/transfers', label: 'Qaytarish',  icon: RotateCcw },
 ]
 
 export default function SellerNav() {
@@ -35,12 +36,12 @@ export default function SellerNav() {
         const Icon = it.icon
         return (
           <Link key={it.href} href={it.href}
-            className={`relative flex-1 flex flex-col items-center gap-1 py-2.5 transition ${active ? 'text-rose' : 'text-muted hover:text-rose'}`}>
-            <Icon className="w-[22px] h-[22px]" />
+            className={`relative flex-1 flex flex-col items-center gap-1 py-3 transition ${active ? 'text-rose' : 'text-muted hover:text-rose'}`}>
+            <Icon className="w-6 h-6" />
             {it.href === '/seller/transfers' && incoming > 0 && (
-              <span className="absolute top-1.5 right-[22%] min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-danger text-white text-[9px] font-bold">{incoming}</span>
+              <span className="absolute top-2 right-[24%] min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-danger text-white text-[9px] font-bold">{incoming}</span>
             )}
-            <span className="text-[10px] font-medium leading-none">{it.label}</span>
+            <span className="text-[11px] font-medium leading-none">{it.label}</span>
           </Link>
         )
       })}

@@ -43,10 +43,15 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
   const inStock = products.filter(p => p.remaining > 0)
   const preOk = preselectedId ? inStock.some(p => p.product_id === preselectedId) : false
 
+  // Two steps (redesign.md §4.2). The home product list IS the picker — there is no
+  // standalone grid here any more. Step 1 = qty + price, step 2 = confirm.
   const [step, setStep] = useState<1 | 2 | 3>(preOk ? 2 : 1)
   const [productId, setProductId] = useState(preOk ? preselectedId! : '')
   const [qty, setQty] = useState(1)
-  const [priceMode, setPriceMode] = useState<'retail' | 'discount' | 'other'>('retail')
+  // Default to the discount price when the product has one (pickProduct used to do this).
+  const [priceMode, setPriceMode] = useState<'retail' | 'discount' | 'other'>(
+    preOk && products.find(p => p.product_id === preselectedId)?.discount_price != null ? 'discount' : 'retail'
+  )
   const [customPrice, setCustomPrice] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -62,20 +67,14 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
     priceMode === 'discount' ? selected?.discount_price ?? selected?.retail_price ?? 0 :
                                Number(customPrice) || 0
 
-  // On an online success, auto-return home after the 10s undo window.
+  // Count the undo window down, but DO NOT navigate when it ends (redesign.md §4.2):
+  // the screen waits for her choice, so the undo is reachable for its full life and
+  // she is never bounced away mid-read.
   useEffect(() => {
-    if (!result || result.offline || !result.saleId) return
-    if (undoSecs <= 0) { router.push('/seller'); return }
+    if (!result || result.offline || !result.saleId || undoSecs <= 0) return
     const t = setTimeout(() => setUndoSecs(s => s - 1), 1000)
     return () => clearTimeout(t)
   }, [result, undoSecs]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function pickProduct(id: string) {
-    const p = products.find(x => x.product_id === id)
-    setProductId(id); setQty(1)
-    setPriceMode(p?.discount_price != null ? 'discount' : 'retail')
-    setCustomPrice(''); setError(''); setStep(2)
-  }
 
   async function submit() {
     if (!selected || price <= 0) return
@@ -123,9 +122,8 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
     router.push('/seller')
   }
 
-  function sellAgain() {
-    setResult(null); setStep(1); setProductId(''); setQty(1); setCustomPrice(''); setError('')
-  }
+  // "Yana sotish" goes back to the home list — the one and only product picker.
+  function sellAgain() { router.push('/seller') }
 
   // ─────────────────────────── Success / offline screen ───────────────────────────
   if (result) {
@@ -144,7 +142,9 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
               <p className="font-display text-2xl font-bold text-ink">{S.saleSuccess}</p>
               <p className="text-sm text-muted">{S.youEarned}</p>
               <p className="font-display text-4xl font-bold text-rose">{formatUZS(result.profit ?? 0)}</p>
-              <button onClick={undo} className="text-sm font-semibold text-muted underline mt-1">{S.undoBtn(undoSecs)}</button>
+              {undoSecs > 0
+                ? <button onClick={undo} className="text-sm font-semibold text-muted underline mt-1">{S.undoBtn(undoSecs)}</button>
+                : <span className="text-sm text-muted/60 mt-1">{S.undoExpired}</span>}
             </>
           )}
         </div>
@@ -160,17 +160,17 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
   }
 
   // ─────────────────────────── Header (back + title + step dots) ───────────────────────────
+  // Two dots now: qty+price, then confirm.
   const titles = { 1: S.sellStep1, 2: S.sellStep2, 3: S.sellStep3 }
   const Dots = () => (
     <div className="flex gap-1.5 mt-3">
-      {[1, 2, 3].map(n => <span key={n} className={`h-1.5 rounded-full transition-all ${n === step ? 'w-6 bg-rose' : 'w-1.5 bg-rose/25'}`} />)}
+      {[2, 3].map(n => <span key={n} className={`h-1.5 rounded-full transition-all ${n === step ? 'w-6 bg-rose' : 'w-1.5 bg-rose/25'}`} />)}
     </div>
   )
   function back() {
     setError('')
-    if (step === 1) router.push('/seller')
-    else if (step === 2) { if (preOk) router.push('/seller'); else setStep(1) }
-    else setStep(2)
+    if (step === 3) setStep(2)
+    else router.push('/seller')
   }
 
   return (
@@ -185,28 +185,17 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
         <div className="pl-12"><Dots /></div>
       </div>
 
-      {/* ── Step 1 — pick a product (photo grid) ── */}
+      {/* No standalone picker any more — the home list is step 0. Landing here without
+          a product (old link / bookmark) just sends her back to it. */}
       {step === 1 && (
-        <main className="flex-1 overflow-y-auto px-4 py-4">
-          {inStock.length === 0 ? (
-            <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted mt-6">{S.noStockToSell}</div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                {inStock.map((p, i) => (
-                  <button key={p.product_id} onClick={() => pickProduct(p.product_id)}
-                    className="bg-surface rounded-2xl shadow-card overflow-hidden text-left active:scale-[0.97] transition">
-                    <Thumb p={p} i={i} className="w-full h-32" />
-                    <div className="p-3">
-                      <p className="font-display font-semibold text-ink text-sm leading-snug line-clamp-2">{p.product_name}</p>
-                      <p className="text-xs text-success font-semibold mt-0.5">{S.remaining(p.remaining)}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <p className="text-center text-xs text-muted mt-5">{S.onlyInStock}</p>
-            </>
-          )}
+        <main className="flex-1 flex items-center justify-center px-6">
+          <div className="bg-surface rounded-2xl shadow-card p-8 text-center">
+            <p className="text-sm text-muted mb-4">{S.pickFromHome}</p>
+            <button onClick={() => router.push('/seller')}
+              className="bg-gradient-to-br from-rose to-peach text-white font-display font-bold px-6 py-3 rounded-full shadow-rose active:scale-95 transition">
+              {S.goHome}
+            </button>
+          </div>
         </main>
       )}
 
