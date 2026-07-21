@@ -13,9 +13,9 @@ type RecentSale = { seller_name: string; product_name: string; qty: number; reve
 type KPIs = { totalRevenue: number; myProfit: number; totalOutstanding: number; unitsSold: number }
 // Business progress (discounts applied to worth/expected)
 type Biz = {
-  invested: number        // Σ cost × total_qty
-  worth: number           // Σ (discount ?? retail) × total_qty
-  expectedProfit: number  // worth − invested (gross, if all sells)
+  invested: number        // Σ cost × units STILL IN STOCK — money currently tied up
+  worth: number           // Σ (discount ?? retail) × units STILL IN STOCK
+  expectedProfit: number  // worth − invested (gross, if the remaining stock sells)
   soldRevenue: number     // Σ sales revenue so far
   giveawayUnits: number
   giveawayValue: number   // at cost
@@ -45,7 +45,10 @@ function Metric({ icon: Icon, label, value, sub, accent }: { icon: any; label: s
 }
 
 export default function AdminDashboard({ kpis, biz, productStats, recentSales }: Props) {
-  const pct = biz.worth > 0 ? (biz.soldRevenue / biz.worth) * 100 : 0
+  // Honest denominator: what's been sold + what's still on the shelf. Comparing
+  // cumulative revenue against *current* stock value would mix two different bases.
+  const potential = biz.soldRevenue + biz.worth
+  const pct = potential > 0 ? (biz.soldRevenue / potential) * 100 : 0
   return (
     <div className="min-h-screen bg-cream">
       <AdminNav />
@@ -62,19 +65,21 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales }:
                 <p className="text-sm opacity-80">Sotildi</p>
                 <p className="font-display text-3xl font-bold">{formatUZS(biz.soldRevenue)}</p>
               </div>
-              <p className="text-sm opacity-80 mb-1">/ {formatUZS(biz.worth)}</p>
+              <p className="text-sm opacity-80 mb-1">/ {formatUZS(potential)}</p>
             </div>
             <div className="h-3 bg-white/25 rounded-full overflow-hidden">
               <div className="h-full bg-white rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%` }} />
             </div>
-            <p className="text-xs opacity-90 mt-2">{pct.toFixed(1)}% — umumiy mahsulot qiymatidan sotilgan</p>
+            <p className="text-xs opacity-90 mt-2">
+              {pct.toFixed(1)}% sotilgan · omborda yana {formatUZS(biz.worth)} lik tovar bor
+            </p>
           </div>
 
           {/* Metric grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Metric icon={Wallet}   label="Qo'yilgan pul"       value={formatUZS(biz.invested)}       sub="tovarga sarflangan" />
-            <Metric icon={Package}  label="Umumiy qiymati"      value={formatUZS(biz.worth)}          sub="hammasining narxi" />
-            <Metric icon={Sparkles} label="Kutilayotgan foyda"  value={formatUZS(biz.expectedProfit)} sub="agar hammasi sotilsa" accent />
+            <Metric icon={Wallet}   label="Omborda turgan pul" value={formatUZS(biz.invested)}       sub="sotilmagan tovar xaridi" />
+            <Metric icon={Package}  label="Ombor qiymati"       value={formatUZS(biz.worth)}          sub="sotilmagan tovar narxi" />
+            <Metric icon={Sparkles} label="Kutilayotgan foyda"  value={formatUZS(biz.expectedProfit)} sub="agar qolgani sotilsa" accent />
             <Metric icon={Gift}     label="Sovg'alar"           value={`${biz.giveawayUnits} dona`}   sub={`${formatUZS(biz.giveawayValue)} xarajat`} />
           </div>
         </div>
@@ -157,6 +162,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     supabase.from('stock_adjustments').select('reason, qty, product_id'),
   ])
 
+  // Current stock per product (D4). Absent view → empty, and the maths falls back.
+  const { data: availability } = await supabase
+    .from('v_product_availability').select('product_id, remaining')
+
   const kpis: KPIs = {
     totalRevenue:    (allSales ?? []).reduce((s, r) => s + r.revenue, 0),
     myProfit:        (allSales ?? []).reduce((s, r) => s + r.my_profit, 0),
@@ -167,8 +176,17 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const prods = products ?? []
   const costById: Record<string, number> = {}
   for (const p of prods) costById[p.id] = p.cost ?? 0
-  const invested = prods.reduce((s, p) => s + (p.cost ?? 0) * (p.total_qty ?? 0), 0)
-  const worth    = prods.reduce((s, p) => s + ((p.discount_price ?? p.retail_price) ?? 0) * (p.total_qty ?? 0), 0)
+
+  // Value CURRENT stock, not everything ever received (ux-walkthrough §7 #14).
+  // `total_qty × cost` counted units sold months ago at today's cost, so both numbers
+  // drifted upward forever. `remaining` comes from v_product_availability; if that view
+  // is missing we fall back to total_qty and behave exactly as before.
+  const remainingById: Record<string, number> = {}
+  for (const a of availability ?? []) remainingById[(a as any).product_id] = (a as any).remaining ?? 0
+  const stockOf = (p: any) => remainingById[p.id] ?? p.total_qty ?? 0
+
+  const invested = prods.reduce((s, p) => s + (p.cost ?? 0) * stockOf(p), 0)
+  const worth    = prods.reduce((s, p) => s + ((p.discount_price ?? p.retail_price) ?? 0) * stockOf(p), 0)
   const giveaways = (adjustments ?? []).filter(a => a.reason === 'giveaway' || a.reason === 'gift')
   const biz: Biz = {
     invested,

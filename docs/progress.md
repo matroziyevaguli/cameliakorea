@@ -6,7 +6,10 @@ the "proof" column says how it was checked.
 
 Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 blocked on SQL
 
-**Last updated:** 2026-07-22 · **Phases 1 + 2 + 3 + 4 ✅ · G5 ✅** (pending your visual check)
+**Last updated:** 2026-07-22 · **Phases 1–4 ✅ · G5 ✅ · Phase 5 money fix ✅**
+
+**Migration status verified 2026-07-22** via `docs/migration-status-check.sql` —
+D1–D5 and D7 all `true`, **stock drift `0`**, **cost leak in `v_shop` `0`**.
 
 **Build status:** `yarn build` ✅ passes · `tsc --noEmit` → 2 errors, both **pre-existing**
 recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
@@ -23,7 +26,7 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 | **2 · Single stock signal** | D4, D5 | ✅ **UI shipped** (degrades safely until SQL runs) |
 | **3 · Seller IA** | nothing | 🟡 **done except G4** (needs SQL) |
 | **4 · Admin Stock Hub** | D1, D2 | ✅ **shipped** (D1–D5 run 2026-07-22) |
-| **5 · Admin regroup + money truth** | D6 | 🔒 |
+| **5 · Admin regroup + money truth** | D6 | 🟡 money fixed; regroup pending |
 | **6 · Polish** | — | ⬜ |
 
 ### Data migrations (`availability_plan.md` §8)
@@ -233,7 +236,11 @@ list and one sale editor ✅; selling is 2 taps from a card ✅; **nothing is ha
 - [x] **G5 done** — saving a product **no longer posts anything**. A new/lowered discount
       now opens a confirm dialog naming the product, the price and the channel; dismissing
       it posts nothing. Outward-facing actions are never side effects.
-- [ ] Add discontinue + archive (`discontinued_at` column now exists, UI pending)
+- [x] **Discontinue / restore shipped** — the archive icon on each product row sets
+      `discontinued_at`; the row dims, gets an "Endi keltirilmaydi" chip and **drops out
+      of `v_shop`**, so customers stop seeing it while its sales, batches and money stay
+      intact. "Qaytarish" puts it back. This is the first way to retire a product at all
+      (ux-walkthrough §7 #17).
 
 > ⚠ **`v_batches` is now stale** — its column list predates D1, so it has no `status`.
 > The admin page therefore reads `product_batches` directly (RLS `batches_select` already

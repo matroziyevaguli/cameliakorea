@@ -6,7 +6,8 @@ import React, { useState, useRef } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import AdminNav from '@/components/AdminNav'
-import { Plus, Pencil, X, ImagePlus, Send, CheckCircle, Sparkles, Loader2, Link2, Crop as CropIcon, Images, GripVertical, Trash2, CalendarClock, AlertTriangle } from 'lucide-react'
+import { Plus, Pencil, X, ImagePlus, Send, CheckCircle, Sparkles, Loader2, Link2, Crop as CropIcon, Images, GripVertical, Trash2, CalendarClock, AlertTriangle, Archive } from 'lucide-react'
+import ConfirmBar from '@/components/ConfirmBar'
 import { formatDate } from '@/lib/format'
 import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
 
@@ -35,6 +36,7 @@ type Product = {
   description: string | null
   link: string | null
   expiry_date: string | null
+  discontinued_at: string | null
 }
 
 type FormState = {
@@ -386,6 +388,21 @@ export default function Products({ products: initial }: { products: Product[] })
     }
   }
 
+  // Retire / restore a product (D3). The first way to take a product out of the
+  // catalog without deleting its history — it drops out of v_shop, and its sales,
+  // batches and money stay intact.
+  const [retireId, setRetireId] = useState<string | null>(null)
+  async function setDiscontinued(p: Product, off: boolean) {
+    const supabase = createBrowser()
+    const value = off ? new Date().toISOString() : null
+    const { error: err } = await supabase.from('products').update({ discontinued_at: value }).eq('id', p.id)
+    setRetireId(null)
+    if (err) { setError(err.message); return }
+    setProducts(list => list.map(x => x.id === p.id ? { ...x, discontinued_at: value } : x))
+    setToast(off ? `${p.name} — katalogdan olib tashlandi` : `${p.name} — katalogga qaytarildi`)
+    setTimeout(() => setToast(''), 4000)
+  }
+
   // Explicit discount announcement (G5) — only ever fires from this button.
   const [discountOffer, setDiscountOffer] = useState<{ productId: string; name: string; price: number } | null>(null)
   const [announcingDiscount, setAnnouncingDiscount] = useState(false)
@@ -596,7 +613,7 @@ export default function Products({ products: initial }: { products: Product[] })
             <tbody>
               {products.map((p, i) => (
                 <React.Fragment key={p.id}>
-                  <tr className={`${i % 2 === 1 ? 'bg-cream/50' : ''} hover:bg-rose/5 transition`}>
+                  <tr className={`${i % 2 === 1 ? 'bg-cream/50' : ''} ${p.discontinued_at ? 'opacity-50' : ''} hover:bg-rose/5 transition`}>
                     <td className="px-5 py-3">
                       {p.image_url
                         ? <img src={p.image_url} alt={p.name} className="w-10 h-10 rounded-lg object-cover shadow-sm" />
@@ -607,6 +624,11 @@ export default function Products({ products: initial }: { products: Product[] })
                     </td>
                     <td className="px-5 py-3 font-medium text-ink">
                       {p.name}
+                      {p.discontinued_at && (
+                        <span className="ml-2 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-muted">
+                          Endi keltirilmaydi
+                        </span>
+                      )}
                       {(() => {
                         const { status, days } = expiryInfo(p.expiry_date)
                         if (status === 'none' || status === 'ok') return null
@@ -638,6 +660,19 @@ export default function Products({ products: initial }: { products: Product[] })
                       </div>
                     </td>
                   </tr>
+
+                  {retireId === p.id && (
+                    <tr>
+                      <td colSpan={7} className="px-5 pb-3 pt-0">
+                        <ConfirmBar
+                          question={`«${p.name}» katalogdan olib tashlansinmi? Saytda ko'rinmaydi, lekin sotuvlar va tarix saqlanadi.`}
+                          confirmLabel="Ha, olib tashlash"
+                          onConfirm={() => setDiscontinued(p, true)}
+                          onCancel={() => setRetireId(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
 
                   {/* Announce panel */}
                   {announceId === p.id && (
