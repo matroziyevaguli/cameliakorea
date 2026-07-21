@@ -99,8 +99,24 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
       else if (t.status === 'approved') { if (t.is_outgoing) g.out += t.qty; else g.in += t.qty }
       if (t.created_at > g.last) g.last = t.created_at
     }
+    // Merge same-route, same-status transfers into one line: two "ADOLAT → Siz"
+    // on the same product become "ADOLAT → Siz · 3 ta". Keeps the count + latest date.
     return Object.values(map)
-      .map(g => ({ ...g, rows: g.rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)) }))
+      .map(g => {
+        const merged: Record<string, {
+          key: string; is_outgoing: boolean; counter: string
+          status: MyTransfer['status']; qty: number; count: number; last: string
+        }> = {}
+        for (const t of g.rows) {
+          const counter = t.is_outgoing ? t.to_name : t.from_name
+          const mk = `${t.is_outgoing ? 'out' : 'in'}|${counter}|${t.status}`
+          const m = merged[mk] ??= { key: mk, is_outgoing: t.is_outgoing, counter, status: t.status, qty: 0, count: 0, last: t.created_at }
+          m.qty += t.qty; m.count++
+          if (t.created_at > m.last) m.last = t.created_at
+        }
+        const lines = Object.values(merged).sort((a, b) => (a.last < b.last ? 1 : -1))
+        return { ...g, lines }
+      })
       .sort((a, b) => (a.last < b.last ? 1 : -1))
   }, [transfers]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -303,16 +319,18 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
 
                         {open && (
                           <div className="bg-cream/40 px-3 pb-3 pt-1 space-y-1.5">
-                            {g.rows.map(t => (
-                              <div key={t.id} className="flex items-center gap-2 bg-surface rounded-lg px-3 py-2">
-                                <RotateCcw className={`w-3.5 h-3.5 flex-shrink-0 ${t.is_outgoing ? 'text-rose' : 'text-success'}`} />
+                            {g.lines.map(l => (
+                              <div key={l.key} className="flex items-center gap-2 bg-surface rounded-lg px-3 py-2">
+                                <RotateCcw className={`w-3.5 h-3.5 flex-shrink-0 ${l.is_outgoing ? 'text-rose' : 'text-success'}`} />
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs text-ink truncate">
-                                    {t.is_outgoing ? `Siz → ${t.to_name}` : `${t.from_name} → Siz`} · <strong>{t.qty} ta</strong>
+                                    {l.is_outgoing ? `Siz → ${l.counter}` : `${l.counter} → Siz`} · <strong>{l.qty} ta</strong>
                                   </p>
-                                  <p className="text-[11px] text-muted">{formatDate(t.created_at)}</p>
+                                  <p className="text-[11px] text-muted">
+                                    {formatDate(l.last)}{l.count > 1 ? ` · ${l.count} marta` : ''}
+                                  </p>
                                 </div>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${BADGE[t.status].cls}`}>{BADGE[t.status].label}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${BADGE[l.status].cls}`}>{BADGE[l.status].label}</span>
                               </div>
                             ))}
                           </div>
