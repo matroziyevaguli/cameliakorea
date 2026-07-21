@@ -44,28 +44,47 @@ function RemainingBadge({ n }: { n: number }) {
   return               <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-success">{S.remaining(n)}</span>
 }
 
-// "3 tadan 1 sotildi" + a bar filled by sold/had. Shows how much of what she
-// received is already sold, at a glance.
+// "3 tadan 1 ta sotildi" + a bar filled by sold/had.
+// Small batches (≤10) draw one pill per item, so "1 of 3" is literally countable;
+// bigger ones fall back to a single bar. Unsold slots keep a dashed outline so an
+// empty bar still reads as "0 sotildi — hammasi turibdi", not as a missing element.
 function SoldProgress({ had, sold, remaining }: { had: number; sold: number; remaining: number }) {
   if (had <= 0) return null
-  const pct = Math.min(100, Math.round((sold / had) * 100))
-  const done = remaining === 0
+  const pct   = Math.min(100, Math.round((sold / had) * 100))
+  const done  = remaining === 0
+  const empty = sold === 0
+  const fill  = done ? 'bg-success' : 'bg-gradient-to-r from-rose to-peach'
+  const track = 'bg-cream border border-dashed border-rose/30'
+
   return (
     <div className="mb-3">
       <div className="flex items-center justify-between text-xs mb-1.5">
-        <span className="text-muted">
-          <b className="text-ink font-semibold">{had} tadan {sold} ta</b> sotildi
-        </span>
+        {empty ? (
+          <span className="text-muted">
+            <b className="text-ink font-semibold">{had} ta</b> turibdi — hali sotilmadi
+          </span>
+        ) : (
+          <span className="text-muted">
+            <b className="text-ink font-semibold">{had} tadan {sold} ta</b> sotildi
+          </span>
+        )}
         <span className={`font-semibold ${done ? 'text-danger' : remaining <= 2 ? 'text-warning' : 'text-success'}`}>
           {done ? 'Tugadi' : S.remaining(remaining)}
         </span>
       </div>
-      <div className="h-2 w-full bg-cream rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${done ? 'bg-success' : 'bg-gradient-to-r from-rose to-peach'}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+
+      {had <= 10 ? (
+        <div className="flex gap-1">
+          {Array.from({ length: had }, (_, i) => (
+            <span key={i}
+              className={`h-2 flex-1 rounded-full transition-all duration-500 ${i < sold ? fill : track}`} />
+          ))}
+        </div>
+      ) : (
+        <div className={`h-2 w-full rounded-full overflow-hidden ${track}`}>
+          <div className={`h-full rounded-full transition-all duration-500 ${fill}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
     </div>
   )
 }
