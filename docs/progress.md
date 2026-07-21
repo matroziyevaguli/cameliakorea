@@ -6,7 +6,7 @@ the "proof" column says how it was checked.
 
 Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 blocked on SQL
 
-**Last updated:** 2026-07-22 · **Phases 1–4 ✅ · G4 ✅(gated) · G5 ✅ · Phase 5 money fix ✅**
+**Last updated:** 2026-07-22 · **Phases 1–5 ✅ · G1–G8 ✅** — every migration run.
 
 **Migration status verified 2026-07-22** via `docs/migration-status-check.sql` —
 D1–D5 and D7 all `true`, **stock drift `0`**, **cost leak in `v_shop` `0`**.
@@ -24,7 +24,7 @@ the recharts `Tooltip formatter` typing in `admin/index.tsx`. (The second one li
 |---|---|---|
 | **1 · Grammar pass** | nothing | ✅ **done** |
 | **2 · Single stock signal** | D4, D5 | ✅ **UI shipped** (degrades safely until SQL runs) |
-| **3 · Seller IA** | nothing | ✅ **done** (G4 live once its SQL runs) |
+| **3 · Seller IA** | nothing | ✅ **done** — G4 live |
 | **4 · Admin Stock Hub** | D1, D2 | ✅ **shipped** (D1–D5 run 2026-07-22) |
 | **5 · Admin regroup + money truth** | D6 | ✅ **done** (except retiring `total_qty`) |
 | **6 · Polish** | — | ⬜ |
@@ -38,16 +38,23 @@ the recharts `Tooltip formatter` typing in `admin/index.tsx`. (The second one li
 | D4 | `v_product_availability` (`state` enum) | ✅ B4 | ✅ run |
 | D5 | Public view exposes `state` (**`v_shop`**, not `v_catalog` — see below) | ✅ B5+B6 | ✅ run |
 | D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ Phase 5 | — |
-| **D7** | `sales.cancelled_at`, `sale_edits` audit table | ✅ `sale-audit-setup.md` | ✅ **run 2026-07-22** |
+| **D7** | `sales.cancelled_at`, `sale_edits` audit table | ✅ `sale-audit-setup.md` | ✅ **run** |
+| **D7b** | The nine view filters that make cancellation real | ✅ `sale-cancellation-views.md` | ✅ **run 2026-07-22** |
 
 **Confirmed from the `pg_policy` output:** `sales_update` is already
 `(is_admin() OR seller_id = my_profile_id())` on both `using` and `with check` — a seller
 can already update her own sale's price at the DB level. **Only the UI was gating it**,
 so G4's price editing needs no policy change.
 
-> ✅ **Resolved** — `docs/sale-cancellation-views.md` now contains the exact
-> `create or replace view` statements, written from the definitions you pasted
-> (2026-07-22), not guessed. Run it and cancellation becomes real.
+> ✅ **Resolved and run.** `docs/sale-cancellation-views.md` held the exact
+> `create or replace view` statements, written from the pasted definitions rather than
+> guessed. With it applied, **cancellation is real** and the seller-side UI has
+> un-gated itself automatically (it probes for `v_my_sales.cancelled_at`).
+>
+> **Baseline captured before the end-to-end test** (GULSHAN, 2026-07-22):
+> `owed_from_sales` 8 880 909.56 · `total_owed` 8 880 909.56 · `received` 5 990 000 ·
+> `balance` 2 890 909.56. Cancelling one sale must drop `owed_from_sales` and `balance`
+> by exactly that sale's `owed_to_me`; restoring must return them to these numbers.
 >
 > 🔴 *(historical)* **D7 Block 1 ran without the nine view filters.** `sales.cancelled_at` now exists but
 > **no view filters it**. This is currently harmless *because nothing writes that column* —
@@ -227,10 +234,15 @@ new consistent wording. Running the SQL lights up the other two with no further 
       aggregate view excludes it in the DB. Each change writes a `sale_edits` row.
       **Admin sees them:** new "Sotuv tuzatishlari" panel on the seller detail page —
       date, product, what changed, old → new, reason.
-      **Safety gate:** the page probes for `v_my_sales.cancelled_at`. That column only
-      exists once `docs/sale-cancellation-views.md` has run — which is *exactly* when the
-      aggregates start excluding cancelled rows. Until then it keeps the old delete
-      behaviour, so cancelling can never silently leave revenue counted.
+      **Safety gate (now satisfied):** the page probes for `v_my_sales.cancelled_at`,
+      which only exists once `docs/sale-cancellation-views.md` has run — exactly when the
+      aggregates start excluding cancelled rows. That ran on 2026-07-22, so the cancel
+      flow is live and the old delete path is retired.
+- [x] **Inline price editing** — she now corrects her own sale's price directly instead
+      of asking. RLS already allowed it (`sales_update` covers
+      `seller_id = my_profile_id()`); only the UI was gating it. Each change writes a
+      `price` audit row. The old `sale_price_requests` flow is left in place so anything
+      already pending still resolves — it can be retired once the queue is empty.
 
 **Still true after this phase:** requests reachable in 1 tap via 🔔 ✅; exactly one sale
 list and one sale editor ✅; selling is 2 taps from a card ✅; **nothing is hard-deleted

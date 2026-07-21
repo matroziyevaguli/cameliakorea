@@ -144,6 +144,25 @@ export default function MySales({ sales: initialSales, pricePending, images, sel
     setEditId(null)
     reconcile()
   }
+  // G4 — she corrects her OWN sale's price directly. RLS already permitted this
+  // (sales_update covers seller_id = my_profile_id()); only the UI was gating it.
+  // The audit row is what makes it safe: the admin sees every change.
+  const [priceSaving, setPriceSaving] = useState(false)
+  async function savePriceDirect(sale: Sale) {
+    const price = Number(priceValue)
+    if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr("Narx noto'g'ri"); return }
+    setPriceSaving(true); setPriceErr('')
+    const supabase = createBrowser()
+    const { error } = await supabase.from('sales').update({ unit_price: price }).eq('id', sale.id)
+    setPriceSaving(false)
+    if (error) { setPriceErr(error.message); return }
+    logEdit(sale.id, 'price', sale.unit_price, price, priceReason || undefined)
+    setSales(list => list.map(x => x.id === sale.id
+      ? { ...x, unit_price: price, amount: price * Math.abs(x.qty) } : x))
+    setPriceOpen(false); setEditId(null)
+    reconcile()
+  }
+
   async function submitPriceRequest(sale: Sale) {
     const price = Number(priceValue)
     if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr("Narx noto'g'ri"); return }
@@ -319,7 +338,7 @@ export default function MySales({ sales: initialSales, pricePending, images, sel
                               <p className="text-xs font-semibold text-warning">💵 Narx so'rovi yuborildi — admin javobini kuting</p>
                             ) : priceOpen ? (
                               <div className="space-y-2">
-                                <p className="text-xs font-semibold text-ink">To'g'ri dona narxini yozing (admin tasdiqlaydi):</p>
+                                <p className="text-xs font-semibold text-ink">To'g'ri dona narxini yozing:</p>
                                 <div className="flex items-center gap-2">
                                   <input type="number" min={0} value={priceValue} onChange={e => setPriceValue(e.target.value)}
                                     className="w-28 bg-cream text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
@@ -331,17 +350,20 @@ export default function MySales({ sales: initialSales, pricePending, images, sel
                                   <p className="text-success text-xs font-semibold">✅ Narx so'rovi yuborildi</p>
                                 ) : (
                                   <div className="flex gap-2">
-                                    <button disabled={priceBusy} onClick={() => submitPriceRequest(sale)}
+                                    <button disabled={priceSaving} onClick={() => savePriceDirect(sale)}
                                       className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
-                                      {priceBusy ? 'Yuborilmoqda…' : "Narx so'rovini yuborish"}
+                                      {priceSaving ? 'Saqlanmoqda…' : 'Narxni saqlash'}
                                     </button>
                                     <button aria-label="Yopish" onClick={() => setPriceOpen(false)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
                                   </div>
                                 )}
+                                <p className="text-[11px] text-muted leading-snug">
+                                  O'zgarish darhol saqlanadi va admin ko'radi.
+                                </p>
                               </div>
                             ) : (
                               <button onClick={() => setPriceOpen(true)}
-                                className="text-xs font-semibold text-rose">💵 Narx noto'g'rimi? Narxni tuzatishni so'rash</button>
+                                className="text-xs font-semibold text-rose">💵 Narx noto'g'rimi? Tuzatish</button>
                             )}
                           </div>
                         </div>

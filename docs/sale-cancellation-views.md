@@ -292,13 +292,13 @@ select * from public.v_seller_balances where seller_name = 'GULSHAN';
 
 -- Cancel it:
 update public.sales set cancelled_at = now(), cancel_reason = 'test'
-where id = '<sale-uuid>';
+where id = '<b0000000-0000-0000-0000-000000000001>';
 
 -- Her owed + revenue must DROP by that sale's amount, and stock must come back:
 select * from public.v_seller_balances where seller_name = 'GULSHAN';
 
 -- Undo:
-update public.sales set cancelled_at = null, cancel_reason = null where id = '<sale-uuid>';
+update public.sales set cancelled_at = null, cancel_reason = null where id = 'b0000000-0000-0000-0000-000000000001';
 ```
 
 Once that behaves, tell me and I'll ship the **"Bekor qilingan"** UI (reason chips,
