@@ -2,18 +2,24 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatDate } from '@/lib/format'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import SellerNav from '@/components/SellerNav'
-import { RotateCcw, Plus, Minus, X } from 'lucide-react'
+import { RotateCcw, Plus, Minus, X, ArrowRight, ArrowDown, ArrowUp, ChevronDown } from 'lucide-react'
 
 type MyTransfer = {
   id: string; qty: number; status: 'pending' | 'approved' | 'rejected'
-  from_name: string; to_name: string; product_name: string; is_outgoing: boolean; created_at: string
+  from_name: string; to_name: string; product_name: string; product_id?: string | null
+  is_outgoing: boolean; created_at: string
 }
 type Sendable = { product_id: string; product_name: string; remaining: number }
 type Seller = { id: string; full_name: string }
-type Props = { transfers: MyTransfer[]; sendable: Sendable[]; otherSellers: Seller[] }
+type Props = {
+  transfers: MyTransfer[]; sendable: Sendable[]; otherSellers: Seller[]
+  remainingByProduct: Record<string, number>       // product_id → current stock
+  imageByProduct: Record<string, string | null>
+  hasProductId: boolean
+}
 
 const BADGE: Record<MyTransfer['status'], { label: string; cls: string }> = {
   pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
@@ -21,19 +27,41 @@ const BADGE: Record<MyTransfer['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function SellerTransfers({ transfers: initialTransfers, sendable, otherSellers }: Props) {
+const GRADIENTS = ['from-rose to-peach', 'from-lavender to-sky', 'from-mint to-sky', 'from-peach to-rose']
+function Thumb({ name, url, i, className = '' }: { name: string; url?: string | null; i: number; className?: string }) {
+  if (url) return <img src={url} alt={name} className={`object-cover ${className}`} />
+  return (
+    <div className={`bg-gradient-to-br ${GRADIENTS[i % GRADIENTS.length]} grid place-items-center ${className}`}>
+      <span className="font-display font-bold text-white/80 text-lg">{name.charAt(0).toUpperCase()}</span>
+    </div>
+  )
+}
+
+// The whole point of the page: her stock now → her stock after this return moves.
+function BeforeAfter({ before, after, afterLabel }: { before: number; after: number; afterLabel: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs">
+      <span className="text-muted">Sizda: <b className="text-ink">{before} ta</b></span>
+      <ArrowRight className="w-3.5 h-3.5 text-muted" />
+      <span className="text-muted">{afterLabel}: <b className={after < before ? 'text-warning' : 'text-success'}>{after} ta</b></span>
+    </span>
+  )
+}
+
+export default function SellerTransfers({ transfers: initialTransfers, sendable, otherSellers, remainingByProduct, imageByProduct, hasProductId }: Props) {
   // G2 — local state is the source of truth for the screen; reconcile in the background.
   const [transfers, setTransfers] = useState<MyTransfer[]>(initialTransfers)
   const incoming = transfers.filter(t => !t.is_outgoing && t.status === 'pending')
-  const history = transfers.filter(t => t.is_outgoing || t.status !== 'pending')
   const [txBusy, setTxBusy] = useState<string | null>(null)
   const [txError, setTxError] = useState('')
 
   async function reconcile() {
     const supabase = createBrowser()
-    const { data } = await supabase.from('v_my_transfers')
-      .select('id, qty, status, from_name, to_name, product_name, is_outgoing, created_at')
-    if (data) setTransfers(data as MyTransfer[])
+    const cols = hasProductId
+      ? 'id, qty, status, from_name, to_name, product_name, product_id, is_outgoing, created_at'
+      : 'id, qty, status, from_name, to_name, product_name, is_outgoing, created_at'
+    const { data } = await supabase.from('v_my_transfers').select(cols)
+    if (data) setTransfers(data as unknown as MyTransfer[])
   }
 
   async function confirmTransfer(id: string, action: 'approve' | 'reject') {
@@ -44,14 +72,41 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
     const json = await res.json().catch(() => ({}))
     setTxBusy(null)
     if (!res.ok) { setTxError(json.error ?? 'Xatolik'); return }
-    // Optimistic: move it straight into history with its new status.
     setTransfers(list => list.map(t => t.id === id
       ? { ...t, status: action === 'approve' ? 'approved' : 'rejected' } : t))
     window.dispatchEvent(new Event('camelia-transfers-changed'))
     reconcile()
   }
 
-  // Send a new return
+  // ── Grouped-by-product overview (the core request) ────────────────────────
+  const keyOf = (t: MyTransfer) => (hasProductId && t.product_id) ? t.product_id : `name:${t.product_name}`
+  const groups = useMemo(() => {
+    type G = {
+      key: string; name: string; image: string | null; remaining: number
+      out: number; in: number; pending: number; rows: MyTransfer[]; last: string
+    }
+    const map: Record<string, G> = {}
+    for (const t of transfers) {
+      const key = keyOf(t)
+      const g = map[key] ??= {
+        key, name: t.product_name,
+        image: (hasProductId && t.product_id) ? (imageByProduct[t.product_id] ?? null) : null,
+        remaining: (hasProductId && t.product_id) ? (remainingByProduct[t.product_id] ?? 0) : 0,
+        out: 0, in: 0, pending: 0, rows: [], last: t.created_at,
+      }
+      g.rows.push(t)
+      if (t.status === 'pending') g.pending++
+      else if (t.status === 'approved') { if (t.is_outgoing) g.out += t.qty; else g.in += t.qty }
+      if (t.created_at > g.last) g.last = t.created_at
+    }
+    return Object.values(map)
+      .map(g => ({ ...g, rows: g.rows.sort((a, b) => (a.created_at < b.created_at ? 1 : -1)) }))
+      .sort((a, b) => (a.last < b.last ? 1 : -1))
+  }, [transfers]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [openKey, setOpenKey] = useState<string | null>(null)
+
+  // ── New return form ───────────────────────────────────────────────────────
   const mainSeller = otherSellers.find(s => /gulshan/i.test(s.full_name)) ?? otherSellers[0]
   const [showForm, setShowForm] = useState(false)
   const [productId, setProductId] = useState('')
@@ -122,6 +177,17 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                   </select>
                 </div>
 
+                {/* Chosen product with a real thumbnail + live before→after */}
+                {selected && (
+                  <div className="flex items-center gap-3 bg-cream rounded-xl p-3">
+                    <Thumb name={selected.product_name} url={imageByProduct[selected.product_id]} i={0} className="w-14 h-14 rounded-xl flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink text-sm truncate">{selected.product_name}</p>
+                      <div className="mt-1"><BeforeAfter before={selected.remaining} after={selected.remaining - qty} afterLabel="qaytargach" /></div>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-muted mb-1">Kimga</label>
                   <select value={to} onChange={e => setTo(e.target.value)}
@@ -151,51 +217,112 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
           </div>
         )}
 
-        {/* Incoming — needs my confirmation */}
+        {/* Incoming — needs my confirmation, with my before→after */}
         {incoming.length > 0 && (
           <div>
             <h2 className="font-display font-bold text-ink text-base mb-2 px-1">Sizga qaytarilmoqda</h2>
             <div className="space-y-2">
-              {incoming.map(t => (
-                <div key={t.id} className="bg-mint/10 border border-mint/30 rounded-2xl p-4">
-                  <p className="text-sm font-semibold text-ink"><span className="text-success">{t.from_name}</span> sizga qaytarmoqchi</p>
-                  <p className="text-sm text-muted mb-3">{t.product_name} — <strong className="text-ink">{t.qty} ta</strong></p>
-                  <div className="flex gap-2">
-                    <button onClick={() => confirmTransfer(t.id, 'approve')} disabled={txBusy !== null}
-                      className="flex-1 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">Qabul qildim</button>
-                    <button onClick={() => confirmTransfer(t.id, 'reject')} disabled={txBusy !== null}
-                      className="flex-1 bg-red-50 text-danger font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">Rad etish</button>
+              {incoming.map((t, i) => {
+                const have = (hasProductId && t.product_id) ? (remainingByProduct[t.product_id] ?? 0) : null
+                return (
+                  <div key={t.id} className="bg-mint/10 border border-mint/30 rounded-2xl p-4">
+                    <div className="flex items-start gap-3 mb-3">
+                      {hasProductId && t.product_id && (
+                        <Thumb name={t.product_name} url={imageByProduct[t.product_id]} i={i} className="w-14 h-14 rounded-xl flex-shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-ink"><span className="text-success">{t.from_name}</span> sizga qaytarmoqchi</p>
+                        <p className="text-sm text-muted">{t.product_name} — <strong className="text-ink">{t.qty} ta</strong></p>
+                        {have !== null && (
+                          <div className="mt-1"><BeforeAfter before={have} after={have + t.qty} afterLabel="qabul qilsangiz" /></div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => confirmTransfer(t.id, 'approve')} disabled={txBusy !== null}
+                        className="flex-1 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">Qabul qildim</button>
+                      <button onClick={() => confirmTransfer(t.id, 'reject')} disabled={txBusy !== null}
+                        className="flex-1 bg-red-50 text-danger font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">Rad etish</button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
               {txError && <p className="text-danger text-xs px-1 mt-1">{txError}</p>}
             </div>
           </div>
         )}
 
-        {/* History */}
+        {/* Grouped-by-product overview table */}
         <div>
-          <h2 className="font-display font-bold text-ink text-base mb-2 px-1">Tarix</h2>
-          {history.length === 0 && incoming.length === 0 ? (
+          <h2 className="font-display font-bold text-ink text-base mb-1 px-1">Sizning qaytarishlaringiz</h2>
+          {groups.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
               <RotateCcw className="w-10 h-10 mx-auto mb-3 opacity-30" />
               <p className="text-sm">Hali qaytarish yo'q</p>
             </div>
-          ) : history.length === 0 ? (
-            <p className="text-xs text-muted px-1">Tarix bo'sh.</p>
           ) : (
-            <div className="space-y-2">
-              {history.map(t => (
-                <div key={t.id} className="bg-surface rounded-2xl shadow-card px-4 py-3 flex items-center gap-3">
-                  <RotateCcw className={`w-4 h-4 flex-shrink-0 ${t.is_outgoing ? 'text-rose' : 'text-success'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-ink truncate">{t.product_name} · <strong>{t.qty} ta</strong></p>
-                    <p className="text-xs text-muted">{t.is_outgoing ? `Siz → ${t.to_name}` : `${t.from_name} → Siz`} · {formatDate(t.created_at)}</p>
-                  </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${BADGE[t.status].cls}`}>{BADGE[t.status].label}</span>
+            <>
+              <p className="text-[11px] text-muted mb-2 px-1">
+                <b className="text-rose">Chiqdi</b> — qaytarganingiz · <b className="text-success">Kirdi</b> — sizga qaytarilgani · <b className="text-ink">Hozir</b> — hozirgi soningiz
+              </p>
+
+              <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
+                {/* Column header */}
+                <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 text-[11px] font-semibold text-muted">
+                  <span className="w-11 flex-shrink-0" />
+                  <span className="flex-1">Mahsulot</span>
+                  <span className="w-12 text-right">Chiqdi</span>
+                  <span className="w-12 text-right">Kirdi</span>
+                  <span className="w-12 text-right">Hozir</span>
+                  <span className="w-5 flex-shrink-0" />
                 </div>
-              ))}
-            </div>
+
+                <div className="divide-y divide-gray-100">
+                  {groups.map((g, gi) => {
+                    const open = openKey === g.key
+                    return (
+                      <div key={g.key}>
+                        <button onClick={() => setOpenKey(k => (k === g.key ? null : g.key))}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-cream/60 transition">
+                          <Thumb name={g.name} url={g.image} i={gi} className="w-11 h-11 rounded-xl flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-ink truncate">{g.name}</p>
+                            {g.pending > 0 && (
+                              <span className="text-[10px] font-bold text-warning bg-orange-50 px-1.5 py-0.5 rounded-full">{g.pending} kutilmoqda</span>
+                            )}
+                          </div>
+                          <span className="w-12 text-right text-sm">
+                            {g.out > 0 ? <span className="inline-flex items-center gap-0.5 font-semibold text-rose"><ArrowDown className="w-3 h-3" />{g.out}</span> : <span className="text-muted/40">—</span>}
+                          </span>
+                          <span className="w-12 text-right text-sm">
+                            {g.in > 0 ? <span className="inline-flex items-center gap-0.5 font-semibold text-success"><ArrowUp className="w-3 h-3" />{g.in}</span> : <span className="text-muted/40">—</span>}
+                          </span>
+                          <span className="w-12 text-right font-display font-bold text-ink text-sm">{hasProductId ? `${g.remaining}` : '—'}</span>
+                          <ChevronDown className={`w-4 h-4 text-muted flex-shrink-0 transition ${open ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {open && (
+                          <div className="bg-cream/40 px-3 pb-3 pt-1 space-y-1.5">
+                            {g.rows.map(t => (
+                              <div key={t.id} className="flex items-center gap-2 bg-surface rounded-lg px-3 py-2">
+                                <RotateCcw className={`w-3.5 h-3.5 flex-shrink-0 ${t.is_outgoing ? 'text-rose' : 'text-success'}`} />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs text-ink truncate">
+                                    {t.is_outgoing ? `Siz → ${t.to_name}` : `${t.from_name} → Siz`} · <strong>{t.qty} ta</strong>
+                                  </p>
+                                  <p className="text-[11px] text-muted">{formatDate(t.created_at)}</p>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${BADGE[t.status].cls}`}>{BADGE[t.status].label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </main>
@@ -212,21 +339,39 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const { data: { session } } = await supabase.auth.getSession()
   const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', session!.user.id).single()
 
-  const [transfersRes, invRes, sellersRes] = await Promise.all([
-    supabase.from('v_my_transfers').select('id, qty, status, from_name, to_name, product_name, is_outgoing, created_at'),
+  // `product_id` on v_my_transfers only exists once docs/transfers-product-id.md is run.
+  // Probe once; on failure fall back to the column set without it and group by name.
+  const withId = 'id, qty, status, from_name, to_name, product_name, product_id, is_outgoing, created_at'
+  const withoutId = 'id, qty, status, from_name, to_name, product_name, is_outgoing, created_at'
+  let transfersRes = await supabase.from('v_my_transfers').select(withId)
+  const hasProductId = !transfersRes.error
+  if (transfersRes.error) transfersRes = await supabase.from('v_my_transfers').select(withoutId)
+
+  const [invRes, sellersRes, catalogRes] = await Promise.all([
     supabase.from('v_my_inventory').select('product_id, product_name, remaining'),
     supabase.from('v_seller_names').select('id, full_name'),
+    supabase.from('v_catalog').select('id, image_url'),
   ])
 
-  const sendable: Sendable[] = (invRes.data ?? [])
+  const inv = invRes.data ?? []
+  const sendable: Sendable[] = inv
     .filter((i: any) => i.remaining > 0)
     .map((i: any) => ({ product_id: i.product_id, product_name: i.product_name, remaining: i.remaining }))
+
+  const remainingByProduct: Record<string, number> = {}
+  for (const i of inv as any[]) remainingByProduct[i.product_id] = i.remaining
+
+  const imageByProduct: Record<string, string | null> = {}
+  for (const c of (catalogRes.data ?? []) as any[]) imageByProduct[c.id] = c.image_url ?? null
 
   return {
     props: {
       transfers: transfersRes.data ?? [],
       sendable,
       otherSellers: (sellersRes.data ?? []).filter((s: any) => s.id !== profile?.id),
+      remainingByProduct,
+      imageByProduct,
+      hasProductId,
     },
   }
 }
