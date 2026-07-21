@@ -6,7 +6,7 @@ the "proof" column says how it was checked.
 
 Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 blocked on SQL
 
-**Last updated:** 2026-07-22 · **Phases 1–4 ✅ · G5 ✅ · Phase 5 money fix ✅**
+**Last updated:** 2026-07-22 · **Phases 1–4 ✅ · G4 ✅(gated) · G5 ✅ · Phase 5 money fix ✅**
 
 **Migration status verified 2026-07-22** via `docs/migration-status-check.sql` —
 D1–D5 and D7 all `true`, **stock drift `0`**, **cost leak in `v_shop` `0`**.
@@ -24,7 +24,7 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 |---|---|---|
 | **1 · Grammar pass** | nothing | ✅ **done** |
 | **2 · Single stock signal** | D4, D5 | ✅ **UI shipped** (degrades safely until SQL runs) |
-| **3 · Seller IA** | nothing | 🟡 **done except G4** (needs SQL) |
+| **3 · Seller IA** | nothing | ✅ **done** (G4 live once its SQL runs) |
 | **4 · Admin Stock Hub** | D1, D2 | ✅ **shipped** (D1–D5 run 2026-07-22) |
 | **5 · Admin regroup + money truth** | D6 | 🟡 money fixed; regroup pending |
 | **6 · Polish** | — | ⬜ |
@@ -45,7 +45,11 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 can already update her own sale's price at the DB level. **Only the UI was gating it**,
 so G4's price editing needs no policy change.
 
-> 🔴 **D7 Block 1 ran without the nine view filters.** `sales.cancelled_at` now exists but
+> ✅ **Resolved** — `docs/sale-cancellation-views.md` now contains the exact
+> `create or replace view` statements, written from the definitions you pasted
+> (2026-07-22), not guessed. Run it and cancellation becomes real.
+>
+> 🔴 *(historical)* **D7 Block 1 ran without the nine view filters.** `sales.cancelled_at` now exists but
 > **no view filters it**. This is currently harmless *because nothing writes that column* —
 > every row is `NULL`, so all views behave exactly as before. It stops being harmless the
 > moment a "Bekor qilingan" button ships: a cancelled sale would still count as revenue in
@@ -217,10 +221,16 @@ new consistent wording. Running the SQL lights up the other two with no further 
       the Sotildi buttons.
 - [x] **G2 finished on `seller/index.tsx`** — expiry save and both request flows now
       update local state instead of reloading the page.
-- [ ] **G4 symmetric trust + audit rows; hard delete → "Bekor qilingan"** 🔒
-      **Blocked: needs SQL.** Requires `sales.cancelled_at` + `cancel_reason` and a
-      `sale_edits` audit table before the UI can stop hard-deleting and let her edit her
-      own price without approval. Not covered by D1–D6 — needs its own migration.
+- [x] **G4 shipped, gated on the SQL.** Hard delete → **"Bekor qilingan"** with reason
+      chips (*Mijoz qaytardi* / *Xato yozdim*). The row stays, greyed and struck through,
+      with a **Qaytarish** (restore) action; totals exclude it client-side and every
+      aggregate view excludes it in the DB. Each change writes a `sale_edits` row.
+      **Admin sees them:** new "Sotuv tuzatishlari" panel on the seller detail page —
+      date, product, what changed, old → new, reason.
+      **Safety gate:** the page probes for `v_my_sales.cancelled_at`. That column only
+      exists once `docs/sale-cancellation-views.md` has run — which is *exactly* when the
+      aggregates start excluding cancelled rows. Until then it keeps the old delete
+      behaviour, so cancelling can never silently leave revenue counted.
 
 **Still true after this phase:** requests reachable in 1 tap via 🔔 ✅; exactly one sale
 list and one sale editor ✅; selling is 2 taps from a card ✅; **nothing is hard-deleted

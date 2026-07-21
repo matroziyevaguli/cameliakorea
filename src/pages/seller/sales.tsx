@@ -33,9 +33,15 @@ type Sale = {
   amount: number
   your_profit: number
   sold_at: string
+  cancelled_at?: string | null
+  cancel_reason?: string | null
 }
 
-export default function MySales({ sales: initialSales, pricePending, images }: { sales: Sale[]; pricePending: string[]; images: Record<string, string | null> }) {
+// Why she cancelled — two chips cover almost everything (redesign.md §4.3).
+const CANCEL_REASONS = ['Mijoz qaytardi', "Xato yozdim"]
+
+export default function MySales({ sales: initialSales, pricePending, images, sellerId, canCancel }:
+  { sales: Sale[]; pricePending: string[]; images: Record<string, string | null>; sellerId: string; canCancel: boolean }) {
   // G2 — one refresh model: every write updates local state immediately, then
   // reconciles against the view in the background. No SSR round-trip on a tap.
   const [sales, setSales] = useState<Sale[]>(initialSales)
@@ -52,12 +58,57 @@ export default function MySales({ sales: initialSales, pricePending, images }: {
     const supabase = createBrowser()
     const [{ data: fresh }, { data: reqs }] = await Promise.all([
       supabase.from('v_my_sales')
-        .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
+        .select(canCancel
+          ? 'id, product_name, qty, unit_price, amount, your_profit, sold_at, cancelled_at, cancel_reason'
+          : 'id, product_name, qty, unit_price, amount, your_profit, sold_at')
         .order('sold_at', { ascending: false }).limit(300),
       supabase.from('v_my_price_requests').select('sale_id, status'),
     ])
     if (fresh) setSales(fresh as Sale[])
     if (reqs) setPending((reqs as any[]).filter(r => r.status === 'pending').map(r => r.sale_id))
+  }
+
+  // G4 — every correction she makes leaves a row the admin can see. Fire-and-forget:
+  // an audit failure must never block the correction itself.
+  function logEdit(saleId: string, action: 'qty' | 'price' | 'cancel' | 'restore',
+                   oldValue: number | null, newValue: number | null, reason?: string) {
+    const supabase = createBrowser()
+    supabase.from('sale_edits').insert({
+      sale_id: saleId, editor_id: sellerId, action,
+      old_value: oldValue, new_value: newValue, reason: reason ?? null,
+    }).then(() => {}, () => {})
+  }
+
+  // Cancel instead of delete (G4). The row survives, greyed, and every aggregate view
+  // filters it out — so revenue, profit, debt and stock all correct themselves.
+  const [cancelId, setCancelId] = useState<string | null>(null)
+  const [cancelReason, setCancelReason] = useState(CANCEL_REASONS[0])
+
+  async function doCancel(sale: Sale) {
+    setBusy(sale.id)
+    const supabase = createBrowser()
+    const { error } = await supabase.from('sales')
+      .update({ cancelled_at: new Date().toISOString(), cancel_reason: cancelReason })
+      .eq('id', sale.id)
+    setBusy(null)
+    if (error) { setEditError(error.message); return }
+    logEdit(sale.id, 'cancel', Math.abs(sale.qty), 0, cancelReason)
+    setSales(list => list.map(x => x.id === sale.id
+      ? { ...x, cancelled_at: new Date().toISOString(), cancel_reason: cancelReason } : x))
+    setCancelId(null)
+    reconcile()
+  }
+
+  async function doRestore(sale: Sale) {
+    setBusy(sale.id)
+    const supabase = createBrowser()
+    const { error } = await supabase.from('sales')
+      .update({ cancelled_at: null, cancel_reason: null }).eq('id', sale.id)
+    setBusy(null)
+    if (error) { setEditError(error.message); return }
+    logEdit(sale.id, 'restore', 0, Math.abs(sale.qty))
+    setSales(list => list.map(x => x.id === sale.id ? { ...x, cancelled_at: null, cancel_reason: null } : x))
+    reconcile()
   }
 
   // Inline edit — quantity (son) is changed directly; price goes through an admin request.
@@ -84,6 +135,7 @@ export default function MySales({ sales: initialSales, pricePending, images }: {
     const { error } = await supabase.from('sales').update({ qty: editQty }).eq('id', sale.id)
     setBusy(null)
     if (error) { setEditError(error.message); return }   // e.g. oversell guard
+    logEdit(sale.id, 'qty', Math.abs(sale.qty), editQty)
     // Optimistic: scale amount/profit linearly, then let reconcile() correct them.
     const factor = editQty / Math.abs(sale.qty || 1)
     setSales(list => list.map(s => s.id === sale.id
@@ -120,21 +172,24 @@ export default function MySales({ sales: initialSales, pricePending, images }: {
     return okMonth && okSearch
   }), [sales, month, search])
 
+  // Cancelled rows stay visible but must never be counted.
+  const counted = useMemo(() => filtered.filter(s => !s.cancelled_at), [filtered])
+
   const totals = useMemo(() => ({
-    units: filtered.reduce((n, s) => n + s.qty, 0),
-    profit: filtered.reduce((n, s) => n + s.your_profit, 0),
-    revenue: filtered.reduce((n, s) => n + s.amount, 0),
-  }), [filtered])
+    units: counted.reduce((n, s) => n + s.qty, 0),
+    profit: counted.reduce((n, s) => n + s.your_profit, 0),
+    revenue: counted.reduce((n, s) => n + s.amount, 0),
+  }), [counted])
 
   // Per-product summary
   const byProduct = useMemo(() => {
     const map: Record<string, { qty: number; profit: number; revenue: number }> = {}
-    for (const s of filtered) {
+    for (const s of counted) {
       const a = map[s.product_name] ??= { qty: 0, profit: 0, revenue: 0 }
       a.qty += s.qty; a.profit += s.your_profit; a.revenue += s.amount
     }
     return Object.entries(map).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.qty - a.qty)
-  }, [filtered])
+  }, [counted])
 
   // Delete uses a friendly inline confirm card (not a scary native popup).
   async function doDelete(id: string) {
@@ -227,8 +282,12 @@ export default function MySales({ sales: initialSales, pricePending, images }: {
                   {filtered.map((sale, fi) => {
                     const isReturn = sale.qty < 0
                     const isEditing = editId === sale.id
+                    const isCancelled = !!sale.cancelled_at
                     return (
-                    <div key={sale.id} className={`rounded-2xl shadow-card p-4 ${confirmDeleteId === sale.id ? 'border-2 border-danger bg-surface' : isReturn ? 'bg-red-50' : 'bg-surface'}`}>
+                    <div key={sale.id} className={`rounded-2xl shadow-card p-4 ${
+                      confirmDeleteId === sale.id ? 'border-2 border-danger bg-surface'
+                      : isCancelled ? 'bg-gray-50 opacity-70'
+                      : isReturn ? 'bg-red-50' : 'bg-surface'}`}>
                       {isEditing ? (
                         <div className="space-y-3">
                           <p className="font-display font-semibold text-ink">{sale.product_name}</p>
@@ -292,8 +351,9 @@ export default function MySales({ sales: initialSales, pricePending, images }: {
                             <Thumb name={sale.product_name} url={images[sale.id]} i={fi} className="w-12 h-12 rounded-xl flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
-                                {isReturn && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full flex-shrink-0">Qaytarilgan</span>}
+                                <p className={`font-display font-semibold truncate ${isCancelled ? 'text-muted line-through' : 'text-ink'}`}>{sale.product_name}</p>
+                                {isCancelled && <span className="text-[10px] font-bold bg-gray-200 text-muted px-2 py-0.5 rounded-full flex-shrink-0">Bekor qilingan</span>}
+                                {isReturn && !isCancelled && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full flex-shrink-0">Qaytarilgan</span>}
                               </div>
                               <p className="text-sm text-muted mt-0.5">{Math.abs(sale.qty)} × {formatUZS(sale.unit_price)}</p>
                               <p className={`text-xs font-semibold mt-0.5 ${isReturn ? 'text-danger' : 'text-rose'}`}>
@@ -304,7 +364,40 @@ export default function MySales({ sales: initialSales, pricePending, images }: {
                             <p className={`font-display font-bold text-lg flex-shrink-0 ${isReturn ? 'text-danger' : 'text-success'}`}>{formatUZS(sale.amount)}</p>
                           </div>
 
-                          {confirmDeleteId === sale.id ? (
+                          {isCancelled ? (
+                            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+                              <span className="text-xs text-muted flex-1">
+                                {sale.cancel_reason ? `Sabab: ${sale.cancel_reason}` : 'Bekor qilingan'}
+                              </span>
+                              <button onClick={() => doRestore(sale)} disabled={busy === sale.id}
+                                className="text-xs font-semibold text-success bg-green-50 px-3 py-2 rounded-full disabled:opacity-50">
+                                Qaytarish
+                              </button>
+                            </div>
+                          ) : cancelId === sale.id ? (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <p className="text-sm text-ink mb-2 leading-snug">Nima uchun bekor qilinmoqda?</p>
+                              <div className="flex gap-2 mb-3">
+                                {CANCEL_REASONS.map(r => (
+                                  <button key={r} onClick={() => setCancelReason(r)}
+                                    className={`flex-1 text-xs font-semibold py-2 rounded-full transition ${cancelReason === r ? 'bg-gradient-to-br from-rose to-peach text-white' : 'bg-cream text-ink'}`}>
+                                    {r}
+                                  </button>
+                                ))}
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => setCancelId(null)}
+                                  className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">Yopish</button>
+                                <button onClick={() => doCancel(sale)} disabled={busy === sale.id}
+                                  className="flex-1 bg-danger text-white text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50">
+                                  {busy === sale.id ? '…' : 'Ha, bekor qilish'}
+                                </button>
+                              </div>
+                              <p className="text-[11px] text-muted mt-2 leading-snug">
+                                Yozuv o'chmaydi — hisobdan chiqariladi, keyin qaytarish mumkin.
+                              </p>
+                            </div>
+                          ) : confirmDeleteId === sale.id ? (
                             <div className="mt-3 pt-3 border-t border-gray-100">
                               <p className="text-sm text-ink mb-2 leading-snug">{S.deleteConfirm}</p>
                               <div className="flex gap-2">
@@ -351,9 +444,20 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const supabase = createClient(ctx)
   // v_my_sales exposes `amount` (revenue) + `your_profit`; there is no `revenue`/`note` column.
+  // Capability probe: `cancelled_at` only appears on v_my_sales once
+  // docs/sale-cancellation-views.md has been run — which is also exactly when the
+  // aggregate views start excluding cancelled rows. So one column tells us whether
+  // cancelling is SAFE. Until then the page keeps the old delete behaviour.
+  const probe = await supabase.from('v_my_sales').select('id, cancelled_at').limit(1)
+  const canCancel = !probe.error
+
+  const SALE_COLS = canCancel
+    ? 'id, product_name, qty, unit_price, amount, your_profit, sold_at, cancelled_at, cancel_reason'
+    : 'id, product_name, qty, unit_price, amount, your_profit, sold_at'
+
   const [{ data: sales }, { data: priceReqs }, { data: catalog }, { data: saleRows }] = await Promise.all([
     supabase.from('v_my_sales')
-      .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
+      .select(SALE_COLS)
       .order('sold_at', { ascending: false }).limit(300),
     supabase.from('v_my_price_requests').select('sale_id, status'),
     supabase.from('v_catalog').select('id, image_url'),
@@ -371,5 +475,9 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const images: Record<string, string | null> = {}
   for (const s of saleRows ?? []) images[(s as any).id] = imageByProduct[(s as any).product_id] ?? null
 
-  return { props: { sales: sales ?? [], pricePending, images } }
+  const { data: { session } } = await supabase.auth.getSession()
+  const { data: profile } = await supabase
+    .from('profiles').select('id').eq('user_id', session!.user.id).single()
+
+  return { props: { sales: sales ?? [], pricePending, images, sellerId: profile?.id ?? '', canCancel } }
 }

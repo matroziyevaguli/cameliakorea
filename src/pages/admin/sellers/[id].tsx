@@ -7,7 +7,7 @@ import AdminNav from '@/components/AdminNav'
 import Link from 'next/link'
 import { useState } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Wallet, Package, Wrench, Plus } from 'lucide-react'
+import { ChevronLeft, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Wallet, Package, Wrench, Plus, History } from 'lucide-react'
 
 type Adjustment = { id: string; product_id: string; product_name: string; qty: number; reason: string; note: string | null; created_at: string }
 const REASONS: { value: string; label: string }[] = [
@@ -44,6 +44,15 @@ type Summary = {
   balance: number
 }
 
+type SaleEdit = {
+  id: string; sale_id: string; action: string; old_value: number | null
+  new_value: number | null; reason: string | null; created_at: string
+  product_name: string | null
+}
+const EDIT_LABEL: Record<string, string> = {
+  qty: 'Son', price: 'Narx', cancel: 'Bekor qildi', restore: 'Qaytardi',
+}
+
 type Props = {
   sellerId: string
   sellerName: string
@@ -51,6 +60,7 @@ type Props = {
   products: SellerProduct[]
   sales: Sale[]
   adjustments: Adjustment[]
+  edits: SaleEdit[]
 }
 
 const cards = (s: Summary) => [
@@ -61,7 +71,7 @@ const cards = (s: Summary) => [
   { label: 'Qoldiq qarz',    value: formatUZS(s.balance),      icon: Wallet,      bg: s.balance > 0 ? 'bg-gradient-to-br from-danger to-rose' : 'bg-gradient-to-br from-success to-mint' },
 ]
 
-export default function SellerDetail({ sellerId, sellerName, summary, products, sales, adjustments: initialAdjustments }: Props) {
+export default function SellerDetail({ sellerId, sellerName, summary, products, sales, adjustments: initialAdjustments, edits }: Props) {
   // G2 — update in place, reconcile in the background.
   const [adjustments, setAdjustments] = useState<Adjustment[]>(initialAdjustments)
   const [productId, setProductId] = useState('')
@@ -201,6 +211,48 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
             </div>
           )}
         </div>
+
+        {/* Sale corrections (G4) — she edits her own sales freely; every change lands
+            here, so "she changed something" is answerable instead of invisible. */}
+        {edits.length > 0 && (
+          <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <History className="w-4 h-4 text-rose" />
+              <h3 className="font-display font-bold text-ink text-lg">Sotuv tuzatishlari</h3>
+              <span className="ml-auto text-xs text-muted">{edits.length} ta</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">Mahsulot</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">Nima</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">O'zgarish</th>
+                    <th className="text-left px-6 py-3 font-semibold text-muted">Sabab</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {edits.map((e, i) => (
+                    <tr key={e.id} className={i % 2 === 1 ? 'bg-cream/50' : ''}>
+                      <td className="px-6 py-3 text-muted">{formatDate(e.created_at)}</td>
+                      <td className="px-4 py-3 font-medium text-ink">{e.product_name ?? '—'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${e.action === 'cancel' ? 'bg-red-50 text-danger' : e.action === 'restore' ? 'bg-green-50 text-success' : 'bg-lavender/20 text-ink'}`}>
+                          {EDIT_LABEL[e.action] ?? e.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-ink">
+                        {e.old_value != null && e.new_value != null ? `${e.old_value} → ${e.new_value}` : '—'}
+                      </td>
+                      <td className="px-6 py-3 text-muted">{e.reason ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Stock adjustments — damaged / lost / gifted */}
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
@@ -344,9 +396,26 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     qty: a.qty, reason: a.reason, note: a.note, created_at: a.created_at,
   }))
 
+  // Sale-edit audit (D7). Table may not exist on older databases → empty, panel hides.
+  let edits: SaleEdit[] = []
+  try {
+    const editRes = await supabase.from('sale_edits')
+      .select('id, sale_id, action, old_value, new_value, reason, created_at')
+      .eq('editor_id', id).order('created_at', { ascending: false }).limit(50)
+    if (!editRes.error && editRes.data?.length) {
+      const saleIds = editRes.data.map((e: any) => e.sale_id)
+      const { data: saleRows } = await supabase.from('v_sales_enriched')
+        .select('id, product_name').in('id', saleIds)
+      const nameBySale: Record<string, string> = {}
+      for (const r of saleRows ?? []) nameBySale[(r as any).id] = (r as any).product_name
+      edits = editRes.data.map((e: any) => ({ ...e, product_name: nameBySale[e.sale_id] ?? null }))
+    }
+  } catch { /* audit table absent — panel simply doesn't render */ }
+
   return {
     props: {
       sellerId: id,
+      edits,
       sellerName: balanceRes.data?.seller_name ?? profileRes.data.full_name,
       summary,
       products,
