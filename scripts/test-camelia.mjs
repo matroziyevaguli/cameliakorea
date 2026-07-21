@@ -15,14 +15,53 @@ import { readFileSync } from 'fs'
 const TAG = '__TEST__'
 const KEEP = process.argv.includes('--keep')
 
-const env = Object.fromEntries(
-  readFileSync('.env.local', 'utf8')
-    .split('\n').filter(l => l.includes('='))
-    .map(l => { const i = l.indexOf('='); return [l.slice(0, i).trim(), l.slice(i + 1).trim()] })
-)
+function loadEnv() {
+  let raw
+  try {
+    raw = readFileSync('.env.local', 'utf8')
+  } catch {
+    console.error(`
+❌ .env.local not found — the tests need database credentials.
+
+Create it in the project root with two values from
+Supabase → your project → Settings → API:
+
+    NEXT_PUBLIC_SUPABASE_URL=https://YOUR-PROJECT.supabase.co
+    SUPABASE_SERVICE_ROLE_KEY=<the "service_role" key, NOT "anon">
+
+Then run  yarn test:db  again.
+
+(.env.local is gitignored, so it will not be committed. The service_role key
+bypasses RLS — that is what lets the test create and delete its own data.)
+`)
+    process.exit(1)
+  }
+  // Ignore comments; keep everything after the first "=" so keys with "=" survive.
+  return Object.fromEntries(
+    raw.split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('#') && l.includes('='))
+      .map(l => {
+        const i = l.indexOf('=')
+        return [l.slice(0, i).trim(), l.slice(i + 1).trim().replace(/^["']|["']$/g, '')]
+      })
+  )
+}
+
+const env = loadEnv()
 const URL = env.NEXT_PUBLIC_SUPABASE_URL
 const KEY = env.SUPABASE_SERVICE_ROLE_KEY
-if (!URL || !KEY) { console.error('Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY in .env.local'); process.exit(1) }
+if (!URL || !KEY) {
+  console.error(`
+❌ .env.local exists but is missing a value:
+     NEXT_PUBLIC_SUPABASE_URL   ${URL ? '✅ found' : '❌ missing'}
+     SUPABASE_SERVICE_ROLE_KEY  ${KEY ? '✅ found' : '❌ missing'}
+
+Both come from Supabase → Settings → API. The second must be the
+"service_role" key, not "anon".
+`)
+  process.exit(1)
+}
 
 async function api(method, path, body, prefer = '') {
   const res = await fetch(`${URL}/rest/v1/${path}`, {
