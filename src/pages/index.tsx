@@ -5,7 +5,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
-import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, ShieldCheck as Shield } from 'lucide-react'
+import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
   const [open, setOpen] = useState(false)
@@ -66,10 +66,20 @@ type ShopProduct = {
   remaining: number   // units left across all sellers; <= 0 means sold out
 }
 
+// Announced but not yet in stock. Lives in its own table — no cost, no qty.
+type UpcomingProduct = {
+  id: string
+  name: string
+  description: string | null
+  image_url: string | null
+  teaser: string | null
+  expected_note: string | null   // free text ETA, e.g. "Avgust oyida"
+}
+
 const CARD_COLORS = ['#F4628E', '#B9A7F0', '#6FD8C0', '#7CC4F2', '#FFB088', '#E14B79']
 const TELEGRAM = 'https://t.me/cameliakorea'
 
-export default function Store({ products }: { products: ShopProduct[] }) {
+export default function Store({ products, upcoming }: { products: ShopProduct[]; upcoming: UpcomingProduct[] }) {
   return (
     <>
       <Head>
@@ -78,6 +88,9 @@ export default function Store({ products }: { products: ShopProduct[] }) {
         <meta property="og:title" content="Camelia Korea" />
         <meta property="og:description" content="Koreyadan original teri parvarish mahsulotlari katalogi." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Public storefront: open to search engines and AI agents. */}
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+        <link rel="canonical" href="https://www.cameliakorea.com/" />
       </Head>
 
       <div className="min-h-screen bg-cream text-ink font-sans">
@@ -233,6 +246,62 @@ export default function Store({ products }: { products: ShopProduct[] }) {
           )}
         </section>
 
+        {/* Tez orada — announced, not yet in stock. Hidden entirely when empty. */}
+        {upcoming.length > 0 && (
+          <section id="tez-orada" className="max-w-6xl mx-auto px-5 py-12">
+            <div className="flex items-end justify-between mb-8 gap-4">
+              <div>
+                <span className="inline-flex items-center gap-1.5 bg-lavender/15 text-lavender text-xs font-bold px-3 py-1 rounded-full mb-2">
+                  <Clock className="w-3.5 h-3.5" /> Tez orada
+                </span>
+                <h2 className="font-display font-bold text-2xl md:text-3xl">Yo'ldagi mahsulotlar</h2>
+                <p className="text-muted text-sm mt-1">Koreyadan kelayotgan yangiliklar — birinchi bo'lib xabardor bo'ling.</p>
+              </div>
+              <a href={TELEGRAM} target="_blank" rel="noreferrer"
+                className="hidden sm:inline-flex items-center gap-1.5 bg-white text-ink text-sm font-semibold px-4 py-2 rounded-full shadow-card active:scale-95 transition">
+                <Bell className="w-4 h-4 text-lavender" /> Xabardor qiling
+              </a>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              {upcoming.map((u, i) => (
+                <div key={u.id}
+                  className="group bg-surface/70 rounded-2xl border-2 border-dashed border-lavender/35 overflow-hidden hover:border-lavender/60 hover:-translate-y-0.5 transition">
+                  <div className="relative aspect-square overflow-hidden">
+                    {u.image_url ? (
+                      <img src={u.image_url} alt={u.name} loading="lazy"
+                        className="w-full h-full object-cover opacity-80 blur-[1px] group-hover:blur-0 group-hover:opacity-100 transition duration-500" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center"
+                        style={{ background: `linear-gradient(135deg, ${CARD_COLORS[i % CARD_COLORS.length]}22, ${CARD_COLORS[(i + 1) % CARD_COLORS.length]}3d)` }}>
+                        <Sparkles className="w-10 h-10 opacity-40" style={{ color: CARD_COLORS[i % CARD_COLORS.length] }} />
+                      </div>
+                    )}
+                    <span className="absolute top-3 left-3 bg-lavender text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-card">
+                      Tez orada
+                    </span>
+                  </div>
+
+                  <div className="p-4">
+                    <h3 className="font-display font-semibold text-sm md:text-base leading-snug line-clamp-2 min-h-[2.5rem]">{u.name}</h3>
+                    {u.teaser && <p className="text-xs text-muted mt-1 line-clamp-2">{u.teaser}</p>}
+                    {u.expected_note && (
+                      <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-lavender bg-lavender/10 px-2.5 py-1 rounded-full">
+                        <Clock className="w-3 h-3" /> {u.expected_note}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <a href={TELEGRAM} target="_blank" rel="noreferrer"
+              className="sm:hidden mt-6 w-full flex items-center justify-center gap-2 bg-white text-ink font-semibold px-5 py-3 rounded-full shadow-card active:scale-95 transition">
+              <Bell className="w-4 h-4 text-lavender" /> Kelganda xabar bering
+            </a>
+          </section>
+        )}
+
         {/* Order CTA band */}
         <section className="max-w-6xl mx-auto px-5 pb-12">
           <div className="rounded-3xl bg-gradient-to-br from-rose to-peach text-white p-8 md:p-12 text-center shadow-rose relative overflow-hidden">
@@ -318,5 +387,24 @@ export const getServerSideProps: GetServerSideProps = async () => {
   // Show in-stock products first, sold-out ones last.
   products.sort((a, b) => (a.remaining <= 0 ? 1 : 0) - (b.remaining <= 0 ? 1 : 0))
 
-  return { props: { products } }
+  // "Tez orada" — optional. Missing view (SQL not run yet) → empty, section hides.
+  let upcoming: UpcomingProduct[] = []
+  try {
+    const pub = createPublicClient()
+    const res = await pub.from('v_upcoming')
+      .select('id, name, description, image_url, teaser, expected_note')
+      .order('sort_order')
+    if (!res.error && res.data) {
+      upcoming = res.data.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        description: u.description ?? null,
+        image_url: u.image_url ?? null,
+        teaser: u.teaser ?? null,
+        expected_note: u.expected_note ?? null,
+      }))
+    }
+  } catch { /* section stays hidden */ }
+
+  return { props: { products, upcoming } }
 }

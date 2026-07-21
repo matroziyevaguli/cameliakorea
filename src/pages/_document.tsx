@@ -15,8 +15,9 @@ export default function AppDocument({ locale }: Props) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Camelia" />
-        <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
-        <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+        {/* No blanket robots meta here: it would also hide the PUBLIC store (/ and
+            /product/*). The private areas (careers, admin, seller, login) are kept
+            noindex by the X-Robots-Tag headers in next.config.js. */}
       </Head>
       <body>
         <Main />

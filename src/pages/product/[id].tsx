@@ -32,7 +32,12 @@ export default function ProductPage({ product }: { product: Product | null }) {
 
   return (
     <>
-      <Head><title>{product.name} — Camelia Korea</title></Head>
+      <Head>
+        <title>{product.name} — Camelia Korea</title>
+        {product.description && <meta name="description" content={product.description.slice(0, 160)} />}
+        {/* Public storefront: open to search engines and AI agents. */}
+        <meta name="robots" content="index, follow, max-image-preview:large" />
+      </Head>
       <div className="min-h-screen bg-cream text-ink font-sans">
         <header className="sticky top-0 z-30 bg-cream/90 backdrop-blur border-b border-black/5">
           <div className="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between">

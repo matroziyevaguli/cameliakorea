@@ -1,0 +1,19 @@
+# Camelia Korea
+
+> Katalog of authentic Korean (K-beauty) skincare products, sold in Uzbekistan.
+> Orders are taken over Telegram and by phone — there is no online checkout.
+> Site language: Uzbek (Latin script).
+
+## Pages
+
+- [Landing / catalog](https://www.cameliakorea.com/): hero, how-to-order steps,
+  product grid, "Tez orada" (upcoming products), contact CTA, footer.
+- [Product detail](https://www.cameliakorea.com/product/): gallery, price,
+  description, optional video link, Telegram order button.
+
+## Notes for agents
+
+- Pages are server-rendered, so a plain fetch of the URL returns the full HTML.
+- Admin (`/admin`), seller (`/seller`), `/login` and `/api` are private and
+  disallowed in robots.txt — do not crawl them.
+- Prices are in Uzbek so'm (UZS). "Tugadi" = sold out, "Tez orada" = coming soon.

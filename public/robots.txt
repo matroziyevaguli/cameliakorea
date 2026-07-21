@@ -1,3 +1,31 @@
-User-agent: *
-Disallow: /
+# Public storefront is open to crawlers and AI agents.
+# Everything behind a login stays closed.
 
+User-agent: *
+Allow: /$
+Allow: /product/
+Allow: /careers
+Disallow: /admin
+Disallow: /seller
+Disallow: /api
+Disallow: /login
+
+# AI crawlers / assistants — explicitly allowed to read the public pages,
+# so the landing page can be fetched and reviewed by outside agents.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-User
+User-agent: Claude-SearchBot
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+Allow: /$
+Allow: /product/
+Allow: /careers
+Disallow: /admin
+Disallow: /seller
+Disallow: /api
+Disallow: /login
