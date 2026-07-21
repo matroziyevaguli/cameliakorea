@@ -65,8 +65,8 @@ type ShopProduct = {
   image_url: string | null
   description: string | null
   remaining: number   // units left across all sellers; <= 0 means sold out
-  state?: string | null       // from v_product_availability once the migration is run
-  incoming_qty?: number | null
+  state?: string | null            // from v_product_availability
+  restock_coming?: boolean | null  // v_shop exposes a boolean, not a count
   just_arrived?: boolean | null
 }
 
@@ -298,7 +298,9 @@ export const getServerSideProps: GetServerSideProps = async () => {
     // PostgREST 400s on the unknown columns, so fall back to the base shape. Either
     // way stateOf() produces a badge — see src/lib/availability.ts.
     const BASE = 'id, name, retail_price, discount_price, image_url, description, remaining'
-    let res: any = await pub.from('v_shop').select(`${BASE}, state, incoming_qty, just_arrived`).order('name')
+    // v_shop exposes `restock_coming` (boolean) — NOT `incoming_qty`. Asking for the
+    // wrong name 400s and silently drops us to the fallback, losing `state` entirely.
+    let res: any = await pub.from('v_shop').select(`${BASE}, state, restock_coming, just_arrived`).order('name')
     if (res.error) res = await pub.from('v_shop').select(BASE).order('name')
     if (!res.error && res.data) data = res.data
   } catch { /* fall through */ }
@@ -330,7 +332,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
     description: p.description,
     remaining: typeof p.remaining === 'number' ? p.remaining : 0,
     state: p.state ?? null,
-    incoming_qty: p.incoming_qty ?? null,
+    restock_coming: p.restock_coming ?? null,
     just_arrived: p.just_arrived ?? null,
   }))
 

@@ -20,7 +20,10 @@ export const LOW_THRESHOLD = 2   // matches the DB view and the old orange badge
 export function stateOf(p: {
   state?: string | null
   remaining?: number | null
+  /** Seller view (`v_catalog`) exposes the count… */
   incoming_qty?: number | null
+  /** …the public view (`v_shop`) exposes a boolean instead. Accept either. */
+  restock_coming?: boolean | null
 }): ProductState {
   // Prefer the database's answer — it knows about shipments.
   const s = p.state
@@ -30,8 +33,8 @@ export function stateOf(p: {
   }
   // Fallback: pre-migration behaviour, derived from stock alone.
   const remaining = p.remaining ?? 0
-  const incoming = p.incoming_qty ?? 0
-  if (remaining <= 0) return incoming > 0 ? 'sold_out_incoming' : 'sold_out'
+  const incoming = (p.incoming_qty ?? 0) > 0 || p.restock_coming === true
+  if (remaining <= 0) return incoming ? 'sold_out_incoming' : 'sold_out'
   if (remaining <= LOW_THRESHOLD) return 'low'
   return 'in_stock'
 }

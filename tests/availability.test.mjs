@@ -36,6 +36,16 @@ test('a restock on the way turns sold_out into sold_out_incoming', () => {
   assert.equal(stateOf({ remaining: 0, incoming_qty: 30 }), 'sold_out_incoming')
 })
 
+test('accepts restock_coming (v_shop) as well as incoming_qty (v_catalog)', () => {
+  // Regression: the storefront asked v_shop for `incoming_qty`, which it does not
+  // expose. PostgREST 400'd, the query fell back, and `state` was lost for every
+  // product on the live site. The two views spell this differently — accept both.
+  assert.equal(stateOf({ remaining: 0, restock_coming: true }), 'sold_out_incoming')
+  assert.equal(stateOf({ remaining: 0, restock_coming: false }), 'sold_out')
+  assert.equal(stateOf({ remaining: 0, restock_coming: null }), 'sold_out')
+  assert.equal(stateOf({ remaining: 0, incoming_qty: 5 }), 'sold_out_incoming')
+})
+
 test('treats missing/negative stock as none, never crashes', () => {
   assert.equal(stateOf({}), 'sold_out')
   assert.equal(stateOf({ remaining: null }), 'sold_out')

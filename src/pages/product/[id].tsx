@@ -17,7 +17,7 @@ type Product = {
   images: string[]   // cover first, then gallery
   remaining: number  // <= 0 means sold out
   state?: string | null
-  incoming_qty?: number | null
+  restock_coming?: boolean | null
 }
 
 const TELEGRAM = 'https://t.me/cameliakorea'
@@ -142,7 +142,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     // so we don't fall through to the heavier service-role path unnecessarily.
     const BASE = 'id, name, retail_price, discount_price, image_url, description, link, gallery, remaining'
     let { data: v, error } = await pub.from('v_shop')
-      .select(`${BASE}, state, incoming_qty`).eq('id', id).single()
+      .select(`${BASE}, state, restock_coming`).eq('id', id).single()
     if (error) ({ data: v, error } = await pub.from('v_shop').select(BASE).eq('id', id).single())
     if (!error && v) {
       const gallery: string[] = Array.isArray(v.gallery) ? v.gallery : []
@@ -152,7 +152,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         images: [...(v.image_url ? [v.image_url] : []), ...gallery],
         remaining: typeof v.remaining === 'number' ? v.remaining : 0,
         state: (v as any).state ?? null,
-        incoming_qty: (v as any).incoming_qty ?? null,
+        restock_coming: (v as any).restock_coming ?? null,
       }
       return { props: { product } }
     }
