@@ -11,10 +11,10 @@ Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 block
 **Migration status verified 2026-07-22** via `docs/migration-status-check.sql` —
 D1–D5 and D7 all `true`, **stock drift `0`**, **cost leak in `v_shop` `0`**.
 
-**Build status:** `yarn build` ✅ passes · `tsc --noEmit` → 2 errors, both **pre-existing**
-recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
-(verified by stashing all changes and re-running: same 2). `next.config.js` sets
-`ignoreBuildErrors: true`, so they don't block deploys.
+**Build status:** `yarn build` ✅ passes · `tsc --noEmit` → **1** error, pre-existing:
+the recharts `Tooltip formatter` typing in `admin/index.tsx`. (The second one lived in
+`admin/stats.tsx`, which is now a redirect, so it's gone.) `next.config.js` sets
+`ignoreBuildErrors: true`, so it doesn't block deploys.
 
 ---
 
@@ -26,7 +26,7 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 | **2 · Single stock signal** | D4, D5 | ✅ **UI shipped** (degrades safely until SQL runs) |
 | **3 · Seller IA** | nothing | ✅ **done** (G4 live once its SQL runs) |
 | **4 · Admin Stock Hub** | D1, D2 | ✅ **shipped** (D1–D5 run 2026-07-22) |
-| **5 · Admin regroup + money truth** | D6 | 🟡 money fixed; regroup pending |
+| **5 · Admin regroup + money truth** | D6 | ✅ **done** (except retiring `total_qty`) |
 | **6 · Polish** | — | ⬜ |
 
 ### Data migrations (`availability_plan.md` §8)

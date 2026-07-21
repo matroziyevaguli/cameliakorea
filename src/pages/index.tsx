@@ -298,7 +298,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
     // PostgREST 400s on the unknown columns, so fall back to the base shape. Either
     // way stateOf() produces a badge — see src/lib/availability.ts.
     const BASE = 'id, name, retail_price, discount_price, image_url, description, remaining'
-    let res = await pub.from('v_shop').select(`${BASE}, state, incoming_qty, just_arrived`).order('name')
+    let res: any = await pub.from('v_shop').select(`${BASE}, state, incoming_qty, just_arrived`).order('name')
     if (res.error) res = await pub.from('v_shop').select(BASE).order('name')
     if (!res.error && res.data) data = res.data
   } catch { /* fall through */ }

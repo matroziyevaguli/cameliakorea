@@ -284,7 +284,7 @@ select count(*) from public.v_product_stats;       -- must equal: select count(*
 select count(*) from public.v_shop;
 ```
 
-### Then a real end-to-end test
+### Then a real end-to-end te
 
 ```sql
 -- Pick any sale, note the seller's numbers first:

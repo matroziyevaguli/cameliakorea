@@ -765,7 +765,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const inv = invRes.data ?? []
 
   // Retry without the availability columns if the migration hasn't been run.
-  let catalog = catalogRes.data
+  let catalog: any[] | null = catalogRes.data
   if (catalogRes.error) {
     const retry = await supabase.from('v_catalog')
       .select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date')

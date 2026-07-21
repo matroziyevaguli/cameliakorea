@@ -64,7 +64,7 @@ export default function MySales({ sales: initialSales, pricePending, images, sel
         .order('sold_at', { ascending: false }).limit(300),
       supabase.from('v_my_price_requests').select('sale_id, status'),
     ])
-    if (fresh) setSales(fresh as Sale[])
+    if (fresh) setSales(fresh as unknown as Sale[])
     if (reqs) setPending((reqs as any[]).filter(r => r.status === 'pending').map(r => r.sale_id))
   }
 

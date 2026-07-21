@@ -6,6 +6,7 @@ import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { formatDate } from '@/lib/format'
 import AdminNav from '@/components/AdminNav'
+import Link from 'next/link'
 import { TrendingUp, DollarSign, AlertCircle, ShoppingCart, Wallet, Package, Sparkles, Gift } from 'lucide-react'
 
 type ProductStat = { name: string; units_sold: number; revenue: number }
@@ -20,7 +21,10 @@ type Biz = {
   giveawayUnits: number
   giveawayValue: number   // at cost
 }
-type Props = { kpis: KPIs; biz: Biz; productStats: ProductStat[]; recentSales: RecentSale[] }
+// Folded in from the old /admin/stats page so each number lives in exactly one place.
+type SellerStat = { seller_id: string; seller_name: string; owed_from_sales: number; received: number; balance: number }
+type ProductRow  = { product_id: string; name: string; total_qty: number; units_sold: number; units_remaining: number; revenue: number }
+type Props = { kpis: KPIs; biz: Biz; productStats: ProductStat[]; recentSales: RecentSale[]; sellerStats: SellerStat[]; productRows: ProductRow[] }
 
 const CHART_COLORS = ['#F4628E','#B9A7F0','#6FD8C0','#7CC4F2','#FFB088','#F4628E','#B9A7F0','#6FD8C0']
 
@@ -44,7 +48,7 @@ function Metric({ icon: Icon, label, value, sub, accent }: { icon: any; label: s
   )
 }
 
-export default function AdminDashboard({ kpis, biz, productStats, recentSales }: Props) {
+export default function AdminDashboard({ kpis, biz, productStats, recentSales, sellerStats, productRows }: Props) {
   // Honest denominator: what's been sold + what's still on the shelf. Comparing
   // cumulative revenue against *current* stock value would mix two different bases.
   const potential = biz.soldRevenue + biz.worth
@@ -118,6 +122,58 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales }:
           </ResponsiveContainer>
         </div>
 
+        {/* Per-product report (was /admin/stats) */}
+        {productRows.length > 0 && (
+          <div className="bg-surface rounded-2xl shadow-card p-6">
+            <h2 className="font-display font-bold text-ink text-lg mb-4">Mahsulot hisoboti</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[520px]">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-3 px-3 font-semibold text-muted">Mahsulot</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">Jami</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">Sotildi</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">Qoldi</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">Tushum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productRows.map((p, i) => (
+                    <tr key={p.product_id} className={i % 2 === 1 ? 'bg-cream/50' : ''}>
+                      <td className="py-3 px-3 font-medium text-ink">{p.name}</td>
+                      <td className="py-3 px-3 text-right text-muted">{p.total_qty}</td>
+                      <td className="py-3 px-3 text-right text-rose font-semibold">{p.units_sold}</td>
+                      <td className="py-3 px-3 text-right text-ink">{p.units_remaining}</td>
+                      <td className="py-3 px-3 text-right font-display font-bold text-success">{formatUZS(p.revenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Per-seller results (was /admin/stats) */}
+        {sellerStats.length > 0 && (
+          <div className="bg-surface rounded-2xl shadow-card p-6">
+            <h2 className="font-display font-bold text-ink text-lg mb-4">Sotuvchilar bo'yicha</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sellerStats.map((s, i) => (
+                <Link key={s.seller_id} href={`/admin/sellers/${s.seller_id}`}
+                  className="rounded-xl p-4 hover:shadow-card transition" style={{ backgroundColor: `${CHART_COLORS[i % CHART_COLORS.length]}20` }}>
+                  <p className="font-display font-bold text-ink text-base">{s.seller_name}</p>
+                  <p className="text-xs text-muted mt-2">{S.moneyCollect}</p>
+                  <p className="font-semibold text-warning text-sm">{formatUZS(s.owed_from_sales)}</p>
+                  <p className="text-xs text-muted mt-1">{S.moneyHandedOver}</p>
+                  <p className="font-semibold text-success text-sm">{formatUZS(s.received)}</p>
+                  <p className="text-xs text-muted mt-1">Qolgan</p>
+                  <p className={`font-display font-bold ${s.balance > 0 ? 'text-danger' : 'text-success'}`}>{formatUZS(s.balance)}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Recent sales */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h2 className="font-display font-bold text-ink text-lg mb-4">So'nggi sotuvlar</h2>
@@ -166,6 +222,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const { data: availability } = await supabase
     .from('v_product_availability').select('product_id, remaining')
 
+  // Folded in from /admin/stats — shown here so no metric appears on two pages.
+  const [{ data: productRows }, { data: sellerStats }] = await Promise.all([
+    supabase.from('v_product_stats').select('*').order('units_sold', { ascending: false }),
+    supabase.from('v_seller_balances').select('*').order('seller_name'),
+  ])
+
   const kpis: KPIs = {
     totalRevenue:    (allSales ?? []).reduce((s, r) => s + r.revenue, 0),
     myProfit:        (allSales ?? []).reduce((s, r) => s + r.my_profit, 0),
@@ -197,5 +259,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     giveawayValue:  giveaways.reduce((s, a) => s + (costById[a.product_id] ?? 0) * (a.qty ?? 0), 0),
   }
 
-  return { props: { kpis, biz, productStats: productStats ?? [], recentSales: recent ?? [] } }
+  return { props: { kpis, biz, productStats: productStats ?? [], recentSales: recent ?? [], sellerStats: sellerStats ?? [], productRows: productRows ?? [] } }
 }

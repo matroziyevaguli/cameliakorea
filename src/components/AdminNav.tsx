@@ -2,27 +2,38 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
-import { LayoutDashboard, Package, Layers, Share2, Users, CreditCard, BarChart2, Inbox, Gift, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Users, CreditCard, Inbox, LogOut, Menu, X } from 'lucide-react'
 
-const links = [
-  { href: '/admin',             label: 'Dashboard',    icon: LayoutDashboard },
-  { href: '/admin/products',    label: 'Mahsulotlar',  icon: Package },
-  { href: '/admin/batches',     label: 'Partiyalar',   icon: Layers },
-  { href: '/admin/distribute',  label: 'Taqsimlash',   icon: Share2 },
-  { href: '/admin/requests',    label: "So'rovlar",    icon: Inbox },
-  { href: '/admin/giveaways',   label: "Sovg'alar",    icon: Gift },
-  { href: '/admin/sellers',     label: 'Sotuvchilar',  icon: Users },
-  { href: '/admin/payments',    label: "To'lovlar",    icon: CreditCard },
-  { href: '/admin/stats',       label: 'Statistika',   icon: BarChart2 },
+// Five areas, grouped by the decision each one serves (redesign.md §5.0) — not nine
+// flat links. Batches + Distribute live under Mahsulotlar; Giveaways under Pul; Stats
+// folded into Boshqaruv.
+const areas = [
+  { href: '/admin',            label: 'Boshqaruv',   icon: LayoutDashboard, match: ['/admin'] },
+  { href: '/admin/products',   label: 'Mahsulotlar', icon: Package,         match: ['/admin/products', '/admin/batches', '/admin/distribute'] },
+  { href: '/admin/sellers',    label: 'Sotuvchilar', icon: Users,           match: ['/admin/sellers', '/admin/sellers/[id]'] },
+  { href: '/admin/payments',   label: 'Pul',         icon: CreditCard,      match: ['/admin/payments', '/admin/giveaways'] },
+  { href: '/admin/requests',   label: "So'rovlar",   icon: Inbox,           match: ['/admin/requests'] },
 ]
+
+// Second row — only for areas that have more than one screen.
+const SUB: Record<string, { href: string; label: string }[]> = {
+  '/admin/products': [
+    { href: '/admin/products',   label: "Ro'yxat" },
+    { href: '/admin/batches',    label: 'Partiyalar' },
+    { href: '/admin/distribute', label: 'Taqsimlash' },
+  ],
+  '/admin/payments': [
+    { href: '/admin/payments',  label: "To'lovlar" },
+    { href: '/admin/giveaways', label: "Sovg'alar" },
+  ],
+}
 
 export default function AdminNav() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(0)
 
-  // Live count of pending requests (allocation + price) → red badge on the So'rovlar tab.
-  // Re-counts on navigation and whenever a request is resolved (custom event).
+  // Live count of pending requests (allocation + price) → red badge on So'rovlar.
   useEffect(() => {
     const supabase = createClient()
     const count = () => Promise.all([
@@ -40,6 +51,9 @@ export default function AdminNav() {
     router.push('/login')
   }
 
+  const activeArea = areas.find(a => a.match.includes(router.pathname))
+  const subLinks = activeArea ? SUB[activeArea.href] : undefined
+
   return (
     <header className="bg-surface border-b border-gray-100 shadow-sm sticky top-0 z-30">
       <div className="px-4 md:px-6 flex items-center justify-between">
@@ -47,19 +61,19 @@ export default function AdminNav() {
           <span className="text-rose">✦</span> Camelia <span className="hidden sm:inline">Admin</span>
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop */}
         <nav className="hidden md:flex items-center gap-1">
-          {links.map(l => {
-            const active = router.pathname === l.href
-            const Icon = l.icon
+          {areas.map(a => {
+            const active = activeArea?.href === a.href
+            const Icon = a.icon
             return (
-              <Link key={l.href} href={l.href}
+              <Link key={a.href} href={a.href}
                 className={`relative flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm font-medium transition ${
                   active ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'text-muted hover:text-ink hover:bg-cream'
                 }`}>
                 <Icon className="w-4 h-4" />
-                {l.label}
-                {l.href === '/admin/requests' && pending > 0 && (
+                {a.label}
+                {a.href === '/admin/requests' && pending > 0 && (
                   <span className="ml-0.5 min-w-[18px] h-[18px] px-1 grid place-items-center rounded-full bg-danger text-white text-[10px] font-bold">{pending}</span>
                 )}
               </Link>
@@ -76,23 +90,54 @@ export default function AdminNav() {
         </button>
       </div>
 
-      {/* Mobile dropdown menu */}
+      {/* Sub-nav — only where an area has more than one screen */}
+      {subLinks && (
+        <div className="hidden md:flex items-center gap-1 px-6 pb-2 -mt-1">
+          {subLinks.map(l => {
+            const active = router.pathname === l.href
+            return (
+              <Link key={l.href} href={l.href}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                  active ? 'bg-rose/10 text-rose' : 'text-muted hover:text-ink hover:bg-cream'
+                }`}>
+                {l.label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Mobile menu — areas with their sub-screens indented under them */}
       {open && (
         <nav className="md:hidden border-t border-gray-100 px-3 py-2 space-y-1">
-          {links.map(l => {
-            const active = router.pathname === l.href
-            const Icon = l.icon
+          {areas.map(a => {
+            const active = activeArea?.href === a.href
+            const Icon = a.icon
             return (
-              <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
-                className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition ${
-                  active ? 'bg-gradient-to-br from-rose to-peach text-white' : 'text-ink hover:bg-cream'
-                }`}>
-                <Icon className="w-5 h-5" />
-                {l.label}
-                {l.href === '/admin/requests' && pending > 0 && (
-                  <span className="ml-auto min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-danger text-white text-xs font-bold">{pending}</span>
+              <div key={a.href}>
+                <Link href={a.href} onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition ${
+                    active ? 'bg-gradient-to-br from-rose to-peach text-white' : 'text-ink hover:bg-cream'
+                  }`}>
+                  <Icon className="w-5 h-5" />
+                  {a.label}
+                  {a.href === '/admin/requests' && pending > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 grid place-items-center rounded-full bg-danger text-white text-xs font-bold">{pending}</span>
+                  )}
+                </Link>
+                {SUB[a.href] && (
+                  <div className="pl-11 py-1 flex flex-wrap gap-1">
+                    {SUB[a.href].map(l => (
+                      <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                          router.pathname === l.href ? 'bg-rose/10 text-rose' : 'text-muted hover:bg-cream'
+                        }`}>
+                        {l.label}
+                      </Link>
+                    ))}
+                  </div>
                 )}
-              </Link>
+              </div>
             )
           })}
           <button onClick={signOut} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-danger hover:bg-cream transition">
