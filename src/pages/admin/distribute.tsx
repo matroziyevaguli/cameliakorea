@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/guards'
 import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
-import { Share2, CheckCircle } from 'lucide-react'
+import { Share2, CheckCircle, Plus, Minus } from 'lucide-react'
 
 type Product = { id: string; name: string; total_qty: number; image_url: string | null }
 
@@ -179,6 +179,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
 
               <p className="text-xs text-muted -mt-1">
                 Raqam — sotuvchidagi <b>yangi umumiy soni</b> (ustiga yoziladi). 0 qilsangiz — olib tashlanadi.
+                O'zgarish har bir qatorda <b className="text-rose">+3 / −1</b> ko'rinishida ko'rsatiladi.
               </p>
 
               {overLimit && (
@@ -198,22 +199,46 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                 {sellers.map(s => {
                   const c = cellFor(s.id)
                   const bad = belowSold.some(b => b.id === s.id)
+                  const raw = qtys[s.id]
+                  const next = raw === '' || raw === undefined ? 0 : Number(raw)
+                  const delta = next - c.allocated   // the thing that used to be invisible
                   return (
-                    <div key={s.id} className="flex items-center gap-4 bg-cream rounded-xl px-4 py-3">
-                      <div className="flex-1">
+                    <div key={s.id} className="flex items-center gap-3 bg-cream rounded-xl px-4 py-3">
+                      <div className="flex-1 min-w-0">
                         <span className="font-medium text-ink">{s.full_name}</span>
                         <span className="text-xs text-muted ml-2">
                           hozir: {c.allocated} · sotildi: {c.sold}
                         </span>
                       </div>
-                      <input
-                        type="number"
-                        min={0}
-                        value={qtys[s.id] ?? ''}
-                        onChange={e => setQtys(q => ({ ...q, [s.id]: e.target.value }))}
-                        placeholder="0"
-                        className={`w-20 bg-surface text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 border-2 transition ${bad ? 'border-danger ring-danger' : 'border-transparent focus:ring-rose'}`}
-                      />
+
+                      {/* Live delta — makes "new total" vs "add" unmistakable */}
+                      {delta !== 0 && (
+                        <span className={`text-xs font-bold px-2 py-1 rounded-full flex-shrink-0 ${delta > 0 ? 'bg-green-100 text-success' : 'bg-orange-100 text-warning'}`}>
+                          {delta > 0 ? `+${delta}` : delta}
+                        </span>
+                      )}
+
+                      {/* Stepper + field: nudging is safer than retyping a total */}
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button type="button" aria-label="Kamaytirish"
+                          onClick={() => setQtys(q => ({ ...q, [s.id]: String(Math.max(0, next - 1)) }))}
+                          className="w-8 h-8 rounded-full bg-surface grid place-items-center text-ink active:scale-90 transition">
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <input
+                          type="number"
+                          min={0}
+                          value={qtys[s.id] ?? ''}
+                          onChange={e => setQtys(q => ({ ...q, [s.id]: e.target.value }))}
+                          placeholder="0"
+                          className={`w-16 bg-surface text-ink text-center rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 border-2 transition ${bad ? 'border-danger ring-danger' : 'border-transparent focus:ring-rose'}`}
+                        />
+                        <button type="button" aria-label="Ko'paytirish"
+                          onClick={() => setQtys(q => ({ ...q, [s.id]: String(next + 1) }))}
+                          className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition">
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

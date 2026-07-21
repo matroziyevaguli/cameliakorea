@@ -6,7 +6,7 @@ the "proof" column says how it was checked.
 
 Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 blocked on SQL
 
-**Last updated:** 2026-07-22 · **Phases 1 + 2 + 3 ✅ · G5 ✅** (pending your visual check)
+**Last updated:** 2026-07-22 · **Phases 1 + 2 + 3 + 4 ✅ · G5 ✅** (pending your visual check)
 
 **Build status:** `yarn build` ✅ passes · `tsc --noEmit` → 2 errors, both **pre-existing**
 recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
@@ -22,18 +22,18 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 | **1 · Grammar pass** | nothing | ✅ **done** |
 | **2 · Single stock signal** | D4, D5 | ✅ **UI shipped** (degrades safely until SQL runs) |
 | **3 · Seller IA** | nothing | 🟡 **done except G4** (needs SQL) |
-| **4 · Admin Stock Hub** | D1, D2 | 🟡 G5 done; the rest 🔒 on D1/D2 |
+| **4 · Admin Stock Hub** | D1, D2 | ✅ **shipped** (D1–D5 run 2026-07-22) |
 | **5 · Admin regroup + money truth** | D6 | 🔒 |
 | **6 · Polish** | — | ⬜ |
 
 ### Data migrations (`availability_plan.md` §8)
 | ID | What | SQL | Run? |
 |---|---|---|---|
-| D1 | `product_batches.status` / `ordered_date` / `eta` / `unit_cost` | ✅ `availability-migration-setup.md` B1 | ❌ **not run** |
-| D2 | Arrival invariant trigger (`arrived ⇔ received_date`) | ✅ B2 | ❌ not run |
-| D3 | `products.discontinued_at` | ✅ B3 | ❌ not run |
-| D4 | `v_product_availability` (`state` enum) | ✅ B4 | ❌ not run |
-| D5 | Public view exposes `state` (**`v_shop`**, not `v_catalog` — see below) | ✅ B5+B6 | ❌ not run |
+| D1 | `product_batches.status` / `ordered_date` / `eta` / `unit_cost` | ✅ `availability-migration-setup.md` B1 | ✅ **run** |
+| D2 | Arrival invariant trigger (`arrived ⇔ received_date`) | ✅ B2 | ✅ run |
+| D3 | `products.discontinued_at` | ✅ B3 | ✅ run |
+| D4 | `v_product_availability` (`state` enum) | ✅ B4 | ✅ run |
+| D5 | Public view exposes `state` (**`v_shop`**, not `v_catalog` — see below) | ✅ B5+B6 | ✅ run |
 | D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ Phase 5 | — |
 | **D7** | `sales.cancelled_at`, `sale_edits` audit table | ✅ `sale-audit-setup.md` | ✅ **run 2026-07-22** |
 
@@ -175,7 +175,7 @@ until the Phase 2 UI ships.
 - [x] Storefront + product page read `state`; **`Tez orada` section retired**, every
       `v_upcoming` reference removed, `upcoming-products-setup.md` superseded
 - [x] Catalog ordering: buyable → "coming back" → dead ends
-- [ ] **Run D1–D5** → then `Tugadi` vs `Tugadi — yo'lda` actually becomes visible
+- [x] **D1–D5 run 2026-07-22** → `Tugadi` vs `Tugadi — yo'lda` is now live
 
 **Status:** the UI is done and live. Until the migration runs, `not_arrived` and
 `sold_out_incoming` simply never occur, so customers see today's three states with the
@@ -233,7 +233,12 @@ list and one sale editor ✅; selling is 2 taps from a card ✅; **nothing is ha
 - [x] **G5 done** — saving a product **no longer posts anything**. A new/lowered discount
       now opens a confirm dialog naming the product, the price and the channel; dismissing
       it posts nothing. Outward-facing actions are never side effects.
-- [ ] Add discontinue + archive
+- [ ] Add discontinue + archive (`discontinued_at` column now exists, UI pending)
+
+> ⚠ **`v_batches` is now stale** — its column list predates D1, so it has no `status`.
+> The admin page therefore reads `product_batches` directly (RLS `batches_select` already
+> permits any authenticated user). Nothing is broken; just don't add new readers of
+> `v_batches` expecting a status.
 
 > 🔴 **G5 is still outstanding and it is outward-facing.** Saving a product with a new
 > or lowered discount *still* auto-posts to the public Telegram channel with no
