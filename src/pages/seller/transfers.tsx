@@ -263,17 +263,17 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
           ) : (
             <>
               <p className="text-[11px] text-muted mb-2 px-1">
-                <b className="text-rose">Chiqdi</b> — qaytarganingiz · <b className="text-success">Kirdi</b> — sizga qaytarilgani · <b className="text-ink">Hozir</b> — hozirgi soningiz
+                <b className="text-rose">Topshirildi</b> — qaytarganingiz · <b className="text-success">Kirdi</b> — sizga qaytarilgani · <b className="text-ink">Hozir</b> — hozirgi soningiz
               </p>
 
               <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
                 {/* Column header */}
-                <div className="flex items-center gap-3 px-3 py-2 border-b border-gray-100 text-[11px] font-semibold text-muted">
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 text-[10px] font-semibold text-muted">
                   <span className="w-11 flex-shrink-0" />
                   <span className="flex-1">Mahsulot</span>
-                  <span className="w-12 text-right">Chiqdi</span>
-                  <span className="w-12 text-right">Kirdi</span>
-                  <span className="w-12 text-right">Hozir</span>
+                  <span className="w-16 text-right leading-tight">Topshirildi</span>
+                  <span className="w-11 text-right">Kirdi</span>
+                  <span className="w-11 text-right">Hozir</span>
                   <span className="w-5 flex-shrink-0" />
                 </div>
 
@@ -283,7 +283,7 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                     return (
                       <div key={g.key}>
                         <button onClick={() => setOpenKey(k => (k === g.key ? null : g.key))}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left active:bg-cream/60 transition">
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-left active:bg-cream/60 transition">
                           <Thumb name={g.name} url={g.image} i={gi} className="w-11 h-11 rounded-xl flex-shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-ink truncate">{g.name}</p>
@@ -291,13 +291,13 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                               <span className="text-[10px] font-bold text-warning bg-orange-50 px-1.5 py-0.5 rounded-full">{g.pending} kutilmoqda</span>
                             )}
                           </div>
-                          <span className="w-12 text-right text-sm">
+                          <span className="w-16 text-right text-sm">
                             {g.out > 0 ? <span className="inline-flex items-center gap-0.5 font-semibold text-rose"><ArrowDown className="w-3 h-3" />{g.out}</span> : <span className="text-muted/40">—</span>}
                           </span>
-                          <span className="w-12 text-right text-sm">
+                          <span className="w-11 text-right text-sm">
                             {g.in > 0 ? <span className="inline-flex items-center gap-0.5 font-semibold text-success"><ArrowUp className="w-3 h-3" />{g.in}</span> : <span className="text-muted/40">—</span>}
                           </span>
-                          <span className="w-12 text-right font-display font-bold text-ink text-sm">{hasProductId ? `${g.remaining}` : '—'}</span>
+                          <span className="w-11 text-right font-display font-bold text-ink text-sm">{hasProductId ? `${g.remaining}` : '—'}</span>
                           <ChevronDown className={`w-4 h-4 text-muted flex-shrink-0 transition ${open ? 'rotate-180' : ''}`} />
                         </button>
 
