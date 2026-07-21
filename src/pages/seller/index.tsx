@@ -14,6 +14,7 @@ import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
+import { stateOf, STATE_STYLE, sellerLabel } from '@/lib/availability'
 
 // Uzbek month names by number (1–12). v_my_monthly returns month as "YYYY-MM".
 const UZ_MONTH_BY_NUM = ['', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
@@ -30,6 +31,7 @@ type Product  = {
   image_url: string | null; description: string | null; link: string | null; gallery: string[]
   expiry_date: string | null
   had: number; sold: number; remaining: number
+  state?: string | null; incoming_qty?: number | null   // present once D4/D5 are run
 }
 type MyRequest = {
   id: string; product_id: string; product_name: string
@@ -39,10 +41,15 @@ type MyRequest = {
 type Available = { id: string; name: string; retail_price: number; discount_price: number | null }
 type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; products: Product[]; thisMonthProfit: number; requests: MyRequest[]; available: Available[]; totalUnitsSold: number; totalRevenue: number }
 
-function RemainingBadge({ n }: { n: number }) {
-  if (n === 0) return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-danger">Tugadi</span>
-  if (n <= 2)  return <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-warning">{S.remaining(n)}</span>
-  return               <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-success">{S.remaining(n)}</span>
+// The card's ONE stock signal, from the shared vocabulary (src/lib/availability.ts) —
+// the same words the customer sees on the storefront.
+function StockBadge({ p }: { p: Product }) {
+  const st = stateOf({ state: p.state, remaining: p.remaining, incoming_qty: p.incoming_qty })
+  return (
+    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATE_STYLE[st]}`}>
+      {sellerLabel(st, p.remaining)}
+    </span>
+  )
 }
 
 // "3 tadan 1 ta sotildi" + a bar filled by sold/had.
@@ -425,7 +432,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
                     images={[...(p.image_url ? [p.image_url] : []), ...p.gallery]}
                     name={p.name}
                     colorIndex={i}
-                    badge={<RemainingBadge n={p.remaining} />}
+                    badge={<StockBadge p={p} />}
                   />
 
                   {/* Card BODY opens the stock sheet; the BUTTON sells. Two clearly
@@ -748,13 +755,23 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     supabase.from('v_my_summary').select('*').maybeSingle(),
     supabase.from('v_my_monthly').select('*'),
     supabase.from('v_my_inventory').select('product_id, product_name, had, sold, remaining'),
-    supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date'),
+    // `state`/`incoming_qty` appear once docs/availability-migration-setup.md is run.
+    // Until then this select 400s and the catch below retries without them.
+    supabase.from('v_catalog').select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date, state, incoming_qty'),
     supabase.from('v_my_requests').select('*'),
     supabase.from('v_available_products').select('id, name, retail_price, discount_price'),
   ])
 
   const inv = invRes.data ?? []
-  const catMap = Object.fromEntries((catalogRes.data ?? []).map((c: any) => [c.id, c]))
+
+  // Retry without the availability columns if the migration hasn't been run.
+  let catalog = catalogRes.data
+  if (catalogRes.error) {
+    const retry = await supabase.from('v_catalog')
+      .select('id, retail_price, discount_price, image_url, description, link, gallery, expiry_date')
+    catalog = retry.data
+  }
+  const catMap = Object.fromEntries((catalog ?? []).map((c: any) => [c.id, c]))
 
   const products: Product[] = inv.map(i => {
     const c: any = catMap[i.product_id] ?? {}
@@ -771,6 +788,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       had:            i.had,
       sold:           i.sold,
       remaining:      i.remaining,
+      state:          c.state ?? null,
+      incoming_qty:   c.incoming_qty ?? null,
     }
   })
 

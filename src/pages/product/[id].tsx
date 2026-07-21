@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
+import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
 import { Send, ChevronLeft, Play } from 'lucide-react'
 
 type Product = {
@@ -15,6 +16,8 @@ type Product = {
   link: string | null
   images: string[]   // cover first, then gallery
   remaining: number  // <= 0 means sold out
+  state?: string | null
+  incoming_qty?: number | null
 }
 
 const TELEGRAM = 'https://t.me/cameliakorea'
@@ -28,7 +31,8 @@ export default function ProductPage({ product }: { product: Product | null }) {
 
   const orderText = encodeURIComponent(`Assalomu alaykum! Men "${product.name}" mahsulotiga buyurtma bermoqchiman.`)
   const price = product.discount_price ?? product.retail_price
-  const soldOut = product.remaining <= 0
+  const st = stateOf(product)
+  const soldOut = !isBuyable(st)
 
   return (
     <>
@@ -76,7 +80,7 @@ export default function ProductPage({ product }: { product: Product | null }) {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="font-display font-bold text-2xl md:text-3xl leading-tight">{product.name}</h1>
-              {soldOut && <span className="bg-ink text-white text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0">Tugadi</span>}
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${STATE_STYLE[st]}`}>{STATE_LABEL[st]}</span>
             </div>
 
             <div className="flex items-baseline gap-3 mt-4">
@@ -86,7 +90,7 @@ export default function ProductPage({ product }: { product: Product | null }) {
               )}
             </div>
 
-            {!soldOut && product.remaining <= 3 && (
+            {st === 'low' && (
               <p className="mt-2 text-sm font-semibold text-warning">⚡ Kam qoldi — atigi {product.remaining} ta</p>
             )}
 
@@ -134,11 +138,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   // Preferred: public v_shop view (anon key) — includes gallery + remaining, hides cost.
   try {
     const pub = createPublicClient()
-    const { data: v, error } = await pub
-      .from('v_shop')
-      .select('id, name, retail_price, discount_price, image_url, description, link, gallery, remaining')
-      .eq('id', id)
-      .single()
+    // Retry without the availability columns when the migration hasn't been run,
+    // so we don't fall through to the heavier service-role path unnecessarily.
+    const BASE = 'id, name, retail_price, discount_price, image_url, description, link, gallery, remaining'
+    let { data: v, error } = await pub.from('v_shop')
+      .select(`${BASE}, state, incoming_qty`).eq('id', id).single()
+    if (error) ({ data: v, error } = await pub.from('v_shop').select(BASE).eq('id', id).single())
     if (!error && v) {
       const gallery: string[] = Array.isArray(v.gallery) ? v.gallery : []
       const product: Product = {
@@ -146,6 +151,8 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
         description: v.description, link: v.link,
         images: [...(v.image_url ? [v.image_url] : []), ...gallery],
         remaining: typeof v.remaining === 'number' ? v.remaining : 0,
+        state: (v as any).state ?? null,
+        incoming_qty: (v as any).incoming_qty ?? null,
       }
       return { props: { product } }
     }

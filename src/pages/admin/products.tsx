@@ -372,22 +372,40 @@ export default function Products({ products: initial }: { products: Product[] })
     const { data: refreshed } = await supabase.from('products').select('*').order('name')
     if (refreshed) setProducts(refreshed)
 
-    // If a discount was newly added or lowered on an existing product, announce it to the
-    // buyers' Telegram channel. Purely a message — doesn't affect any sale or profit.
+    // G5 — outward-facing actions are NEVER side effects. Saving used to auto-post a
+    // discount to the public Telegram channel with no confirmation. Now we only *offer*
+    // it: the admin gets a prompt and decides.
     const oldDiscount = editing?.discount_price ?? null
     const discountJustMade = !!editing && discount != null && (oldDiscount == null || discount < oldDiscount)
-    if (discountJustMade) {
-      fetch('/api/announce-discount', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: productId }),
-      }).then(r => r.json())
-        .then(j => setToast(j.ok ? "Chegirma Telegram kanalga e'lon qilindi ✅" : (j.error ?? 'Telegram xatolik')))
-        .catch(() => setToast('Telegram xatolik'))
-        .finally(() => setTimeout(() => setToast(''), 5000))
-    }
 
     setLoading(false)
     cancel()
+
+    if (discountJustMade) {
+      setDiscountOffer({ productId, name: form.name, price: discount })
+    }
+  }
+
+  // Explicit discount announcement (G5) — only ever fires from this button.
+  const [discountOffer, setDiscountOffer] = useState<{ productId: string; name: string; price: number } | null>(null)
+  const [announcingDiscount, setAnnouncingDiscount] = useState(false)
+
+  async function confirmDiscountPost() {
+    if (!discountOffer) return
+    setAnnouncingDiscount(true)
+    try {
+      const res = await fetch('/api/announce-discount', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: discountOffer.productId }),
+      })
+      const j = await res.json().catch(() => ({}))
+      setToast(j.ok ? "Chegirma Telegram kanalga e'lon qilindi ✅" : (j.error ?? 'Telegram xatolik'))
+    } catch {
+      setToast('Telegram xatolik')
+    }
+    setAnnouncingDiscount(false)
+    setDiscountOffer(null)
+    setTimeout(() => setToast(''), 5000)
   }
 
   // ── Form JSX (shared between new + edit) ─────────────────────────
@@ -722,6 +740,33 @@ export default function Products({ products: initial }: { products: Product[] })
                 Kesib olish ✂️
               </button>
               <button onClick={cancelCrop} className="text-muted hover:text-ink text-sm px-4 py-2.5 transition">Bekor qilish</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* G5 — the discount post is now an explicit choice with a preview, never a
+          side effect of pressing Saqlash. Dismissing it posts nothing. */}
+      {discountOffer && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setDiscountOffer(null)} />
+          <div className="relative bg-surface rounded-2xl shadow-card p-6 max-w-sm w-full">
+            <p className="font-display font-bold text-ink text-lg mb-1">Chegirmani e'lon qilamizmi?</p>
+            <p className="text-sm text-muted mb-4">
+              <b className="text-ink">{discountOffer.name}</b> uchun yangi chegirma:{' '}
+              <b className="text-rose">{formatUZS(discountOffer.price)}</b>.
+              Bu <b>@cameliakorea</b> kanaliga ochiq post sifatida yuboriladi.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => setDiscountOffer(null)} disabled={announcingDiscount}
+                className="flex-1 bg-cream text-ink text-sm font-semibold py-3 rounded-full active:scale-95 transition disabled:opacity-50">
+                Yo'q, e'lon qilinmasin
+              </button>
+              <button onClick={confirmDiscountPost} disabled={announcingDiscount}
+                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-br from-sky to-lavender text-white text-sm font-semibold py-3 rounded-full active:scale-95 transition disabled:opacity-50">
+                <Send className="w-4 h-4" />
+                {announcingDiscount ? 'Yuborilmoqda…' : "Ha, e'lon qilish"}
+              </button>
             </div>
           </div>
         </div>

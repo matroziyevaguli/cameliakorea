@@ -6,7 +6,7 @@ the "proof" column says how it was checked.
 
 Legend: ✅ done & verified · 🟡 partly done · ⬜ not started · 🔒 blocked on SQL
 
-**Last updated:** 2026-07-22 · **Phases 1 + 3: ✅ complete** (pending your visual check)
+**Last updated:** 2026-07-22 · **Phases 1 + 2 + 3 ✅ · G5 ✅** (pending your visual check)
 
 **Build status:** `yarn build` ✅ passes · `tsc --noEmit` → 2 errors, both **pre-existing**
 recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
@@ -20,22 +20,45 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 | Phase | Depends on | Status |
 |---|---|---|
 | **1 · Grammar pass** | nothing | ✅ **done** |
-| **2 · Single stock signal** | D4, D5 | 🔒 SQL not written yet |
+| **2 · Single stock signal** | D4, D5 | ✅ **UI shipped** (degrades safely until SQL runs) |
 | **3 · Seller IA** | nothing | 🟡 **done except G4** (needs SQL) |
-| **4 · Admin Stock Hub** | D1, D2 | 🔒 |
+| **4 · Admin Stock Hub** | D1, D2 | 🟡 G5 done; the rest 🔒 on D1/D2 |
 | **5 · Admin regroup + money truth** | D6 | 🔒 |
 | **6 · Polish** | — | ⬜ |
 
 ### Data migrations (`availability_plan.md` §8)
 | ID | What | SQL | Run? |
 |---|---|---|---|
-| D1 | `product_batches.status` / `ordered_date` / `eta` / `unit_cost` | ✅ `availability-migration-setup.md` B1 | ⬜ |
-| D2 | Arrival invariant trigger (`arrived ⇔ received_date`) | ✅ B2 | ⬜ |
-| D3 | `products.discontinued_at` | ✅ B3 | ⬜ |
-| D4 | `v_product_availability` (`state` enum) | ✅ B4 | ⬜ |
-| D5 | Public view exposes `state` (**`v_shop`**, not `v_catalog` — see below) | ✅ B5+B6 | ⬜ |
-| D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ Phase 5 | ⬜ |
-| **D7** | `sales.cancelled_at`, `sale_edits` audit table — needed by **G4** | ✅ `sale-audit-setup.md` | ⬜ |
+| D1 | `product_batches.status` / `ordered_date` / `eta` / `unit_cost` | ✅ `availability-migration-setup.md` B1 | ❌ **not run** |
+| D2 | Arrival invariant trigger (`arrived ⇔ received_date`) | ✅ B2 | ❌ not run |
+| D3 | `products.discontinued_at` | ✅ B3 | ❌ not run |
+| D4 | `v_product_availability` (`state` enum) | ✅ B4 | ❌ not run |
+| D5 | Public view exposes `state` (**`v_shop`**, not `v_catalog` — see below) | ✅ B5+B6 | ❌ not run |
+| D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ Phase 5 | — |
+| **D7** | `sales.cancelled_at`, `sale_edits` audit table | ✅ `sale-audit-setup.md` | ✅ **run 2026-07-22** |
+
+**Confirmed from the `pg_policy` output:** `sales_update` is already
+`(is_admin() OR seller_id = my_profile_id())` on both `using` and `with check` — a seller
+can already update her own sale's price at the DB level. **Only the UI was gating it**,
+so G4's price editing needs no policy change.
+
+> 🔴 **D7 Block 1 ran without the nine view filters.** `sales.cancelled_at` now exists but
+> **no view filters it**. This is currently harmless *because nothing writes that column* —
+> every row is `NULL`, so all views behave exactly as before. It stops being harmless the
+> moment a "Bekor qilingan" button ships: a cancelled sale would still count as revenue in
+> both her balance and yours.
+> **→ The cancellation UI is deliberately NOT built yet.** To unblock it, run this and
+> paste me the output; I'll write the exact replacements rather than guess:
+> ```sql
+> select 'v_my_sales' v, pg_get_viewdef('public.v_my_sales', true) def
+> union all select 'v_my_summary',      pg_get_viewdef('public.v_my_summary', true)
+> union all select 'v_my_monthly',      pg_get_viewdef('public.v_my_monthly', true)
+> union all select 'v_my_inventory',    pg_get_viewdef('public.v_my_inventory', true)
+> union all select 'v_sales_enriched',  pg_get_viewdef('public.v_sales_enriched', true)
+> union all select 'v_product_stats',   pg_get_viewdef('public.v_product_stats', true)
+> union all select 'v_seller_balances', pg_get_viewdef('public.v_seller_balances', true)
+> union all select 'v_inventory',       pg_get_viewdef('public.v_inventory', true);
+> ```
 
 > 🔴 **Plan deviation, deliberate.** `availability_plan.md` §4 says to
 > `create or replace view v_catalog` as the public anon view. **That would break the
@@ -142,17 +165,21 @@ that `received_qty == total_qty` for every SKU, so no number moves and no screen
 until the Phase 2 UI ships.
 
 - [x] Write the D1–D5 migration SQL
-- [ ] **Run it** (you) → then tell me and Phase 2 + 4 UI can ship
-- [ ] Seller card: four "how much is left" signals → **one** `state` badge
-- [ ] Per-unit pills move into the stock-detail sheet
-- [ ] Storefront cards read `state`; **retire the `Tez orada` section**
-- [ ] Remove every `v_upcoming` reference
+- [x] **Shared vocabulary shipped** — `src/lib/availability.ts` holds the `state` enum,
+      labels and colours used by the storefront, the product page and the seller app.
+      **It works with or without the migration:** `stateOf()` prefers the DB's `state`
+      and otherwise derives the same answer from `remaining`. Every query asks for the
+      new columns and silently retries without them on a 400.
+- [x] Seller card: four "how much is left" signals → **one** `StockBadge`
+- [x] Per-unit pills moved into the stock-detail sheet (Phase 3)
+- [x] Storefront + product page read `state`; **`Tez orada` section retired**, every
+      `v_upcoming` reference removed, `upcoming-products-setup.md` superseded
+- [x] Catalog ordering: buyable → "coming back" → dead ends
+- [ ] **Run D1–D5** → then `Tugadi` vs `Tugadi — yo'lda` actually becomes visible
 
-**Done when:** every card shows exactly one stock line, and a customer can tell
-`Tugadi` from `Tugadi — yo'lda`.
-
-> Note: the `Tez orada` section shipped in `a65316c` is **still live but inert** —
-> `v_upcoming` doesn't exist, the fetch fails soft, the section doesn't render.
+**Status:** the UI is done and live. Until the migration runs, `not_arrived` and
+`sold_out_incoming` simply never occur, so customers see today's three states with the
+new consistent wording. Running the SQL lights up the other two with no further deploy.
 
 ---
 
@@ -203,7 +230,9 @@ list and one sale editor ✅; selling is 2 taps from a card ✅; **nothing is ha
 - [ ] Merge Products + Partiyalar + Taqsimlash into one lifecycle screen
 - [ ] `[+ Partiya]` (Buyurtma/Yo'lda) and one-tap `[Keldi]`
 - [ ] Distribute input → pre-filled stepper with a live `+3 / −1` delta
-- [ ] **G5** `📢 post` explicit with preview + confirm; **stop the silent discount post**
+- [x] **G5 done** — saving a product **no longer posts anything**. A new/lowered discount
+      now opens a confirm dialog naming the product, the price and the channel; dismissing
+      it posts nothing. Outward-facing actions are never side effects.
 - [ ] Add discontinue + archive
 
 > 🔴 **G5 is still outstanding and it is outward-facing.** Saving a product with a new

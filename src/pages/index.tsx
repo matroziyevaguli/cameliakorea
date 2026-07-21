@@ -5,6 +5,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
+import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
 import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
@@ -64,22 +65,15 @@ type ShopProduct = {
   image_url: string | null
   description: string | null
   remaining: number   // units left across all sellers; <= 0 means sold out
-}
-
-// Announced but not yet in stock. Lives in its own table — no cost, no qty.
-type UpcomingProduct = {
-  id: string
-  name: string
-  description: string | null
-  image_url: string | null
-  teaser: string | null
-  expected_note: string | null   // free text ETA, e.g. "Avgust oyida"
+  state?: string | null       // from v_product_availability once the migration is run
+  incoming_qty?: number | null
+  just_arrived?: boolean | null
 }
 
 const CARD_COLORS = ['#F4628E', '#B9A7F0', '#6FD8C0', '#7CC4F2', '#FFB088', '#E14B79']
 const TELEGRAM = 'https://t.me/cameliakorea'
 
-export default function Store({ products, upcoming }: { products: ShopProduct[]; upcoming: UpcomingProduct[] }) {
+export default function Store({ products }: { products: ShopProduct[] }) {
   return (
     <>
       <Head>
@@ -190,8 +184,9 @@ export default function Store({ products, upcoming }: { products: ShopProduct[];
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {products.map((p, i) => {
-                const soldOut = p.remaining <= 0
-                const lowStock = !soldOut && p.remaining <= 3
+                // ONE stock signal, from the shared vocabulary (redesign.md §1.1).
+                const st = stateOf(p)
+                const soldOut = !isBuyable(st)
                 return (
                   <Link key={p.id} href={`/product/${p.id}`}
                     className="group bg-surface rounded-2xl shadow-card overflow-hidden hover:shadow-rose hover:-translate-y-0.5 transition">
@@ -207,20 +202,23 @@ export default function Store({ products, upcoming }: { products: ShopProduct[];
                         </div>
                       )}
 
-                      {soldOut ? (
-                        <>
-                          <span className="absolute top-3 left-3 bg-ink text-white text-xs font-bold px-2.5 py-1 rounded-full">Tugadi</span>
-                          <span className="absolute inset-x-0 bottom-0 bg-ink/80 text-white text-center text-xs font-semibold py-1.5">Hozircha mavjud emas</span>
-                        </>
-                      ) : (
-                        <>
-                          {p.discount_price != null && (
-                            <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">Chegirma</span>
-                          )}
-                          {lowStock && (
-                            <span className="absolute top-3 right-3 bg-warning text-white text-xs font-bold px-2.5 py-1 rounded-full">Kam qoldi</span>
-                          )}
-                        </>
+                      {/* The single state badge — "Tugadi" and "Tugadi — yo'lda" are
+                          now visibly different, which was the whole point. */}
+                      <span className={`absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full ${STATE_STYLE[st]}`}>
+                        {STATE_LABEL[st]}
+                      </span>
+                      {p.discount_price != null && !soldOut && (
+                        <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">Chegirma</span>
+                      )}
+                      {p.just_arrived && !soldOut && (
+                        <span className="absolute bottom-3 left-3 bg-success text-white text-xs font-bold px-2.5 py-1 rounded-full">Keldi ✅</span>
+                      )}
+                      {soldOut && (
+                        <span className="absolute inset-x-0 bottom-0 bg-ink/80 text-white text-center text-xs font-semibold py-1.5">
+                          {st === 'sold_out_incoming' || st === 'not_arrived'
+                            ? "Tez orada — kanalga obuna bo'ling"
+                            : 'Hozircha mavjud emas'}
+                        </span>
                       )}
                     </div>
                     <div className="p-4">
@@ -245,62 +243,6 @@ export default function Store({ products, upcoming }: { products: ShopProduct[];
             </div>
           )}
         </section>
-
-        {/* Tez orada — announced, not yet in stock. Hidden entirely when empty. */}
-        {upcoming.length > 0 && (
-          <section id="tez-orada" className="max-w-6xl mx-auto px-5 py-12">
-            <div className="flex items-end justify-between mb-8 gap-4">
-              <div>
-                <span className="inline-flex items-center gap-1.5 bg-lavender/15 text-lavender text-xs font-bold px-3 py-1 rounded-full mb-2">
-                  <Clock className="w-3.5 h-3.5" /> Tez orada
-                </span>
-                <h2 className="font-display font-bold text-2xl md:text-3xl">Yo'ldagi mahsulotlar</h2>
-                <p className="text-muted text-sm mt-1">Koreyadan kelayotgan yangiliklar — birinchi bo'lib xabardor bo'ling.</p>
-              </div>
-              <a href={TELEGRAM} target="_blank" rel="noreferrer"
-                className="hidden sm:inline-flex items-center gap-1.5 bg-white text-ink text-sm font-semibold px-4 py-2 rounded-full shadow-card active:scale-95 transition">
-                <Bell className="w-4 h-4 text-lavender" /> Xabardor qiling
-              </a>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {upcoming.map((u, i) => (
-                <div key={u.id}
-                  className="group bg-surface/70 rounded-2xl border-2 border-dashed border-lavender/35 overflow-hidden hover:border-lavender/60 hover:-translate-y-0.5 transition">
-                  <div className="relative aspect-square overflow-hidden">
-                    {u.image_url ? (
-                      <img src={u.image_url} alt={u.name} loading="lazy"
-                        className="w-full h-full object-cover opacity-80 blur-[1px] group-hover:blur-0 group-hover:opacity-100 transition duration-500" />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center"
-                        style={{ background: `linear-gradient(135deg, ${CARD_COLORS[i % CARD_COLORS.length]}22, ${CARD_COLORS[(i + 1) % CARD_COLORS.length]}3d)` }}>
-                        <Sparkles className="w-10 h-10 opacity-40" style={{ color: CARD_COLORS[i % CARD_COLORS.length] }} />
-                      </div>
-                    )}
-                    <span className="absolute top-3 left-3 bg-lavender text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-card">
-                      Tez orada
-                    </span>
-                  </div>
-
-                  <div className="p-4">
-                    <h3 className="font-display font-semibold text-sm md:text-base leading-snug line-clamp-2 min-h-[2.5rem]">{u.name}</h3>
-                    {u.teaser && <p className="text-xs text-muted mt-1 line-clamp-2">{u.teaser}</p>}
-                    {u.expected_note && (
-                      <span className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-lavender bg-lavender/10 px-2.5 py-1 rounded-full">
-                        <Clock className="w-3 h-3" /> {u.expected_note}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <a href={TELEGRAM} target="_blank" rel="noreferrer"
-              className="sm:hidden mt-6 w-full flex items-center justify-center gap-2 bg-white text-ink font-semibold px-5 py-3 rounded-full shadow-card active:scale-95 transition">
-              <Bell className="w-4 h-4 text-lavender" /> Kelganda xabar bering
-            </a>
-          </section>
-        )}
 
         {/* Order CTA band */}
         <section className="max-w-6xl mx-auto px-5 pb-12">
@@ -352,7 +294,12 @@ export const getServerSideProps: GetServerSideProps = async () => {
   let data: any[] | null = null
   try {
     const pub = createPublicClient()
-    const res = await pub.from('v_shop').select('id, name, retail_price, discount_price, image_url, description, remaining').order('name')
+    // Ask for the availability columns first; if the migration hasn't been run yet
+    // PostgREST 400s on the unknown columns, so fall back to the base shape. Either
+    // way stateOf() produces a badge — see src/lib/availability.ts.
+    const BASE = 'id, name, retail_price, discount_price, image_url, description, remaining'
+    let res = await pub.from('v_shop').select(`${BASE}, state, incoming_qty, just_arrived`).order('name')
+    if (res.error) res = await pub.from('v_shop').select(BASE).order('name')
     if (!res.error && res.data) data = res.data
   } catch { /* fall through */ }
 
@@ -382,29 +329,18 @@ export const getServerSideProps: GetServerSideProps = async () => {
     image_url: p.image_url,
     description: p.description,
     remaining: typeof p.remaining === 'number' ? p.remaining : 0,
+    state: p.state ?? null,
+    incoming_qty: p.incoming_qty ?? null,
+    just_arrived: p.just_arrived ?? null,
   }))
 
-  // Show in-stock products first, sold-out ones last.
-  products.sort((a, b) => (a.remaining <= 0 ? 1 : 0) - (b.remaining <= 0 ? 1 : 0))
+  // Buyable first; "coming back" ahead of plain sold-out, so a customer sees hope
+  // before dead ends. Discontinued never reach here (v_shop filters them).
+  const rank = (p: ShopProduct) => {
+    const s = stateOf(p)
+    return isBuyable(s) ? 0 : s === 'sold_out_incoming' || s === 'not_arrived' ? 1 : 2
+  }
+  products.sort((a, b) => rank(a) - rank(b))
 
-  // "Tez orada" — optional. Missing view (SQL not run yet) → empty, section hides.
-  let upcoming: UpcomingProduct[] = []
-  try {
-    const pub = createPublicClient()
-    const res = await pub.from('v_upcoming')
-      .select('id, name, description, image_url, teaser, expected_note')
-      .order('sort_order')
-    if (!res.error && res.data) {
-      upcoming = res.data.map((u: any) => ({
-        id: u.id,
-        name: u.name,
-        description: u.description ?? null,
-        image_url: u.image_url ?? null,
-        teaser: u.teaser ?? null,
-        expected_note: u.expected_note ?? null,
-      }))
-    }
-  } catch { /* section stays hidden */ }
-
-  return { props: { products, upcoming } }
+  return { props: { products } }
 }

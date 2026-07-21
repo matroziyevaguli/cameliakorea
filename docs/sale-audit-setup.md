@@ -102,7 +102,7 @@ delete from public.sale_edits where id = (select id from public.sale_edits limit
 
 -- A cancelled sale must vanish from revenue (run after the view filters are in)
 -- 1. note a seller's total, 2. cancel one sale, 3. confirm the total dropped by its amount
-select * from public.v_my_summary;
+ 
 ```
 
 ---
