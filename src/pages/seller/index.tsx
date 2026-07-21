@@ -44,6 +44,32 @@ function RemainingBadge({ n }: { n: number }) {
   return               <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-success">{S.remaining(n)}</span>
 }
 
+// "3 tadan 1 sotildi" + a bar filled by sold/had. Shows how much of what she
+// received is already sold, at a glance.
+function SoldProgress({ had, sold, remaining }: { had: number; sold: number; remaining: number }) {
+  if (had <= 0) return null
+  const pct = Math.min(100, Math.round((sold / had) * 100))
+  const done = remaining === 0
+  return (
+    <div className="mb-3">
+      <div className="flex items-center justify-between text-xs mb-1.5">
+        <span className="text-muted">
+          <b className="text-ink font-semibold">{had} tadan {sold} ta</b> sotildi
+        </span>
+        <span className={`font-semibold ${done ? 'text-danger' : remaining <= 2 ? 'text-warning' : 'text-success'}`}>
+          {done ? 'Tugadi' : S.remaining(remaining)}
+        </span>
+      </div>
+      <div className="h-2 w-full bg-cream rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${done ? 'bg-success' : 'bg-gradient-to-r from-rose to-peach'}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 // Swipeable image gallery: cover first, then gallery photos. Scroll-snap + dots. Lazy-loaded.
 function ImageGallery({ images, name, colorIndex, badge }: { images: string[]; name: string; colorIndex: number; badge: React.ReactNode }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
@@ -439,6 +465,9 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                         <span className="text-sm font-bold text-ink">{formatUZS(p.retail_price)}</span>
                       )}
                     </div>
+
+                    {/* Sold progress — "3 tadan 1 sotildi" + bar */}
+                    <SoldProgress had={p.had} sold={p.sold} remaining={p.remaining} />
 
                     {/* Status tags: expiry + pending request (the rest lives in the ⋯ sheet) */}
                     {(() => {
