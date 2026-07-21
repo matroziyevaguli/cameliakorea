@@ -20,7 +20,7 @@ function LoginMenu() {
       <div className="relative w-full max-w-xs bg-surface rounded-2xl shadow-card p-3 border border-black/5">
         <div className="flex items-center justify-between px-1 pb-2 mb-1">
           <p className="text-sm font-bold text-ink">Kirish</p>
-          <button onClick={() => setOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+          <button aria-label="Yopish" onClick={() => setOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
         </div>
         <Link href="/login?as=admin" onClick={() => setOpen(false)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">

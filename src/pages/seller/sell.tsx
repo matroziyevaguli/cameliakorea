@@ -177,7 +177,7 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
     <div className="min-h-screen bg-cream flex flex-col">
       <div className="px-5 pt-8 pb-2">
         <div className="flex items-center gap-3">
-          <button onClick={back} className="w-9 h-9 rounded-full bg-surface shadow-card grid place-items-center text-ink active:scale-90 transition">
+          <button aria-label="Orqaga" onClick={back} className="w-9 h-9 rounded-full bg-surface shadow-card grid place-items-center text-ink active:scale-90 transition">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="font-display text-xl font-bold text-ink">{titles[step]}</h1>
@@ -221,12 +221,12 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
 
             {/* Quantity */}
             <div className="flex items-center justify-center gap-8">
-              <button onClick={() => setQty(q => Math.max(1, q - 1))}
+              <button aria-label="Kamaytirish" onClick={() => setQty(q => Math.max(1, q - 1))}
                 className="w-16 h-16 rounded-full bg-cream text-ink grid place-items-center text-3xl active:scale-90 transition shadow-card">
                 <Minus className="w-7 h-7" />
               </button>
               <span className="font-display text-5xl font-bold text-ink w-16 text-center">{qty}</span>
-              <button onClick={() => setQty(q => Math.min(selected.remaining, q + 1))}
+              <button aria-label="Ko'paytirish" onClick={() => setQty(q => Math.min(selected.remaining, q + 1))}
                 className="w-16 h-16 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition shadow-rose">
                 <Plus className="w-7 h-7" />
               </button>

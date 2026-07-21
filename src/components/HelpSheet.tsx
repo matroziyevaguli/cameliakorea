@@ -13,7 +13,7 @@ export default function HelpSheet({ open, onClose }: { open: boolean; onClose: (
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
         <div className="flex items-center justify-between mb-1">
           <p className="font-display font-bold text-ink text-lg">{S.helpTitle}</p>
-          <button onClick={onClose} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+          <button aria-label="Yopish" onClick={onClose} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
         </div>
         <p className="text-sm text-muted mb-5">{S.helpSubtitle}</p>
 

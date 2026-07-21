@@ -2,9 +2,11 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
+import { S } from '@/consts/strings'
 import { useState } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
+import ConfirmBar from '@/components/ConfirmBar'
 import { CheckCircle, PlusCircle, History, Trash2, TrendingUp, Wallet, HandCoins, Info } from 'lucide-react'
 
 type Row = {
@@ -66,19 +68,26 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
     setTimeout(() => setSuccess(false), 1500)
   }
 
+  // Inline confirmations (G1) — no native dialogs.
+  const [settleId, setSettleId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
   async function settleFull(r: Row) {
     if (r.balance <= 0) return
-    if (!confirm(`${r.seller_name} uchun ${formatUZS(r.balance)} to'liq to'lov qilinsinmi?`)) return
+    setBusyId(r.seller_id)
     const supabase = createBrowser()
     const { error: err } = await supabase.from('payments').insert({ seller_id: r.seller_id, amount: r.balance, note: "To'liq hisob-kitob" })
+    setBusyId(null); setSettleId(null)
     if (err) { setError(err.message); return }
     await refresh(supabase)
   }
 
   async function deletePayment(id: string) {
-    if (!confirm("Bu to'lovni o'chirasizmi?")) return
+    setBusyId(id)
     const supabase = createBrowser()
     const { error: err } = await supabase.from('payments').delete().eq('id', id)
+    setBusyId(null); setDeleteId(null)
     if (err) { setError(err.message); return }
     await refresh(supabase)
   }
@@ -93,25 +102,25 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
         <div className="bg-gradient-to-br from-sky/10 to-lavender/10 border border-lavender/30 rounded-2xl p-5 flex gap-3">
           <Info className="w-5 h-5 text-lavender flex-shrink-0 mt-0.5" />
           <div className="text-sm text-ink leading-relaxed">
-            <b>Qanday ishlaydi:</b> Sotuvchi mijozdan <b>to'liq pul</b> oladi. O'z foyda ulushini
+            <b>Qanday ishlaydi:</b> Sotuvchi mijozdan <b>to'liq pul</b> oladi. O'z daromad ulushini
             (har bir sotuvchining kelishilgan foizi) o'zida qoldiradi. Qolganini — ya'ni
-            <b>tovar puli + sizning foyda ulushingiz</b> — sizga topshiradi. Demak "Topshirish
-            kerak" summasi hammasi foyda emas: ko'p qismi tovaringiz puli qaytib kelmoqda.
+            <b>tovar puli + sizning daromad ulushingiz</b> — sizga topshiradi. Demak "{S.moneyCollect}"
+            summasi hammasi daromad emas: ko'p qismi tovaringiz puli qaytib kelmoqda.
           </div>
         </div>
 
         {/* Owner KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-gradient-to-br from-mint to-success text-white rounded-2xl p-5 shadow-card">
-            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">Mening jami foydam</p><TrendingUp className="w-5 h-5 opacity-70" /></div>
+            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">Mening jami daromadim</p><TrendingUp className="w-5 h-5 opacity-70" /></div>
             <p className="font-display text-2xl font-bold">{formatUZS(totalMyProfit)}</p>
           </div>
           <div className="bg-gradient-to-br from-peach to-warning text-white rounded-2xl p-5 shadow-card">
-            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">Yig'ilishi kerak</p><HandCoins className="w-5 h-5 opacity-70" /></div>
+            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">{S.moneyCollect}</p><HandCoins className="w-5 h-5 opacity-70" /></div>
             <p className="font-display text-2xl font-bold">{formatUZS(totalToCollect)}</p>
           </div>
           <div className="bg-gradient-to-br from-sky to-lavender text-white rounded-2xl p-5 shadow-card">
-            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">Yig'ilgan</p><Wallet className="w-5 h-5 opacity-70" /></div>
+            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">{S.moneyHandedOver}</p><Wallet className="w-5 h-5 opacity-70" /></div>
             <p className="font-display text-2xl font-bold">{formatUZS(totalCollected)}</p>
           </div>
         </div>
@@ -123,10 +132,10 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
               <tr className="border-b border-gray-100">
                 <th className="text-left px-5 py-4 font-semibold text-muted">Sotuvchi</th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">Sotgan</th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Ularning foydasi<br /><span className="font-normal text-[11px]">(ularning ulushi, o'zida)</span></th>
-                <th className="text-right px-3 py-4 font-semibold text-success">Mening foydam<br /><span className="font-normal text-[11px]">(qolgan ulush)</span></th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Topshirish kerak<br /><span className="font-normal text-[11px]">(tovar+foydam)</span></th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Topshirilgan</th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">Ularning daromadi<br /><span className="font-normal text-[11px]">(ularning ulushi, o'zida)</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-success">{S.earningsAdmin}<br /><span className="font-normal text-[11px]">(qolgan ulush)</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">{S.moneyCollect}<br /><span className="font-normal text-[11px]">(tovar+daromadim)</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">{S.moneyHandedOver}</th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">Qolgan</th>
                 <th className="px-3 py-4"></th>
               </tr>
@@ -147,8 +156,16 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
                     {r.balance < 0 ? `+${formatUZS(-r.balance)}` : formatUZS(r.balance)}
                   </td>
                   <td className="px-3 py-4 text-right">
-                    {r.balance > 0 && (
-                      <button onClick={() => settleFull(r)} title="To'liq to'lov"
+                    {settleId === r.seller_id ? (
+                      <ConfirmBar compact tone="primary"
+                        question={`${formatUZS(r.balance)} to'liq?`}
+                        confirmLabel="Ha, to'landi"
+                        busy={busyId === r.seller_id}
+                        onConfirm={() => settleFull(r)}
+                        onCancel={() => setSettleId(null)}
+                      />
+                    ) : r.balance > 0 && (
+                      <button onClick={() => setSettleId(r.seller_id)} title="To'liq to'lov"
                         className="text-xs text-rose hover:text-roseDark font-medium whitespace-nowrap">To'liq ✓</button>
                     )}
                   </td>
@@ -223,9 +240,20 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
                     <td className="px-4 py-3 text-muted">{p.note ?? '—'}</td>
                     <td className="px-4 py-3 text-right font-display font-bold text-success">{formatUZS(p.amount)}</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => deletePayment(p.id)} title="O'chirish" className="text-danger/50 hover:text-danger transition">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {deleteId === p.id ? (
+                        <ConfirmBar compact
+                          question="O'chirilsinmi?"
+                          confirmLabel="Ha"
+                          busy={busyId === p.id}
+                          onConfirm={() => deletePayment(p.id)}
+                          onCancel={() => setDeleteId(null)}
+                        />
+                      ) : (
+                        <button onClick={() => setDeleteId(p.id)} aria-label="To'lovni o'chirish" title="O'chirish"
+                          className="text-danger/50 hover:text-danger transition">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

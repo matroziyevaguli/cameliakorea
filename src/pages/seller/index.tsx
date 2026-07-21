@@ -9,6 +9,7 @@ import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
 import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, Minus, Trash2, HelpCircle, HandHeart, Receipt, Sparkles, MoreHorizontal, ChevronDown, PlayCircle, RotateCcw } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
+import ConfirmBar from '@/components/ConfirmBar'
 import { getPending, flushPending } from '@/lib/pendingSales'
 import { S } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -271,12 +272,12 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
     if (fixProduct) await loadFixSales(fixProduct.product_id)
     router.replace(router.asPath)
   }
+  const [saleConfirmId, setSaleConfirmId] = useState<string | null>(null)
   async function deleteSaleRow(saleId: string) {
-    if (!confirm(S.deleteConfirm)) return   // destructive → always confirm
     setSaleBusy(saleId)
     const supabase = createBrowser()
     await supabase.from('sales').delete().eq('id', saleId)
-    setSaleBusy(null)
+    setSaleBusy(null); setSaleConfirmId(null)
     if (fixProduct) await loadFixSales(fixProduct.product_id)
     router.replace(router.asPath)
   }
@@ -376,20 +377,20 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           </Link>
           {/* Daromadingiz — their earnings */}
           <Link href="/seller/balance" className="bg-gradient-to-br from-success to-mint text-white rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> Daromadingiz</p>
+            <p className="text-xs font-semibold opacity-90 mb-1 flex items-center gap-1.5"><Sparkles className="w-3.5 h-3.5" /> {S.earningsSeller}</p>
             <p className="font-display text-xl font-bold">{formatUZS(summary?.your_total_profit ?? 0)}</p>
             <p className="text-xs opacity-80 mt-0.5">jami ishlagan pulingiz</p>
           </Link>
-          {/* Topshirilishi kerak */}
+          {/* Yig'ilishi kerak (canonical — same word the admin sees) */}
           <Link href="/seller/balance" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold text-muted mb-1">Topshirilishi kerak</p>
+            <p className="text-xs font-semibold text-muted mb-1">{S.moneyCollect}</p>
             <p className={`font-display text-xl font-bold ${(summary?.not_submitted ?? 0) > 0 ? 'text-danger' : 'text-success'}`}>
               {formatUZS(Math.max(0, summary?.not_submitted ?? 0))}
             </p>
           </Link>
-          {/* Topshirilgan */}
+          {/* Topshirildi */}
           <Link href="/seller/balance" className="bg-surface rounded-2xl shadow-card p-4 active:scale-[0.98] transition">
-            <p className="text-xs font-semibold text-muted mb-1">Topshirilgan</p>
+            <p className="text-xs font-semibold text-muted mb-1">{S.moneyHandedOver}</p>
             <p className="font-display text-xl font-bold text-success">{formatUZS(summary?.submitted ?? 0)}</p>
           </Link>
         </div>
@@ -538,7 +539,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
             <div className="flex items-center justify-between mb-1">
               <p className="font-display font-bold text-ink text-base truncate">{moreProduct.name}</p>
-              <button onClick={() => setMoreProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
+              <button aria-label="Yopish" onClick={() => setMoreProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-xs text-muted mb-4">Qo'shimcha amallar</p>
 
@@ -614,7 +615,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <p className="font-display font-bold text-ink text-base">📢 Kanalga yuborish</p>
-              <button onClick={() => setPostProduct(null)} className="text-muted hover:text-ink transition">
+              <button aria-label="Yopish" onClick={() => setPostProduct(null)} className="text-muted hover:text-ink transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -662,7 +663,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           <div className="relative bg-surface rounded-t-3xl sm:rounded-3xl p-5 pb-8 w-full sm:max-w-md max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
               <p className="font-display font-bold text-ink text-base">Tuzatish</p>
-              <button onClick={() => setFixProduct(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <button aria-label="Yopish" onClick={() => setFixProduct(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-muted mb-4 truncate">{fixProduct.name}</p>
 
@@ -721,19 +722,27 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
                             <span className="text-xs text-muted flex-1">{formatDate(s.sold_at)}</span>
-                            <button onClick={() => setSaleEditQty(q => Math.max(1, q - 1))}
+                            <button aria-label="Kamaytirish" onClick={() => setSaleEditQty(q => Math.max(1, q - 1))}
                               className="w-8 h-8 rounded-full bg-surface grid place-items-center active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                             <span className="font-display font-bold w-6 text-center">{saleEditQty}</span>
-                            <button onClick={() => setSaleEditQty(q => q + 1)}
+                            <button aria-label="Ko'paytirish" onClick={() => setSaleEditQty(q => q + 1)}
                               className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition"><Plus className="w-4 h-4" /></button>
                           </div>
                           {saleError && <p className="text-danger text-xs">{saleError}</p>}
                           <div className="flex gap-2">
                             <button disabled={saleBusy === s.id} onClick={() => saveSaleQty(s.id)}
                               className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">{saleBusy === s.id ? '…' : 'Saqlash'}</button>
-                            <button onClick={() => setSaleEditId(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                            <button aria-label="Yopish" onClick={() => setSaleEditId(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
                           </div>
                         </div>
+                      ) : saleConfirmId === s.id ? (
+                        <ConfirmBar
+                          question={S.deleteConfirm}
+                          confirmLabel="Ha, o'chirish"
+                          busy={saleBusy === s.id}
+                          onConfirm={() => deleteSaleRow(s.id)}
+                          onCancel={() => setSaleConfirmId(null)}
+                        />
                       ) : (
                         <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-0">
@@ -742,7 +751,8 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
                           </div>
                           <button onClick={() => { setSaleEditId(s.id); setSaleEditQty(Math.abs(s.qty)); setSaleError('') }}
                             className="text-xs font-semibold text-rose bg-rose/10 px-3 py-1.5 rounded-full">Tahrirlash</button>
-                          <button onClick={() => deleteSaleRow(s.id)} disabled={saleBusy === s.id}
+                          <button onClick={() => setSaleConfirmId(s.id)} disabled={saleBusy === s.id}
+                            aria-label="Sotuvni o'chirish"
                             className="text-danger/40 hover:text-danger p-1.5 disabled:opacity-30"><Trash2 className="w-4 h-4" /></button>
                         </div>
                       )}
@@ -762,7 +772,7 @@ export default function SellerHome({ sellerName, summary, monthly, products, thi
           <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <p className="font-display font-bold text-ink text-base">🆕 Yangi mahsulot so'rash</p>
-              <button onClick={() => setNewOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <button aria-label="Yopish" onClick={() => setNewOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-xs text-muted mb-4">Sizda yo'q mahsulotni tanlang va nechta olishni yozing. Admin tasdiqlaganda sizga biriktiriladi.</p>
 

@@ -2,10 +2,10 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
+import { S } from '@/consts/strings'
 import AdminNav from '@/components/AdminNav'
 import Link from 'next/link'
 import { useState } from 'react'
-import { useRouter } from 'next/router'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Wallet, Package, Wrench, Plus } from 'lucide-react'
 
@@ -55,14 +55,15 @@ type Props = {
 
 const cards = (s: Summary) => [
   { label: 'Umumiy savdo',   value: formatUZS(s.totalRevenue), icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark' },
-  { label: 'Foydasi',        value: formatUZS(s.theirProfit),  icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success' },
-  { label: 'Qarzi (jami)',   value: formatUZS(s.owed),         icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning' },
-  { label: 'Topshirgan',     value: formatUZS(s.submitted),    icon: CheckCircle2,bg: 'bg-gradient-to-br from-sky to-lavender' },
+  { label: 'Daromadi',       value: formatUZS(s.theirProfit),  icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success' },
+  { label: S.moneyCollect,   value: formatUZS(s.owed),         icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning' },
+  { label: S.moneyHandedOver,value: formatUZS(s.submitted),    icon: CheckCircle2,bg: 'bg-gradient-to-br from-sky to-lavender' },
   { label: 'Qoldiq qarz',    value: formatUZS(s.balance),      icon: Wallet,      bg: s.balance > 0 ? 'bg-gradient-to-br from-danger to-rose' : 'bg-gradient-to-br from-success to-mint' },
 ]
 
-export default function SellerDetail({ sellerId, sellerName, summary, products, sales, adjustments }: Props) {
-  const router = useRouter()
+export default function SellerDetail({ sellerId, sellerName, summary, products, sales, adjustments: initialAdjustments }: Props) {
+  // G2 — update in place, reconcile in the background.
+  const [adjustments, setAdjustments] = useState<Adjustment[]>(initialAdjustments)
   const [productId, setProductId] = useState('')
   const [qty, setQty] = useState('')
   const [reason, setReason] = useState('damaged')
@@ -82,7 +83,13 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
     setSaving(false)
     if (err) { setError(err.message); return }
     setProductId(''); setQty(''); setNote(''); setReason('damaged')
-    router.replace(router.asPath)
+    const { data } = await supabase.from('stock_adjustments')
+      .select('id, product_id, qty, reason, note, created_at')
+      .eq('seller_id', sellerId).order('created_at', { ascending: false })
+    if (data) {
+      const nameOf: Record<string, string> = Object.fromEntries(products.map(p => [p.product_id, p.product_name]))
+      setAdjustments((data as any[]).map(a => ({ ...a, product_name: nameOf[a.product_id] ?? '—' })))
+    }
   }
 
   return (

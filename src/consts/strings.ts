@@ -1,10 +1,15 @@
+// Canonical vocabulary — see docs/redesign.md §1. One concept → one Uzbek word,
+// used identically in both apps and the storefront. Never introduce a synonym for
+// a concept that already has a term here.
 export const S = {
   // Auth
   welcome:        "Xush kelibsiz! ✨",
   namePlaceholder:"Ismingiz",
   passPlaceholder:"Parol",
   loginBtn:       "Kirish",
-  loginError:     "Ism yoki parol noto'g'ri",
+  loginWrongPassword: "Parol noto'g'ri. Qayta urinib ko'ring.",
+  loginNetworkError:  "Kirib bo'lmadi — internetni tekshirib, qayta urining.",
+  forgotPassword: "Parolni unutdingizmi? Guliga yozing",
   loggingIn:      "Kirilmoqda…",
   logout:         "Chiqish",
 
@@ -37,24 +42,33 @@ export const S = {
   deleteConfirm:  "Bu sotuvni o'chirasizmi?",
   delete:         "O'chirish",
 
+  // ── Pipeline B — Money (redesign.md §1.2). These four words are the whole
+  // money vocabulary; both apps use them, so a seller and the admin discussing
+  // a number are always using the same term.
+  moneyCollect:   "Yig'ilishi kerak",       // owed to Camelia (cost + Camelia's share)
+  moneyHandedOver:"Topshirildi",            // cash already handed over
+  moneySettled:   "Hisob-kitob",            // balance cleared
+  earningsSeller: "Daromadingiz",           // the seller's own kept share
+  earningsAdmin:  "Mening daromadim",       // the owner's kept share
+
   // Balance / earnings
   myBalance:      "Mening hisobim",
   myEarnings:     "Sizning daromadingiz",   // seller's own profit share — hers to keep
   earningsHint:   (pct: number) => `${pct}% foyda — sizniki`,
-  toHandOver:     "Topshirish kerak",       // total she must give admin
-  handedOver:     "Topshirilgan",           // already paid
-  stillOwed:      "Qolgan (topshirish)",    // still owed
+  toHandOver:     "Yig'ilishi kerak",       // = moneyCollect
+  handedOver:     "Topshirildi",            // = moneyHandedOver
+  stillOwed:      "Yig'ilishi kerak (qolgan)",
   settled:        "Barakalla! Hisob-kitob tozalandi ✓",
   paymentHistory: "To'lov tarixi",
   noPayments:     "Hali to'lov qilinmagan",
   tapForDetails:  "Bosing — batafsil",
   breakdownTitle: "Pul qanday taqsimlanadi",
   collected:      "Mijozlardan yig'ilgan",
-  yoursKept:      (pct: number) => `Sizning foydangiz (${pct}%) — sizniki`,
+  yoursKept:      (pct: number) => `Daromadingiz (${pct}%) — sizniki`,
   cameliaShare:   "Camelia'ga tegishli",
   ofWhichPaid:    "Topshirildi",
   ofWhichLeft:    "Qolgan (topshirilmagan)",
-  breakdownNote:  (pct: number) => `Siz mijozlardan to'liq pul olasiz. ${pct}% foyda sizda qoladi, qolganini Camelia'ga topshirasiz.`,
+  breakdownNote:  (pct: number) => `Siz mijozlardan to'liq pul olasiz. ${pct}% daromad sizda qoladi, qolganini Camelia'ga topshirasiz.`,
   openingDebt:    "Boshlang'ich qarz",
   salesDebt:      "Sotuvlardan qarz",
   totalOwed:      "Sizning qarzingiz",

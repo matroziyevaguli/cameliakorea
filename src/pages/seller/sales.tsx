@@ -4,7 +4,6 @@ import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
 import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
-import { useRouter } from 'next/router'
 import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, X } from 'lucide-react'
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
@@ -36,14 +35,30 @@ type Sale = {
   sold_at: string
 }
 
-export default function MySales({ sales, pricePending, images }: { sales: Sale[]; pricePending: string[]; images: Record<string, string | null> }) {
-  const router = useRouter()
+export default function MySales({ sales: initialSales, pricePending, images }: { sales: Sale[]; pricePending: string[]; images: Record<string, string | null> }) {
+  // G2 — one refresh model: every write updates local state immediately, then
+  // reconciles against the view in the background. No SSR round-trip on a tap.
+  const [sales, setSales] = useState<Sale[]>(initialSales)
   const [busy, setBusy] = useState<string | null>(null)
   const [month, setMonth] = useState('all')
   const [search, setSearch] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
-  const pricePendingSet = new Set(pricePending)
+  const [pending, setPending] = useState<string[]>(pricePending)
+  const pricePendingSet = new Set(pending)
+
+  // Pull the authoritative rows back (profit is computed by the view, never here).
+  async function reconcile() {
+    const supabase = createBrowser()
+    const [{ data: fresh }, { data: reqs }] = await Promise.all([
+      supabase.from('v_my_sales')
+        .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
+        .order('sold_at', { ascending: false }).limit(300),
+      supabase.from('v_my_price_requests').select('sale_id, status'),
+    ])
+    if (fresh) setSales(fresh as Sale[])
+    if (reqs) setPending((reqs as any[]).filter(r => r.status === 'pending').map(r => r.sale_id))
+  }
 
   // Inline edit — quantity (son) is changed directly; price goes through an admin request.
   const [editId, setEditId] = useState<string | null>(null)
@@ -69,8 +84,13 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
     const { error } = await supabase.from('sales').update({ qty: editQty }).eq('id', sale.id)
     setBusy(null)
     if (error) { setEditError(error.message); return }   // e.g. oversell guard
+    // Optimistic: scale amount/profit linearly, then let reconcile() correct them.
+    const factor = editQty / Math.abs(sale.qty || 1)
+    setSales(list => list.map(s => s.id === sale.id
+      ? { ...s, qty: editQty, amount: s.unit_price * editQty, your_profit: s.your_profit * factor }
+      : s))
     setEditId(null)
-    router.replace(router.asPath)
+    reconcile()
   }
   async function submitPriceRequest(sale: Sale) {
     const price = Number(priceValue)
@@ -84,7 +104,8 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
     setPriceBusy(false)
     if (!res.ok) { setPriceErr(json.error ?? 'Xatolik'); return }
     setPriceDone(true)
-    router.replace(router.asPath)
+    setPending(p => [...p, sale.id])   // show "so'rov yuborildi" straight away
+    reconcile()
   }
 
   // Distinct months present, newest first
@@ -120,9 +141,10 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
     setBusy(id)
     const supabase = createBrowser()
     await supabase.from('sales').delete().eq('id', id)
+    setSales(list => list.filter(s => s.id !== id))   // optimistic
     setConfirmDeleteId(null)
-    router.replace(router.asPath)
     setBusy(null)
+    reconcile()
   }
 
   return (
@@ -213,10 +235,10 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
                           {/* Quantity stepper (same feel as the add-sale form) */}
                           <div className="flex items-center gap-3">
                             <span className="text-sm text-muted flex-1">Nechta sotildi?</span>
-                            <button onClick={() => setEditQty(q => Math.max(1, q - 1))}
+                            <button aria-label="Kamaytirish" onClick={() => setEditQty(q => Math.max(1, q - 1))}
                               className="w-9 h-9 rounded-full bg-cream text-ink grid place-items-center active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                             <span className="font-display font-bold text-xl w-8 text-center">{editQty}</span>
-                            <button onClick={() => setEditQty(q => q + 1)}
+                            <button aria-label="Ko'paytirish" onClick={() => setEditQty(q => q + 1)}
                               className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition shadow-rose"><Plus className="w-4 h-4" /></button>
                           </div>
                           <div className="flex justify-between items-center pt-1">
@@ -254,7 +276,7 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
                                       className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
                                       {priceBusy ? 'Yuborilmoqda…' : "Narx so'rovini yuborish"}
                                     </button>
-                                    <button onClick={() => setPriceOpen(false)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                                    <button aria-label="Yopish" onClick={() => setPriceOpen(false)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
                                   </div>
                                 )}
                               </div>
@@ -267,7 +289,7 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
                       ) : (
                         <>
                           <div className="flex items-start gap-3">
-                            <Thumb name={sale.product_name} url={images[sale.product_name]} i={fi} className="w-12 h-12 rounded-xl flex-shrink-0" />
+                            <Thumb name={sale.product_name} url={images[sale.id]} i={fi} className="w-12 h-12 rounded-xl flex-shrink-0" />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="font-display font-semibold text-ink truncate">{sale.product_name}</p>
@@ -300,7 +322,7 @@ export default function MySales({ sales, pricePending, images }: { sales: Sale[]
                                   <Pencil className="w-3.5 h-3.5" /> Tahrirlash
                                 </button>
                               ) : <span className="text-xs text-muted">Qaytarilgan yozuv</span>}
-                              <button onClick={() => setConfirmDeleteId(sale.id)} disabled={busy === sale.id}
+                              <button aria-label="O'chirish" onClick={() => setConfirmDeleteId(sale.id)} disabled={busy === sale.id}
                                 className="ml-auto text-danger/40 hover:text-danger transition disabled:opacity-30 p-2">
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -329,18 +351,25 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const supabase = createClient(ctx)
   // v_my_sales exposes `amount` (revenue) + `your_profit`; there is no `revenue`/`note` column.
-  const [{ data: sales }, { data: priceReqs }, { data: catalog }] = await Promise.all([
+  const [{ data: sales }, { data: priceReqs }, { data: catalog }, { data: saleRows }] = await Promise.all([
     supabase.from('v_my_sales')
       .select('id, product_name, qty, unit_price, amount, your_profit, sold_at')
       .order('sold_at', { ascending: false }).limit(300),
     supabase.from('v_my_price_requests').select('sale_id, status'),
-    supabase.from('v_catalog').select('name, image_url'),
+    supabase.from('v_catalog').select('id, image_url'),
+    // v_my_sales has no product_id — take it from the base table (RLS: own rows only)
+    // so photos key on the ID, not the name. Renaming a product keeps its history (G7).
+    supabase.from('sales').select('id, product_id'),
   ])
 
   const pricePending = (priceReqs ?? []).filter(r => r.status === 'pending').map(r => r.sale_id)
-  // Photo per sale, matched by product name (v_my_sales has no product_id).
+
+  const imageByProduct: Record<string, string | null> = {}
+  for (const c of catalog ?? []) imageByProduct[(c as any).id] = (c as any).image_url ?? null
+
+  // sale.id → image url
   const images: Record<string, string | null> = {}
-  for (const c of catalog ?? []) images[(c as any).name] = (c as any).image_url ?? null
+  for (const s of saleRows ?? []) images[(s as any).id] = imageByProduct[(s as any).product_id] ?? null
 
   return { props: { sales: sales ?? [], pricePending, images } }
 }

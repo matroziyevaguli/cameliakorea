@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
+import ConfirmBar from '@/components/ConfirmBar'
 import { Layers, Plus, Trash2, X, CalendarClock, AlertTriangle } from 'lucide-react'
 import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
 
@@ -62,11 +63,12 @@ export default function Batches({ products, batches: initial }: Props) {
     await refresh()
   }
 
+  const [confirmId, setConfirmId] = useState<string | null>(null)
   async function removeBatch(id: string) {
-    if (!confirm("Bu partiyani o'chirasizmi?")) return
     const supabase = createBrowser()
     await supabase.from('product_batches').delete().eq('id', id)
     setBatches(b => b.filter(x => x.id !== id))
+    setConfirmId(null)
   }
 
   return (
@@ -135,7 +137,7 @@ export default function Batches({ products, batches: initial }: Props) {
                         className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
                         {busy ? 'Saqlanmoqda…' : "Qo'shish"}
                       </button>
-                      <button onClick={() => setOpenFor(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                      <button aria-label="Yopish" onClick={() => setOpenFor(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 )}
@@ -147,6 +149,16 @@ export default function Batches({ products, batches: initial }: Props) {
                   <div className="space-y-1.5">
                     {list.map((b, i) => {
                       const { status } = expiryInfo(b.expiry_date)
+                      if (confirmId === b.id) return (
+                        <div key={b.id} className="bg-cream rounded-lg px-3 pb-2">
+                          <ConfirmBar
+                            question={`${b.quantity} ta partiyani o'chirasizmi?`}
+                            confirmLabel="Ha, o'chirish"
+                            onConfirm={() => removeBatch(b.id)}
+                            onCancel={() => setConfirmId(null)}
+                          />
+                        </div>
+                      )
                       return (
                         <div key={b.id} className="flex items-center gap-2 bg-cream rounded-lg px-3 py-2">
                           {i === 0 && list.length > 1 && (
@@ -161,7 +173,8 @@ export default function Batches({ products, batches: initial }: Props) {
                                 {b.expiry_date}{status !== 'ok' && status !== 'none' ? ` · ${EXPIRY_LABEL[status]}` : ''}
                               </span>
                             ) : <span className="text-[11px] text-muted">muddat yo'q</span>}
-                            <button onClick={() => removeBatch(b.id)} className="text-muted hover:text-danger transition">
+                            <button onClick={() => setConfirmId(b.id)} aria-label="Partiyani o'chirish"
+                              className="text-muted hover:text-danger transition">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </span>

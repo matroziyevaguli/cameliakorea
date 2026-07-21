@@ -2,7 +2,6 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { useState } from 'react'
-import { useRouter } from 'next/router'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
 import { formatDate } from '@/lib/format'
@@ -23,8 +22,9 @@ const CHANNELS = [
 ]
 const CHANNEL_LABEL: Record<string, string> = { telegram: 'Telegram', instagram: 'Instagram', other: 'Boshqa' }
 
-export default function Giveaways({ products, sellers, giveaways }: Props) {
-  const router = useRouter()
+export default function Giveaways({ products, sellers, giveaways: initialGiveaways }: Props) {
+  // G2 — write, update in place, reconcile. No SSR round-trip.
+  const [giveaways, setGiveaways] = useState<Giveaway[]>(initialGiveaways)
   const [productId, setProductId] = useState('')
   const [sellerId, setSellerId] = useState(sellers.find(s => /gulshan/i.test(s.full_name))?.id ?? sellers[0]?.id ?? '')
   const [qty, setQty] = useState('1')
@@ -48,7 +48,8 @@ export default function Giveaways({ products, sellers, giveaways }: Props) {
     if (err) { setError(err.message); return }
     setSuccess(true); setWinner(''); setNote(''); setQty('1')
     setTimeout(() => setSuccess(false), 2000)
-    router.replace(router.asPath)
+    const { data } = await supabase.from('v_giveaways').select('*')
+    if (data) setGiveaways(data as Giveaway[])
   }
 
   const totalGiven = giveaways.reduce((n, g) => n + g.qty, 0)

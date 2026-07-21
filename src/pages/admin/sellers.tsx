@@ -14,8 +14,18 @@ type Seller = { id: string; full_name: string; commission_rate: number; opening_
 type EditForm = { full_name: string; commissionPct: string; opening_balance: string; active: boolean }
 type AddForm = { full_name: string; password: string; commissionPct: string; opening_balance: string }
 
-export default function Sellers({ sellers }: { sellers: Seller[] }) {
+export default function Sellers({ sellers: initialSellers }: { sellers: Seller[] }) {
   const router = useRouter()
+  // G2 — update in place, reconcile in the background.
+  const [sellers, setSellers] = useState<Seller[]>(initialSellers)
+
+  async function reconcile() {
+    const supabase = createBrowser()
+    const { data } = await supabase.from('profiles')
+      .select('id, full_name, commission_rate, opening_balance, active')
+      .eq('role', 'seller').order('full_name')
+    if (data) setSellers(data as Seller[])
+  }
 
   // Edit state
   const [editing, setEditing] = useState<string | null>(null)
@@ -50,7 +60,16 @@ export default function Sellers({ sellers }: { sellers: Seller[] }) {
     }).eq('id', id)
     setLoading(false)
     if (err) { setError(err.message); return }
-    setEditing(null); router.replace(router.asPath)
+    // Optimistic
+    setSellers(list => list.map(s => s.id === id ? {
+      ...s,
+      full_name: form.full_name.trim(),
+      commission_rate: pct / 100,
+      opening_balance: Number(form.opening_balance) || 0,
+      active: form.active,
+    } : s))
+    setEditing(null)
+    reconcile()
   }
 
   async function addSeller(e: React.FormEvent) {
@@ -73,7 +92,7 @@ export default function Sellers({ sellers }: { sellers: Seller[] }) {
     if (!res.ok) { setAddError(json.error ?? 'Xatolik'); return }
     setAddOk(`Qo'shildi! Login: ${json.email}`)
     setAddForm({ full_name: '', password: '', commissionPct: '40', opening_balance: '0' })
-    router.replace(router.asPath)
+    reconcile()
   }
 
   return (
@@ -95,7 +114,7 @@ export default function Sellers({ sellers }: { sellers: Seller[] }) {
           <div className="bg-surface rounded-2xl shadow-card p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-display font-bold text-ink text-lg">Yangi sotuvchi qo'shish</h3>
-              <button onClick={() => setShowAdd(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <button aria-label="Yopish" onClick={() => setShowAdd(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={addSeller} className="grid gap-4 sm:grid-cols-2">
               <div>
@@ -141,7 +160,7 @@ export default function Sellers({ sellers }: { sellers: Seller[] }) {
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <p className="font-display font-bold text-ink text-lg">Tahrirlash</p>
-                    <button onClick={() => setEditing(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+                    <button aria-label="Yopish" onClick={() => setEditing(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -187,7 +206,7 @@ export default function Sellers({ sellers }: { sellers: Seller[] }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Tahrirlash" className="text-rose hover:text-roseDark transition p-2">
+                    <button aria-label="Tahrirlash" onClick={(e) => { e.stopPropagation(); openEdit(s) }} title="Tahrirlash" className="text-rose hover:text-roseDark transition p-2">
                       <Pencil className="w-4 h-4" />
                     </button>
                     <ChevronRight className="w-5 h-5 text-muted" />

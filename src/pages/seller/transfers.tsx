@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatDate } from '@/lib/format'
 import { useState } from 'react'
-import { useRouter } from 'next/router'
+import { createClient as createBrowser } from '@/lib/supabase/browser'
 import SellerNav from '@/components/SellerNav'
 import { RotateCcw, Plus, Minus, X } from 'lucide-react'
 
@@ -21,14 +21,20 @@ const BADGE: Record<MyTransfer['status'], { label: string; cls: string }> = {
   rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
 }
 
-export default function SellerTransfers({ transfers, sendable, otherSellers }: Props) {
-  const router = useRouter()
-
-  // Incoming (someone returning to me) — needs my confirmation
-  const [incoming, setIncoming] = useState(transfers.filter(t => !t.is_outgoing && t.status === 'pending'))
+export default function SellerTransfers({ transfers: initialTransfers, sendable, otherSellers }: Props) {
+  // G2 — local state is the source of truth for the screen; reconcile in the background.
+  const [transfers, setTransfers] = useState<MyTransfer[]>(initialTransfers)
+  const incoming = transfers.filter(t => !t.is_outgoing && t.status === 'pending')
   const history = transfers.filter(t => t.is_outgoing || t.status !== 'pending')
   const [txBusy, setTxBusy] = useState<string | null>(null)
   const [txError, setTxError] = useState('')
+
+  async function reconcile() {
+    const supabase = createBrowser()
+    const { data } = await supabase.from('v_my_transfers')
+      .select('id, qty, status, from_name, to_name, product_name, is_outgoing, created_at')
+    if (data) setTransfers(data as MyTransfer[])
+  }
 
   async function confirmTransfer(id: string, action: 'approve' | 'reject') {
     setTxBusy(id + action); setTxError('')
@@ -38,9 +44,11 @@ export default function SellerTransfers({ transfers, sendable, otherSellers }: P
     const json = await res.json().catch(() => ({}))
     setTxBusy(null)
     if (!res.ok) { setTxError(json.error ?? 'Xatolik'); return }
-    setIncoming(list => list.filter(t => t.id !== id))
+    // Optimistic: move it straight into history with its new status.
+    setTransfers(list => list.map(t => t.id === id
+      ? { ...t, status: action === 'approve' ? 'approved' : 'rejected' } : t))
     window.dispatchEvent(new Event('camelia-transfers-changed'))
-    router.replace(router.asPath)
+    reconcile()
   }
 
   // Send a new return
@@ -70,7 +78,7 @@ export default function SellerTransfers({ transfers, sendable, otherSellers }: P
     setSendBusy(false)
     if (!res.ok) { setSendError(json.error ?? 'Xatolik'); return }
     setSendDone(true)
-    setTimeout(() => { setShowForm(false); router.replace(router.asPath) }, 1200)
+    setTimeout(() => { setShowForm(false); reconcile() }, 1200)
   }
 
   const canSend = sendable.length > 0 && otherSellers.length > 0
@@ -102,7 +110,7 @@ export default function SellerTransfers({ transfers, sendable, otherSellers }: P
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="font-display font-bold text-ink text-sm">Yangi qaytarish</p>
-                  <button onClick={() => setShowForm(false)} className="text-muted"><X className="w-4 h-4" /></button>
+                  <button aria-label="Yopish" onClick={() => setShowForm(false)} className="text-muted"><X className="w-4 h-4" /></button>
                 </div>
 
                 <div>
@@ -125,10 +133,10 @@ export default function SellerTransfers({ transfers, sendable, otherSellers }: P
                 <div>
                   <label className="block text-xs font-semibold text-muted mb-2">Nechta?{selected ? ` (mavjud: ${maxQty})` : ''}</label>
                   <div className="flex items-center justify-center gap-6">
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                    <button aria-label="Kamaytirish" onClick={() => setQty(q => Math.max(1, q - 1))}
                       className="w-11 h-11 rounded-full bg-cream text-ink grid place-items-center active:scale-90 transition"><Minus className="w-5 h-5" /></button>
                     <span className="font-display text-2xl font-bold text-ink w-10 text-center">{qty}</span>
-                    <button onClick={() => setQty(q => Math.min(maxQty, q + 1))}
+                    <button aria-label="Ko'paytirish" onClick={() => setQty(q => Math.min(maxQty, q + 1))}
                       className="w-11 h-11 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition shadow-rose"><Plus className="w-5 h-5" /></button>
                   </div>
                 </div>

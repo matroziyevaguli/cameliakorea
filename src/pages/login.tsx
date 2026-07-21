@@ -7,6 +7,7 @@ import { createPublicClient } from '@/lib/supabase/api'
 import { sellerEmail } from '@/lib/sellerEmail'
 import { User, Lock, Sparkles } from 'lucide-react'
 import { S } from '@/consts/strings'
+import { SELLER_CONFIG } from '@/consts/sellerConfig'
 import { MiniSpinner } from '@/components/Loader'
 
 const ADMIN = { label: 'Admin (Guli)', email: 'matroziyevaguli@gmail.com', role: 'admin' as const }
@@ -35,7 +36,9 @@ export default function Login({ sellerNames }: { sellerNames: string[] }) {
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
-      setError(S.loginError)
+      // The name comes from a fixed dropdown, so it is always a real account —
+      // "invalid credentials" can only mean the password (G8: say which field).
+      setError(/invalid login|credentials/i.test(authError.message) ? S.loginWrongPassword : S.loginNetworkError)
       setLoading(false)
       return
     }
@@ -109,6 +112,12 @@ export default function Login({ sellerNames }: { sellerNames: string[] }) {
             {loading && <MiniSpinner />}
             {loading ? S.loggingIn : S.loginBtn}
           </button>
+
+          {/* One recovery path (G8) — there is no self-serve reset, so send her to the admin. */}
+          <a href={SELLER_CONFIG.adminTelegramUrl} target="_blank" rel="noopener noreferrer"
+            className="block text-center text-sm text-muted hover:text-rose transition pt-1">
+            {S.forgotPassword}
+          </a>
         </form>
       </div>
     </div>

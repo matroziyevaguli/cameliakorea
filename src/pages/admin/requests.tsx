@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { useState } from 'react'
 import AdminNav from '@/components/AdminNav'
+import ConfirmBar from '@/components/ConfirmBar'
 import { formatDate, formatUZS } from '@/lib/format'
 import { Inbox, Check, X, ArrowRight, CheckCircle, ChevronDown, RotateCcw } from 'lucide-react'
 
@@ -65,6 +66,9 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
   const nothing = requests.length === 0 && priceRequests.length === 0 && transfers.length === 0
   const resolvedCount = resolved.length + priceResolved.length
 
+  // Approving would exceed recorded stock → ask inline (G1), then re-approve with bump_stock.
+  const [needStock, setNeedStock] = useState<{ id: string; current: number; needed: number } | null>(null)
+
   async function resolve(id: string, action: 'approve' | 'reject', bumpStock = false) {
     setBusy(id + action); setError(''); setInfo('')
     const res = await fetch('/api/resolve-request', {
@@ -74,16 +78,13 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
       setBusy(null)
-      // Approving would exceed recorded stock (the seller received more than was logged) →
-      // ask once, then re-approve while raising the product's total to fit. One clear step.
       if (json.need_stock && !bumpStock) {
-        const ns = json.need_stock
-        const ok = window.confirm(`Omborda ${ns.current} ta bor. Tasdiqlansa ombor ${ns.needed} ta ga oshiriladi. Davom etamizmi?`)
-        if (ok) return resolve(id, action, true)
+        setNeedStock({ id, current: json.need_stock.current, needed: json.need_stock.needed })
         return
       }
       setError(json.error ?? 'Xatolik'); return
     }
+    setNeedStock(null)
     setBusy(null)
     const now = new Date().toISOString()
     setRequests(rs => rs.map(r => r.id === id
@@ -179,6 +180,16 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                     className="w-full bg-cream text-ink rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent"
                   />
 
+                  {needStock?.id === r.id ? (
+                    <ConfirmBar
+                      tone="primary"
+                      question={`Omborda ${needStock.current} ta bor. Tasdiqlansa ombor ${needStock.needed} ta ga oshiriladi.`}
+                      confirmLabel="Ha, oshirilsin"
+                      busy={busy !== null}
+                      onConfirm={() => resolve(r.id, 'approve', true)}
+                      onCancel={() => setNeedStock(null)}
+                    />
+                  ) : (
                   <div className="flex gap-2">
                     <button
                       onClick={() => resolve(r.id, 'approve')}
@@ -195,6 +206,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                       {busy === r.id + 'reject' ? '…' : 'Rad etish'}
                     </button>
                   </div>
+                  )}
                 </div>
               )
             })}

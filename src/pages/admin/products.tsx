@@ -519,7 +519,7 @@ export default function Products({ products: initial }: { products: Product[] })
                 <div className="absolute top-1 left-1 bg-black/40 rounded p-0.5">
                   <GripVertical className="w-3 h-3 text-white" />
                 </div>
-                <button type="button" onClick={() => removeGalleryItem(i)}
+                <button aria-label="O'chirish" type="button" onClick={() => removeGalleryItem(i)}
                   className="absolute top-1 right-1 bg-danger text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -614,7 +614,7 @@ export default function Products({ products: initial }: { products: Product[] })
                             📢 Post
                           </button>
                         )}
-                        <button onClick={() => openEdit(p)} className="text-rose hover:text-roseDark transition">
+                        <button aria-label="Tahrirlash" onClick={() => openEdit(p)} className="text-rose hover:text-roseDark transition">
                           <Pencil className="w-4 h-4" />
                         </button>
                       </div>
@@ -628,7 +628,7 @@ export default function Products({ products: initial }: { products: Product[] })
                         <div className="bg-gradient-to-br from-sky/10 to-lavender/10 border border-lavender/30 rounded-2xl p-5">
                           <div className="flex items-center justify-between mb-3">
                             <p className="font-display font-semibold text-ink text-sm">📢 Post to Camelia Store</p>
-                            <button onClick={closeAnnounce} className="text-muted hover:text-ink transition"><X className="w-4 h-4" /></button>
+                            <button aria-label="Yopish" onClick={closeAnnounce} className="text-muted hover:text-ink transition"><X className="w-4 h-4" /></button>
                           </div>
                           {p.image_url && <img src={p.image_url} alt={p.name} className="w-24 h-24 rounded-xl object-cover shadow-sm mb-3" />}
                           <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={9}
@@ -666,7 +666,7 @@ export default function Products({ products: initial }: { products: Product[] })
               <h3 className="font-display font-bold text-ink text-xl">
                 {editing ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}
               </h3>
-              <button onClick={cancel} className="text-muted hover:text-ink transition p-1">
+              <button aria-label="Yopish" onClick={cancel} className="text-muted hover:text-ink transition p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -699,7 +699,7 @@ export default function Products({ products: initial }: { products: Product[] })
               <h3 className="font-display font-bold text-ink text-lg flex items-center gap-2">
                 <CropIcon className="w-5 h-5 text-rose" /> Rasmni kesish
               </h3>
-              <button onClick={cancelCrop} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <button aria-label="Yopish" onClick={cancelCrop} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex gap-2 mb-4 flex-shrink-0">
               {ASPECTS.map(({ label, value }) => (
