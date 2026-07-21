@@ -27,15 +27,28 @@ recharts `Tooltip formatter` typings in `admin/index.tsx` and `admin/stats.tsx`
 | **6 · Polish** | — | ⬜ |
 
 ### Data migrations (`availability_plan.md` §8)
-| ID | What | Status |
-|---|---|---|
-| D1 | `product_batches.status` / `ordered_date` / `eta` / `unit_cost` | ⬜ SQL not written |
-| D2 | Arrival invariant trigger (`arrived ⇔ received_date`) | ⬜ |
-| D3 | `products.discontinued_at` | ⬜ |
-| D4 | `v_product_availability` (`state` enum) | ⬜ |
-| D5 | `v_catalog` (anon, no cost, exposes `state`) | ⬜ |
-| D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ |
-| **D7** | *(new)* `sales.cancelled_at` + `cancel_reason`, `sale_edits` audit table — needed by **G4** | ⬜ |
+| ID | What | SQL | Run? |
+|---|---|---|---|
+| D1 | `product_batches.status` / `ordered_date` / `eta` / `unit_cost` | ✅ `availability-migration-setup.md` B1 | ⬜ |
+| D2 | Arrival invariant trigger (`arrived ⇔ received_date`) | ✅ B2 | ⬜ |
+| D3 | `products.discontinued_at` | ✅ B3 | ⬜ |
+| D4 | `v_product_availability` (`state` enum) | ✅ B4 | ⬜ |
+| D5 | Public view exposes `state` (**`v_shop`**, not `v_catalog` — see below) | ✅ B5+B6 | ⬜ |
+| D6 | Flip stock source to derived; correct `invested`/`worth` | ⬜ Phase 5 | ⬜ |
+| **D7** | `sales.cancelled_at`, `sale_edits` audit table — needed by **G4** | ✅ `sale-audit-setup.md` | ⬜ |
+
+> 🔴 **Plan deviation, deliberate.** `availability_plan.md` §4 says to
+> `create or replace view v_catalog` as the public anon view. **That would break the
+> seller app** — `v_catalog` is the existing *seller* definer view read by
+> `seller/index.tsx`, `seller/sell.tsx` and `seller/sales.tsx` (sellers can't read
+> `products` directly because of RLS). The real public storefront view is **`v_shop`**.
+> The migration therefore puts `state` on `v_shop` for customers and *also* adds it to
+> `v_catalog` for sellers, leaving both names doing their existing job.
+
+> 🔴 **`sale-audit-setup.md` Block 1 is not safe alone.** Marking a sale cancelled only
+> stops it counting once **nine** aggregate views filter `cancelled_at is null`. The doc
+> lists them; I need their current definitions pasted back (`pg_get_viewdef`) before
+> writing those rewrites, rather than guessing — they were built across many setup docs.
 
 > ⚠ **`v_upcoming` must stay un-run.** `availability_plan.md` §7 retires it.
 > `docs/upcoming-products-setup.md` is superseded — do not execute it.
@@ -123,9 +136,13 @@ the Vercel preview) and confirm the five confirm-flows and the login copy.
 
 ## Phase 2 — Single stock signal 🔒
 
-Blocked: needs D4 + D5.
+Blocked: **the D1–D5 SQL is written — it just needs running** in the Supabase SQL
+Editor (`docs/availability-migration-setup.md`). It is fully additive: Block 7 verifies
+that `received_qty == total_qty` for every SKU, so no number moves and no screen changes
+until the Phase 2 UI ships.
 
-- [ ] Write + run the D1–D5 migration SQL
+- [x] Write the D1–D5 migration SQL
+- [ ] **Run it** (you) → then tell me and Phase 2 + 4 UI can ship
 - [ ] Seller card: four "how much is left" signals → **one** `state` badge
 - [ ] Per-unit pills move into the stock-detail sheet
 - [ ] Storefront cards read `state`; **retire the `Tez orada` section**
