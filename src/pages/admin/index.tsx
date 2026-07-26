@@ -247,6 +247,13 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   for (const a of availability ?? []) remainingById[(a as any).product_id] = (a as any).remaining ?? 0
   const stockOf = (p: any) => remainingById[p.id] ?? p.total_qty ?? 0
 
+  // "Qoldi" must be the one true stock number (max(0, arrived − sold)), same as the website.
+  // v_product_stats.units_remaining is the legacy total_qty − sold (can go negative) — override it.
+  const productRowsReconciled = (productRows ?? []).map((p: any) => ({
+    ...p,
+    units_remaining: Math.max(0, remainingById[p.product_id] ?? p.units_remaining ?? 0),
+  }))
+
   const invested = prods.reduce((s, p) => s + (p.cost ?? 0) * stockOf(p), 0)
   const worth    = prods.reduce((s, p) => s + ((p.discount_price ?? p.retail_price) ?? 0) * stockOf(p), 0)
   const giveaways = (adjustments ?? []).filter(a => a.reason === 'giveaway' || a.reason === 'gift')
@@ -259,5 +266,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     giveawayValue:  giveaways.reduce((s, a) => s + (costById[a.product_id] ?? 0) * (a.qty ?? 0), 0),
   }
 
-  return { props: { kpis, biz, productStats: productStats ?? [], recentSales: recent ?? [], sellerStats: sellerStats ?? [], productRows: productRows ?? [] } }
+  return { props: { kpis, biz, productStats: productStats ?? [], recentSales: recent ?? [], sellerStats: sellerStats ?? [], productRows: productRowsReconciled } }
 }

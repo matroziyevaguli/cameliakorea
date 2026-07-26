@@ -6,7 +6,7 @@ import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
 import ConfirmBar from '@/components/ConfirmBar'
 import { formatUZS } from '@/lib/format'
-import { Layers, Plus, Trash2, X, CalendarClock, AlertTriangle, Truck, PackageCheck, ShoppingCart } from 'lucide-react'
+import { Layers, Plus, Trash2, X, CalendarClock, Truck, PackageCheck, ShoppingCart } from 'lucide-react'
 import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
 
 const EXPIRY_STYLE: Record<ExpiryStatus, string> = {
@@ -128,15 +128,13 @@ export default function Batches({ products, batches: initial }: Props) {
             const list = byProduct(p.id)
             const arrivedQty  = list.filter(b => b.status === 'arrived').reduce((n, b) => n + b.quantity, 0)
             const incomingQty = list.filter(b => b.status === 'ordered' || b.status === 'in_transit').reduce((n, b) => n + b.quantity, 0)
-            const drift = list.some(b => b.status === 'arrived') && arrivedQty !== p.total_qty
             return (
               <div key={p.id} className="bg-surface rounded-2xl shadow-card p-4">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <p className="font-semibold text-ink text-sm">{p.name}</p>
                     <p className="text-xs text-muted">
-                      Ombor: <strong className="text-ink">{p.total_qty}</strong> ta
-                      {list.length > 0 && <> · kelgan: <strong className="text-ink">{arrivedQty}</strong> ta</>}
+                      Kelgan: <strong className="text-ink">{arrivedQty}</strong> ta
                       {incomingQty > 0 && <> · <span className="text-sky font-semibold">yo'lda: {incomingQty} ta</span></>}
                     </p>
                   </div>
@@ -145,13 +143,6 @@ export default function Batches({ products, batches: initial }: Props) {
                     <Plus className="w-3.5 h-3.5" /> Partiya
                   </button>
                 </div>
-
-                {drift && (
-                  <div className="flex items-center gap-1.5 text-xs text-warning bg-orange-50 rounded-lg px-3 py-2 mb-2">
-                    <AlertTriangle className="w-3.5 h-3.5" />
-                    Kelgan partiyalar ({arrivedQty}) ombor soni ({p.total_qty}) bilan mos emas.
-                  </div>
-                )}
 
                 {/* Add form */}
                 {openFor === p.id && (

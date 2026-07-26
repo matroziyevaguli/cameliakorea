@@ -37,10 +37,12 @@ type Product = {
   link: string | null
   expiry_date: string | null
   discontinued_at: string | null
-  // From v_product_availability — tells us whether the shipment has landed yet.
-  // `not_arrived` ⇒ shown as "Yo'lda", stock lives in an in_transit batch, total_qty is 0.
+  // From v_product_availability — the single source of truth for stock.
+  // `remaining` = max(0, arrived − sold); `incoming_qty` = units still "yo'lda".
+  // `state` drives the badge (`not_arrived` ⇒ nothing landed yet).
   state?: string | null
   incoming_qty?: number | null
+  remaining?: number | null
 }
 
 type FormState = {
@@ -101,15 +103,16 @@ async function getCroppedBlob(img: HTMLImageElement, crop: PixelCrop): Promise<B
 async function fetchProductsWithState(supabase: ReturnType<typeof createBrowser>): Promise<Product[]> {
   const [prodRes, availRes] = await Promise.all([
     supabase.from('products').select('*').order('name'),
-    supabase.from('v_product_availability').select('product_id, state, incoming_qty'),
+    supabase.from('v_product_availability').select('product_id, state, incoming_qty, remaining'),
   ])
-  const avail = new Map<string, { state: string | null; incoming_qty: number | null }>(
-    (availRes.data ?? []).map((a: any) => [a.product_id, { state: a.state, incoming_qty: a.incoming_qty }])
+  const avail = new Map<string, { state: string | null; incoming_qty: number | null; remaining: number | null }>(
+    (availRes.data ?? []).map((a: any) => [a.product_id, { state: a.state, incoming_qty: a.incoming_qty, remaining: a.remaining }])
   )
   return (prodRes.data ?? []).map((p: any) => ({
     ...p,
     state: avail.get(p.id)?.state ?? null,
     incoming_qty: avail.get(p.id)?.incoming_qty ?? 0,
+    remaining: avail.get(p.id)?.remaining ?? 0,
   }))
 }
 
@@ -126,8 +129,12 @@ export default function Products({ products: initial }: { products: Product[] })
   const [editing,      setEditing]      = useState<Product | null>(null)
   const [showNew,      setShowNew]      = useState(false)
   const [form,         setForm]         = useState<FormState>(EMPTY)
-  // Has the shipment arrived? true = "Do'konda bor" (in shop), false = "Yo'lda" (on the way).
+  // New-product only: is the first shipment already here? true = "Do'konda bor", false = "Yo'lda".
+  // (Existing products change stock only through partiyalar, never this toggle.)
   const [arrived,      setArrived]      = useState(true)
+  // Edit-only restock: quantity for a new incoming ("yo'lda") partiya.
+  const [restockQty,   setRestockQty]   = useState('')
+  const [restockBusy,  setRestockBusy]  = useState(false)
   const [imageFile,    setImageFile]    = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [description,  setDescription] = useState('')
@@ -344,15 +351,14 @@ export default function Products({ products: initial }: { products: Product[] })
 
     setLoading(true); setError('')
     const supabase = createBrowser()
-    const qty = Number(form.total_qty)
-    const payload = {
+
+    // Descriptive/price fields — the only thing an EDIT ever changes. Stock lives in
+    // partiyalar now, never in this form (restock is a separate action below).
+    const base = {
       name: form.name,
       retail_price: retail,
       discount_price: discount,
       cost: Number(form.cost),
-      // "Yo'lda" ⇒ nothing has landed yet, so arrived stock (total_qty) is 0; the quantity
-      // lives in an in_transit batch below. "Do'konda bor" ⇒ the quantity IS the stock.
-      total_qty: arrived ? qty : 0,
       description: description || null,
       link: link || null,
       expiry_date: expiry || null,
@@ -361,31 +367,22 @@ export default function Products({ products: initial }: { products: Product[] })
     let productId: string
     if (editing) {
       productId = editing.id
-      const { error: err } = await supabase.from('products').update(payload).eq('id', editing.id)
+      const { error: err } = await supabase.from('products').update(base).eq('id', editing.id)
       if (err) { setError(err.message); setLoading(false); return }
     } else {
-      const { data, error: err } = await supabase.from('products').insert(payload).select('id').single()
+      // New product. `total_qty` mirrors arrived stock (kept only for the money fallback);
+      // the real stock is the partiya we create below, so no product is ever partiya-less.
+      const qty = Number(form.total_qty)
+      const { data, error: err } = await supabase.from('products')
+        .insert({ ...base, total_qty: arrived ? qty : 0 }).select('id').single()
       if (err || !data) { setError(err?.message ?? 'Xatolik'); setLoading(false); return }
       productId = data.id
-    }
-
-    // ── Arrival status ⇄ in_transit batch ──
-    // A "Yo'lda" product is represented by exactly one in_transit batch holding the incoming
-    // quantity; v_product_availability then reports state='not_arrived'. When it arrives we
-    // move that quantity into total_qty (done above) and drop the batch, so there's no drift.
-    const wasNotArrived = editing?.state === 'not_arrived'
-    const { data: pending } = await supabase.from('product_batches')
-      .select('id').eq('product_id', productId).eq('status', 'in_transit').limit(1)
-    const pendingId: string | null = pending?.[0]?.id ?? null
-    if (!arrived) {
-      if (pendingId) {
-        await supabase.from('product_batches').update({ quantity: qty }).eq('id', pendingId)
-      } else {
-        await supabase.from('product_batches').insert({ product_id: productId, quantity: qty, status: 'in_transit' })
+      if (qty > 0) {
+        await supabase.from('product_batches').insert({
+          product_id: productId, quantity: qty,
+          status: arrived ? 'arrived' : 'in_transit',   // arrived ⇒ in stock; else "Yo'lda"
+        })
       }
-    } else if (wasNotArrived && pendingId) {
-      // Converting "Yo'lda" → "Do'konda bor": the shipment landed, retire the incoming batch.
-      await supabase.from('product_batches').delete().eq('id', pendingId)
     }
 
     if (imageFile) {
@@ -438,6 +435,30 @@ export default function Products({ products: initial }: { products: Product[] })
     }
   }
 
+  // ── Restock: add a new incoming ("Yo'lda") partiya to an existing product ─────
+  // The one way to add stock now. It doesn't change `remaining` yet — the units are still on
+  // the way; pressing «Keldi» on the Partiyalar page flips them to arrived and stock follows.
+  async function addIncomingBatch() {
+    if (!editing) return
+    const n = Number(restockQty)
+    if (!Number.isFinite(n) || n <= 0) { setError('Yo\'ldagi sonni kiriting'); return }
+    setRestockBusy(true); setError('')
+    const supabase = createBrowser()
+    const { error: err } = await supabase.from('product_batches')
+      .insert({ product_id: editing.id, quantity: n, status: 'in_transit' })
+    setRestockBusy(false)
+    if (err) { setError(err.message); return }
+    setRestockQty('')
+    const refreshed = await fetchProductsWithState(supabase)
+    if (refreshed.length) {
+      setProducts(refreshed)
+      const updated = refreshed.find(p => p.id === editing.id)
+      if (updated) setEditing(updated)   // refresh the panel's Qoldi/Yo'lda figures
+    }
+    setToast(`+${n} yo'lda qo'shildi — kelganda «Partiyalar»da «Keldi» bosing`)
+    setTimeout(() => setToast(''), 4000)
+  }
+
   // Retire / restore a product (D3). The first way to take a product out of the
   // catalog without deleting its history — it drops out of v_shop, and its sales,
   // batches and money stay intact.
@@ -481,7 +502,11 @@ export default function Products({ products: initial }: { products: Product[] })
       <div className="grid grid-cols-2 gap-5 items-start">
         {/* Text fields */}
         <div className="col-span-2 md:col-span-1 space-y-4">
-          {(Object.keys(EMPTY) as (keyof FormState)[]).map(key => (
+          {/* Stock ("Jami soni") is only entered when CREATING a product. For an existing
+              product, stock changes through partiyalar, so we hide the field on edit. */}
+          {(Object.keys(EMPTY) as (keyof FormState)[])
+            .filter(key => !(editing && key === 'total_qty'))
+            .map(key => (
             <div key={key}>
               <label className="block text-sm font-medium text-muted mb-1">
                 {key === 'total_qty' && !arrived ? 'Yo\'ldagi soni' : fieldLabels[key]}
@@ -496,25 +521,59 @@ export default function Products({ products: initial }: { products: Product[] })
             </div>
           ))}
 
-          {/* Arrival status — is the shipment in the shop, or still on the way? */}
-          <div>
-            <label className="block text-sm font-medium text-muted mb-1">Holati</label>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setArrived(true)}
-                className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition border-2 ${arrived ? 'bg-green-100 text-success border-success/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
-                <PackageCheck className="w-4 h-4" /> Do'konda bor
-              </button>
-              <button type="button" onClick={() => setArrived(false)}
-                className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition border-2 ${!arrived ? 'bg-sky/20 text-sky border-sky/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
-                <Truck className="w-4 h-4" /> Yo'lda
-              </button>
+          {/* NEW product only: is the first shipment already here or still on the way? */}
+          {!editing && (
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Holati</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setArrived(true)}
+                  className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition border-2 ${arrived ? 'bg-green-100 text-success border-success/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
+                  <PackageCheck className="w-4 h-4" /> Do'konda bor
+                </button>
+                <button type="button" onClick={() => setArrived(false)}
+                  className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition border-2 ${!arrived ? 'bg-sky/20 text-sky border-sky/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
+                  <Truck className="w-4 h-4" /> Yo'lda
+                </button>
+              </div>
+              <p className="text-xs text-muted mt-1.5">
+                {arrived
+                  ? "Mahsulot do'konda, sotuvga tayyor."
+                  : "Hali yetib kelmagan — saytda «Yo'lda» ko'rinadi. Kelganda «Partiyalar»da «Keldi» bosing."}
+              </p>
             </div>
-            <p className="text-xs text-muted mt-1.5">
-              {arrived
-                ? "Mahsulot do'konda, sotuvga tayyor."
-                : "Hali yetib kelmagan — saytda «Yo'lda» ko'rinadi. Kelganda «Do'konda bor»ga o'tkazing."}
-            </p>
-          </div>
+          )}
+
+          {/* EDIT only: current stock + restock. Stock is never typed here — only added as a
+              new incoming partiya, which «Keldi» later turns into real stock. */}
+          {editing && (
+            <div className="rounded-xl bg-cream p-4">
+              <div className="flex items-center gap-4 mb-3">
+                <div>
+                  <p className="text-[11px] text-muted">Qoldi</p>
+                  <p className="font-display font-bold text-ink text-lg leading-none">{Math.max(0, editing.remaining ?? 0)}</p>
+                </div>
+                {(editing.incoming_qty ?? 0) > 0 && (
+                  <div>
+                    <p className="text-[11px] text-muted">Yo'lda</p>
+                    <p className="font-display font-bold text-sky text-lg leading-none">{editing.incoming_qty}</p>
+                  </div>
+                )}
+              </div>
+              <label className="block text-xs font-medium text-muted mb-1">Yangi partiya (yo'lda) qo'shish</label>
+              <div className="flex gap-2">
+                <input type="number" min={1} value={restockQty} onChange={e => setRestockQty(e.target.value)}
+                  placeholder="Soni"
+                  className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky border-2 border-transparent transition" />
+                <button type="button" onClick={addIncomingBatch} disabled={restockBusy || !restockQty}
+                  className="flex items-center gap-1.5 flex-shrink-0 bg-gradient-to-br from-sky to-lavender text-white text-sm font-semibold px-4 py-2 rounded-lg active:scale-95 transition disabled:opacity-50">
+                  <Truck className="w-4 h-4" /> {restockBusy ? '…' : "Qo'shish"}
+                </button>
+              </div>
+              <p className="text-[11px] text-muted mt-1.5">
+                Partiya kelganda <b className="text-ink">«Partiyalar»</b> sahifasida «Keldi» bosing — ombor o'zi yangilanadi.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Image upload */}
@@ -717,10 +776,13 @@ export default function Products({ products: initial }: { products: Product[] })
                     <td className="px-4 py-3 text-right text-ink">{formatUZS(p.retail_price)}</td>
                     <td className="px-4 py-3 text-right text-muted">{p.discount_price != null ? formatUZS(p.discount_price) : '—'}</td>
                     <td className="px-4 py-3 text-right text-muted">{formatUZS(p.cost)}</td>
-                    <td className="px-4 py-3 text-right font-display font-bold text-ink">
-                      {p.state === 'not_arrived'
-                        ? <span className="text-sky">{p.incoming_qty} <span className="text-[10px] font-normal">yo'lda</span></span>
-                        : p.total_qty}
+                    {/* Real stock = max(0, arrived − sold) from v_product_availability, with the
+                        "yo'lda" (incoming) count underneath. total_qty is no longer shown. */}
+                    <td className="px-4 py-3 text-right">
+                      <div className="font-display font-bold text-ink">{Math.max(0, p.remaining ?? 0)}</div>
+                      {(p.incoming_qty ?? 0) > 0 && (
+                        <div className="text-[10px] font-semibold text-sky">+{p.incoming_qty} yo'lda</div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2 justify-end">
@@ -904,13 +966,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const supabase = createClient(ctx)
   const [prodRes, availRes] = await Promise.all([
     supabase.from('products').select('*').order('name'),
-    supabase.from('v_product_availability').select('product_id, state, incoming_qty'),
+    supabase.from('v_product_availability').select('product_id, state, incoming_qty, remaining'),
   ])
   const avail = new Map<string, any>((availRes.data ?? []).map((a: any) => [a.product_id, a]))
   const products = (prodRes.data ?? []).map((p: any) => ({
     ...p,
     state: avail.get(p.id)?.state ?? null,
     incoming_qty: avail.get(p.id)?.incoming_qty ?? 0,
+    remaining: avail.get(p.id)?.remaining ?? 0,
   }))
   return { props: { products } }
 }
