@@ -77,3 +77,20 @@ Data unchanged, so audit unchanged (`neg-qoldi=0 web≠realR=0`). Typecheck clea
 ### Result
 One true stock number (`remaining = max(0, arrived − sold)`) now drives Products "Soni",
 dashboard "Qoldi", the website and the seller app. Restock is partiya-only. No negatives.
+
+---
+
+## Follow-up — distribute couldn't see arrived-via-«Keldi» stock  2026-08-04
+
+Symptom: newly-arrived products showed "0 ta bo'sh" in Distribute and allocations were
+blocked. Cause: Distribute + the DB guard `check_alloc_within_stock` run on
+`products.total_qty`, but «Keldi» (`markArrived`) never updates `total_qty`. Products that
+arrived via «Keldi» kept `total_qty = 0` (7 products drifted: 5 at 0, plus Glow Oil Mist /
+Vita-C at 5 vs arrived 10).
+
+Fix = **Option A: derive `total_qty` from arrived batches.**
+- Immediate: `scripts/sync-total-qty.mjs --commit` resynced all 7 (now 0 drifted).
+- Permanent: `docs/total-qty-from-batches-setup.md` — a trigger
+  (`trg_sync_total_qty` / `sync_total_qty_from_batches`) that recomputes
+  `total_qty = Σ arrived batches` on any batch change. **User runs this SQL block in Supabase.**
+  Once installed, «Keldi» updates the allocation ceiling automatically.
