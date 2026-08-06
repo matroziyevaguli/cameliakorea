@@ -39,27 +39,37 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
 
   const cellFor = (sid: string): Cell => cells[`${productId}|${sid}`] ?? { allocated: 0, sold: 0 }
 
-  // Pre-fill each seller's box with their CURRENT allocation when a product is picked.
-  function pickProduct(pid: string) {
-    setProductId(pid); setError(''); setSuccess(false)
-    if (!pid) { setQtys({}); return }
+  // Pre-fill each seller's box with what they CURRENTLY HOLD (on-hand = allocated − sold),
+  // NOT the cumulative allocation. A seller who sold everything shows 0.
+  function prefill(pid: string, source: Record<string, Cell> = cells) {
     const next: Record<string, string> = {}
     for (const s of sellers) {
-      const c = cells[`${pid}|${s.id}`]
-      next[s.id] = c && c.allocated > 0 ? String(c.allocated) : ''
+      const c = source[`${pid}|${s.id}`]
+      const onHand = c ? c.allocated - c.sold : 0
+      next[s.id] = onHand > 0 ? String(onHand) : ''
     }
     setQtys(next)
   }
+  function pickProduct(pid: string) {
+    setProductId(pid); setError(''); setSuccess(false)
+    if (!pid) { setQtys({}); return }
+    prefill(pid)
+  }
 
-  // Live totals (inputs are the NEW total allocation per seller — replace semantics)
-  const totalAssigning = useMemo(
+  // The box holds each seller's desired ON-HAND count. Live totals:
+  const totalOnHand = useMemo(                 // Σ units currently in sellers' hands
     () => sellers.reduce((sum, s) => sum + (Number(qtys[s.id]) || 0), 0),
     [qtys, sellers]
   )
-  const unallocated = selected ? selected.total_qty - totalAssigning : 0
-  const overLimit = selected ? totalAssigning > selected.total_qty : false
+  const soldTotal = useMemo(                   // Σ units already sold (fixed for the product)
+    () => sellers.reduce((sum, s) => sum + cellFor(s.id).sold, 0),
+    [productId, sellers, cells] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  // Warehouse free = arrived − with sellers − sold. Jami = onHand + sold + free.
+  const unallocated = selected ? selected.total_qty - totalOnHand - soldTotal : 0
+  const overLimit = selected ? unallocated < 0 : false
 
-  // Products with unallocated units left — recomputed from cells so it updates after saving.
+  // Products with unsold, undistributed units in the warehouse (total − Σ allocated).
   const undistributedList = useMemo(() =>
     products.map(p => {
       const allocated = sellers.reduce((n, s) => n + (cells[`${p.id}|${s.id}`]?.allocated ?? 0), 0)
@@ -68,21 +78,15 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
   , [products, sellers, cells])
   const totalLeft = undistributedList.reduce((n, p) => n + p.left, 0)
 
-  // Per-seller validation: cannot set below what they've already sold.
-  const belowSold = useMemo(() => sellers.filter(s => {
-    const raw = qtys[s.id]
-    if (raw === '' || raw === undefined) return false
-    return Number(raw) < cellFor(s.id).sold
-  }), [qtys, productId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   async function save() {
-    if (!selected || overLimit || belowSold.length) return
+    if (!selected || overLimit) return
     setLoading(true); setError('')
     const supabase = createBrowser()
 
-    // Build per-seller ops. Use explicit update/insert (NOT upsert): an upsert fires the
-    // BEFORE-INSERT stock trigger with a phantom new id that double-counts the seller's own
-    // current allocation, wrongly blocking valid edits.
+    // The box is desired ON-HAND; the stored column is cumulative qty_allocated = onHand + sold.
+    // Written this way, qty_allocated can never drop below qty_sold, so remaining stays ≥ 0 with
+    // no separate floor guard. Explicit update/insert (NOT upsert): upsert fires the BEFORE-INSERT
+    // stock trigger with a phantom id that double-counts the seller's own row and blocks valid edits.
     type Op = { kind: 'update' | 'insert' | 'delete'; seller_id: string; qty: number; delta: number }
     const ops: Op[] = []
 
@@ -90,11 +94,12 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
       const current = cellFor(s.id).allocated
       const sold = cellFor(s.id).sold
       const raw = qtys[s.id]
-      const next = raw === '' || raw === undefined ? 0 : Number(raw)
+      const onHand = raw === '' || raw === undefined ? 0 : Number(raw)
+      const next = onHand + sold                       // new qty_allocated
 
-      if (next === current) continue                 // no change
+      if (next === current) continue                   // no change
       if (next === 0) {
-        if (sold > 0) continue                        // never delete sold-from rows
+        // onHand 0 and nothing sold ⇒ remove the allocation entirely
         ops.push({ kind: 'delete', seller_id: s.id, qty: 0, delta: -current })
       } else if (current === 0) {
         ops.push({ kind: 'insert', seller_id: s.id, qty: next, delta: next })
@@ -120,13 +125,14 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
       if (err) { setError(err.message); setLoading(false); return }
     }
 
-    // Refresh cells client-side (no navigation)
+    // Refresh cells client-side (no navigation), then re-prefill boxes to the new on-hand.
     const { data: fresh } = await supabase.from('v_inventory')
       .select('seller_id, product_id, qty_allocated, qty_sold')
     if (fresh) {
       const map: Record<string, Cell> = {}
       for (const r of fresh) map[`${r.product_id}|${r.seller_id}`] = { allocated: r.qty_allocated, sold: r.qty_sold }
       setCells(map)
+      prefill(productId, map)
     }
 
     setLoading(false); setSuccess(true)
@@ -164,11 +170,12 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
 
           {selected && (
             <>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { label: 'Jami', value: selected.total_qty, color: 'bg-lavender/20 text-ink' },
-                  { label: 'Taqsimlangan', value: totalAssigning, color: 'bg-peach/20 text-ink' },
-                  { label: 'Qoldi', value: unallocated, color: unallocated < 0 ? 'bg-red-100 text-danger' : 'bg-mint/20 text-success' },
+                  { label: 'Sotuvchilarda', value: totalOnHand, color: 'bg-peach/20 text-ink' },
+                  { label: 'Sotilgan', value: soldTotal, color: 'bg-sky/10 text-ink' },
+                  { label: "Bo'sh", value: unallocated, color: unallocated < 0 ? 'bg-red-100 text-danger' : 'bg-mint/20 text-success' },
                 ].map(s => (
                   <div key={s.label} className={`${s.color} rounded-xl p-3 text-center`}>
                     <p className="text-xs text-muted mb-1">{s.label}</p>
@@ -178,40 +185,34 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
               </div>
 
               <p className="text-xs text-muted -mt-1">
-                Raqam — sotuvchidagi <b>yangi umumiy soni</b> (ustiga yoziladi). 0 qilsangiz — olib tashlanadi.
-                O'zgarish har bir qatorda <b className="text-rose">+3 / −1</b> ko'rinishida ko'rsatiladi.
+                Raqam — sotuvchining <b>hozir qo'lidagi soni</b>. Ko'paytirsangiz yangi partiya berasiz,
+                kamaytirsangiz qaytarib olasiz. Sotilgani alohida hisoblanadi. O'zgarish har qatorda{' '}
+                <b className="text-rose">+3 / −1</b> ko'rinishida ko'rsatiladi.
               </p>
 
               {overLimit && (
                 <div className="rounded-xl px-4 py-3 text-sm font-semibold bg-red-50 text-danger">
-                  {totalAssigning - selected.total_qty} ta oshib ketdi — jami {selected.total_qty} ta.
-                </div>
-              )}
-              {belowSold.length > 0 && (
-                <div className="rounded-xl px-4 py-3 text-sm font-semibold bg-red-50 text-danger space-y-1">
-                  {belowSold.map(s => (
-                    <div key={s.id}>{s.full_name}: {cellFor(s.id).sold} ta sotilgan — kamaytirib bo'lmaydi.</div>
-                  ))}
+                  {-unallocated} ta oshib ketdi — bo'sh {selected.total_qty - soldTotal} ta.
                 </div>
               )}
 
               <div className="space-y-2">
                 {sellers.map(s => {
                   const c = cellFor(s.id)
-                  const bad = belowSold.some(b => b.id === s.id)
+                  const onHandNow = c.allocated - c.sold           // what she holds right now
                   const raw = qtys[s.id]
                   const next = raw === '' || raw === undefined ? 0 : Number(raw)
-                  const delta = next - c.allocated   // the thing that used to be invisible
+                  const delta = next - onHandNow                   // change to her on-hand
                   return (
                     <div key={s.id} className="flex items-center gap-3 bg-cream rounded-xl px-4 py-3">
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-ink">{s.full_name}</span>
                         <span className="text-xs text-muted ml-2">
-                          hozir: {c.allocated} · sotildi: {c.sold}
+                          qo'lida: {onHandNow} · sotildi: {c.sold}
                         </span>
                       </div>
 
-                      {/* Live delta — makes "new total" vs "add" unmistakable */}
+                      {/* Live delta — how her on-hand changes */}
                       {delta !== 0 && (
                         <span className={`text-xs font-bold px-2 py-1 rounded-full flex-shrink-0 ${delta > 0 ? 'bg-green-100 text-success' : 'bg-orange-100 text-warning'}`}>
                           {delta > 0 ? `+${delta}` : delta}
@@ -231,7 +232,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                           value={qtys[s.id] ?? ''}
                           onChange={e => setQtys(q => ({ ...q, [s.id]: e.target.value }))}
                           placeholder="0"
-                          className={`w-16 bg-surface text-ink text-center rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 border-2 transition ${bad ? 'border-danger ring-danger' : 'border-transparent focus:ring-rose'}`}
+                          className="w-16 bg-surface text-ink text-center rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 border-2 border-transparent focus:ring-rose transition"
                         />
                         <button type="button" aria-label="Ko'paytirish"
                           onClick={() => setQtys(q => ({ ...q, [s.id]: String(next + 1) }))}
@@ -253,7 +254,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
 
               <button
                 onClick={save}
-                disabled={loading || overLimit || belowSold.length > 0}
+                disabled={loading || overLimit}
                 className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50"
               >
                 <Share2 className="w-5 h-5" />
