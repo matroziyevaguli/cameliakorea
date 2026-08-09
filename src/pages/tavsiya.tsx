@@ -7,6 +7,7 @@ import { formatUZS } from '@/lib/format'
 import { stateOf, STATE_LABEL, STATE_STYLE, isBuyable, type ProductState } from '@/lib/availability'
 import { SKIN_TYPES, CONCERNS, SKIN_TYPE_LABEL, CONCERN_LABEL, TAG_TYPES, type SkinType } from '@/consts/skincare'
 import { Sparkles, ArrowRight, ArrowLeft, Check, RotateCcw } from 'lucide-react'
+import CartFab from '@/components/CartFab'
 
 type SurveyProduct = {
   id: string; name: string; image_url: string | null
@@ -196,6 +197,7 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
             </section>
           )}
         </main>
+        <CartFab />
       </div>
     </>
   )

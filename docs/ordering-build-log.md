@@ -70,3 +70,33 @@ Public, rule-based skincare quiz → recommendations. No auth, no writes.
 
 **Verify:** simulated dry + dryness/dullness → 14 exact matches, best (Glow Oil Mist, Snail Cream)
 ranked first. `tsc` clean · `yarn build` ok (`/tavsiya`).
+
+---
+
+## Phase 2 — Cart + checkout + orders ✅ (code)  2026-08-09
+
+**DB (owner runs):** `docs/ordering-phase2-setup.md` — `customers`, `orders`, `order_items`,
+updated_at trigger, admin RLS, private `order-receipts` bucket. **Also:** BotFather `/setdomain`
+→ site domain, and env `NEXT_PUBLIC_TELEGRAM_BOT` (bot @username). Inert until done.
+
+**Auth (Telegram, decoupled from admin/seller Supabase Auth)**
+- `lib/customerAuth.ts` — verify Telegram widget hash (bot token), opaque `session_token` in an
+  httpOnly cookie, `getCustomer(req)` via service role.
+- `api/auth/telegram` (verify→upsert customer→session), `api/auth/logout`, `api/auth/me`.
+- `components/TelegramLogin.tsx` — the widget.
+
+**Cart** `lib/cart.ts` (localStorage + window-event sync) · `components/CartFab.tsx` (floating
+badge → /savat, on storefront/product/survey) · "Savatga qo'shish" on the product page.
+
+**Checkout** `pages/savat.tsx` — cart editor + login gate + city/address/contact form.
+`api/orders/create` re-validates every line against `v_shop` (stock+price), resolves the
+city's seller (else Gulshan), writes `orders` + `order_items`, returns the seller's card.
+
+**Payment + status** `api/orders/receipt` (compressed screenshot → private bucket →
+awaiting_confirmation) · `pages/buyurtma/[id].tsx` — SSR owner-checked status page showing the
+card + amount, receipt upload, and re-upload on reject.
+
+**Verify:** `tsc` clean · `yarn build` compiles all routes (/savat, /buyurtma/[id], 5 API routes).
+Order confirmation → seller sale (stock integration) is **Phase 3** (admin Orders page).
+
+## Next: Phase 3 — /admin/orders (view receipt, confirm→seller sale, assign, deliver) + notifications.

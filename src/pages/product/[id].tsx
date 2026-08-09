@@ -5,7 +5,9 @@ import { useState } from 'react'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
 import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
-import { Send, ChevronLeft, Play } from 'lucide-react'
+import { useCart } from '@/lib/cart'
+import CartFab from '@/components/CartFab'
+import { Send, ChevronLeft, Play, ShoppingBag, Check } from 'lucide-react'
 
 type Product = {
   id: string
@@ -24,6 +26,8 @@ const TELEGRAM = 'https://t.me/cameliakorea'
 
 export default function ProductPage({ product }: { product: Product | null }) {
   const [active, setActive] = useState(0)
+  const { add } = useCart()
+  const [added, setAdded] = useState(false)
 
   if (!product) return (
     <div className="min-h-screen bg-cream grid place-items-center text-muted">Mahsulot topilmadi.</div>
@@ -104,10 +108,21 @@ export default function ProductPage({ product }: { product: Product | null }) {
                   className="w-full flex items-center justify-center gap-2 bg-ink text-white font-display font-bold text-lg py-4 rounded-full active:scale-95 transition">
                   <Send className="w-5 h-5" /> Mavjudligini so'rash
                 </a>
+              ) : added ? (
+                <Link href="/savat"
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-mint to-success text-white font-display font-bold text-lg py-4 rounded-full shadow-card active:scale-95 transition">
+                  <Check className="w-5 h-5" /> Savatga qo'shildi — Savatga o'tish
+                </Link>
               ) : (
-                <a href={`${TELEGRAM}?text=${orderText}`} target="_blank" rel="noreferrer"
+                <button onClick={() => { add({ id: product.id, name: product.name, price, image_url: product.images[0] ?? null }); setAdded(true) }}
                   className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition">
-                  <Send className="w-5 h-5" /> Telegram orqali buyurtma
+                  <ShoppingBag className="w-5 h-5" /> Savatga qo'shish
+                </button>
+              )}
+              {!soldOut && (
+                <a href={`${TELEGRAM}?text=${orderText}`} target="_blank" rel="noreferrer"
+                  className="w-full flex items-center justify-center gap-2 bg-white text-ink font-semibold py-3.5 rounded-full shadow-card active:scale-95 transition">
+                  <Send className="w-5 h-5 text-rose" /> Telegram orqali buyurtma
                 </a>
               )}
               {product.link && (
@@ -127,6 +142,7 @@ export default function ProductPage({ product }: { product: Product | null }) {
             </div>
           </div>
         </main>
+        <CartFab />
       </div>
     </>
   )

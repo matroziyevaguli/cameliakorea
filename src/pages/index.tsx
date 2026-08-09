@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
+import CartFab from '@/components/CartFab'
 import { formatUZS } from '@/lib/format'
 import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
 import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ShieldCheck as Shield } from 'lucide-react'
@@ -284,6 +285,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             © 2026 Camelia Korea · <Link href="/login" className="hover:text-white/80">Kirish</Link>
           </div>
         </footer>
+        <CartFab />
       </div>
     </>
   )
