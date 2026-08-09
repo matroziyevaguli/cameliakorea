@@ -6,9 +6,10 @@ import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import HeaderCart from '@/components/HeaderCart'
 import TelegramLogin from '@/components/TelegramLogin'
+import { useCart } from '@/lib/cart'
 import { formatUZS } from '@/lib/format'
 import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
-import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ClipboardList, LogOut, ShieldCheck as Shield } from 'lucide-react'
+import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ClipboardList, LogOut, Check, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
   const [open, setOpen] = useState(false)
@@ -110,12 +111,22 @@ type ShopProduct = {
   state?: string | null            // from v_product_availability
   restock_coming?: boolean | null  // v_shop exposes a boolean, not a count
   just_arrived?: boolean | null
+  category?: string | null         // optional; only once v_shop exposes it
 }
 
 const CARD_COLORS = ['#F4628E', '#B9A7F0', '#6FD8C0', '#7CC4F2', '#FFB088', '#E14B79']
 const TELEGRAM = 'https://t.me/cameliakorea'
 
 export default function Store({ products }: { products: ShopProduct[] }) {
+  const { add } = useCart()
+  const [cat, setCat] = useState('')
+  const [addedId, setAddedId] = useState<string | null>(null)
+  const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean))) as string[]
+  const shown = cat ? products.filter(p => p.category === cat) : products
+  function quickAdd(p: ShopProduct) {
+    add({ id: p.id, name: p.name, price: p.discount_price ?? p.retail_price, image_url: p.image_url })
+    setAddedId(p.id); setTimeout(() => setAddedId(c => (c === p.id ? null : c)), 1500)
+  }
   return (
     <>
       <Head>
@@ -215,6 +226,22 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             )}
           </div>
 
+          {/* Category filter chips (shown once products carry a category) */}
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              <button onClick={() => setCat('')}
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${cat === '' ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-white text-muted shadow-card hover:text-ink'}`}>
+                Hammasi
+              </button>
+              {categories.map(c => (
+                <button key={c} onClick={() => setCat(c)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${cat === c ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-white text-muted shadow-card hover:text-ink'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+
           {products.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-16 text-center">
               <p className="text-muted">Katalog tez orada to'ldiriladi. Yangiliklar uchun Telegram'ga obuna bo'ling.</p>
@@ -225,7 +252,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-              {products.map((p, i) => {
+              {shown.map((p, i) => {
                 // ONE stock signal, from the shared vocabulary (redesign.md §1.1).
                 const st = stateOf(p)
                 const soldOut = !isBuyable(st)
@@ -275,9 +302,18 @@ export default function Store({ products }: { products: ShopProduct[] }) {
                           <span className={`font-display font-bold ${soldOut ? 'text-muted' : 'text-ink'}`}>{formatUZS(p.retail_price)}</span>
                         )}
                       </div>
-                      <span className={`mt-3 inline-flex items-center gap-1 text-xs font-semibold transition-all ${soldOut ? 'text-muted' : 'text-rose group-hover:gap-2'}`}>
-                        Batafsil <ArrowRight className="w-3.5 h-3.5" />
-                      </span>
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold transition-all ${soldOut ? 'text-muted' : 'text-rose group-hover:gap-2'}`}>
+                          Batafsil <ArrowRight className="w-3.5 h-3.5" />
+                        </span>
+                        {!soldOut && (
+                          <button aria-label="Savatga qo'shish"
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); quickAdd(p) }}
+                            className={`w-8 h-8 rounded-full grid place-items-center flex-shrink-0 active:scale-90 transition ${addedId === p.id ? 'bg-success text-white' : 'bg-cream text-rose hover:bg-rose hover:text-white'}`}>
+                            {addedId === p.id ? <Check className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </Link>
                 )
@@ -342,7 +378,8 @@ export const getServerSideProps: GetServerSideProps = async () => {
     const BASE = 'id, name, retail_price, discount_price, image_url, description, remaining'
     // v_shop exposes `restock_coming` (boolean) — NOT `incoming_qty`. Asking for the
     // wrong name 400s and silently drops us to the fallback, losing `state` entirely.
-    let res: any = await pub.from('v_shop').select(`${BASE}, state, restock_coming, just_arrived`).order('name')
+    let res: any = await pub.from('v_shop').select(`${BASE}, state, restock_coming, just_arrived, category`).order('name')
+    if (res.error) res = await pub.from('v_shop').select(`${BASE}, state, restock_coming, just_arrived`).order('name')
     if (res.error) res = await pub.from('v_shop').select(BASE).order('name')
     if (!res.error && res.data) data = res.data
   } catch { /* fall through */ }
@@ -376,6 +413,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
     state: p.state ?? null,
     restock_coming: p.restock_coming ?? null,
     just_arrived: p.just_arrived ?? null,
+    category: p.category ?? null,
   }))
 
   // Buyable first; "coming back" ahead of plain sold-out, so a customer sees hope

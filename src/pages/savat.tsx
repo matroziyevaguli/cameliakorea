@@ -2,7 +2,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
-import { useCart } from '@/lib/cart'
+import { useCart, type CartItem } from '@/lib/cart'
 import { formatUZS } from '@/lib/format'
 import { CITIES } from '@/consts/geo'
 import TelegramLogin from '@/components/TelegramLogin'
@@ -19,6 +19,13 @@ export default function Cart() {
   const [form, setForm] = useState({ city: '', address: '', contact_name: '', contact_phone: '', email: '', note: '' })
   const [placing, setPlacing] = useState(false)
   const [error, setError] = useState('')
+  const [confirmRemove, setConfirmRemove] = useState<CartItem | null>(null)
+
+  // Decrement, but if it would empty the line, ask first.
+  function decrement(i: CartItem) {
+    if (i.qty <= 1) setConfirmRemove(i)
+    else setQty(i.id, i.qty - 1)
+  }
 
   async function loadMe() {
     const res = await fetch('/api/auth/me')
@@ -84,10 +91,10 @@ export default function Cart() {
                       <p className="text-sm font-display font-bold text-ink mt-0.5">{formatUZS(i.price)}</p>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => setQty(i.id, i.qty - 1)} className="w-8 h-8 rounded-full bg-cream grid place-items-center active:scale-90 transition"><Minus className="w-4 h-4" /></button>
+                      <button onClick={() => decrement(i)} className="w-8 h-8 rounded-full bg-cream grid place-items-center active:scale-90 transition"><Minus className="w-4 h-4" /></button>
                       <span className="w-7 text-center font-semibold">{i.qty}</span>
                       <button onClick={() => setQty(i.id, i.qty + 1)} className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition"><Plus className="w-4 h-4" /></button>
-                      <button onClick={() => remove(i.id)} aria-label="O'chirish" className="ml-1 text-muted hover:text-danger transition"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => setConfirmRemove(i)} aria-label="O'chirish" className="ml-1 text-muted hover:text-danger transition"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -150,6 +157,25 @@ export default function Cart() {
             </div>
           )}
         </main>
+
+        {/* Remove-from-cart confirmation */}
+        {confirmRemove && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmRemove(null)} />
+            <div className="relative bg-surface rounded-2xl shadow-card p-6 max-w-xs w-full">
+              <p className="font-display font-bold text-ink text-lg mb-1">Savatdan olib tashlash</p>
+              <p className="text-sm text-muted mb-5">
+                <b className="text-ink">«{confirmRemove.name}»</b> savatdan olib tashlansinmi?
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmRemove(null)}
+                  className="flex-1 bg-cream text-ink text-sm font-semibold py-3 rounded-full active:scale-95 transition">Yo'q</button>
+                <button onClick={() => { remove(confirmRemove.id); setConfirmRemove(null) }}
+                  className="flex-1 bg-danger text-white text-sm font-semibold py-3 rounded-full active:scale-95 transition">Ha, olib tashlash</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

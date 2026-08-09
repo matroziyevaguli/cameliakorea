@@ -9,7 +9,8 @@ import { compressImage } from '@/lib/image'
 import { formatUZS } from '@/lib/format'
 import { CITY_LABEL } from '@/consts/geo'
 import CardPreview from '@/components/CardPreview'
-import { ArrowLeft, Upload, Loader2, CheckCircle, Clock, Truck, XCircle, CreditCard } from 'lucide-react'
+import { cardDigits } from '@/lib/card'
+import { ArrowLeft, Upload, Loader2, CheckCircle, Clock, Truck, XCircle, CreditCard, Copy } from 'lucide-react'
 
 type Item = { product_name: string; unit_price: number; qty: number }
 type Seller = { name: string | null; card_number: string | null; card_holder: string | null } | null
@@ -33,6 +34,14 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  async function copyCard() {
+    try {
+      await navigator.clipboard.writeText(cardDigits(seller?.card_number))
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    } catch { /* clipboard may be blocked; the number is visible anyway */ }
+  }
   const meta = STATUS[order.status] ?? STATUS.pending_payment
   const Icon = meta.icon
   const canUpload = ['pending_payment', 'awaiting_payment_retry', 'rejected', 'awaiting_confirmation'].includes(order.status)
@@ -87,6 +96,10 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
                 <div className="mb-4">
                   <p className="text-xs text-muted mb-2">Ushbu kartaga o'tkazing:</p>
                   <CardPreview number={seller.card_number} holder={seller.card_holder} />
+                  <button onClick={copyCard}
+                    className="w-full mt-2 flex items-center justify-center gap-2 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">
+                    {copied ? <><CheckCircle className="w-4 h-4 text-success" /> Nusxalandi</> : <><Copy className="w-4 h-4" /> Karta raqamini nusxalash</>}
+                  </button>
                   <p className="text-sm mt-3 text-center">Summa: <b className="text-ink text-base">{formatUZS(order.subtotal)}</b></p>
                 </div>
               ) : (

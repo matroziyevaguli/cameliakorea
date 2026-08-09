@@ -138,3 +138,23 @@ Per `docs/user-experience-plan.md` §1. When a customer is logged in, the header
 + a small "Admin / Sotuvchi sifatida kirish" link). A **cart icon with count badge** (`HeaderCart`)
 is now always in the header; the landing-page floating cart is removed as redundant. Logged-out
 header is unchanged (Kirish → Telegram login + staff options).
+
+---
+
+## UX #2–#6 + login + cart-confirm  2026-08-10
+
+- **Login security:** `/login` name **dropdown → typed input** (seller name or admin email);
+  removed the public seller-name list (`v_login_sellers` no longer fetched). `sellerEmail()` maps
+  a typed name → login email; generic "Ism yoki parol noto'g'ri" error.
+- **Cart remove confirm:** subtracting at qty 1 (or the trash button) opens an Uzbek confirm modal
+  ("«…» savatdan olib tashlansinmi?") before removing.
+- **#2 Quick-add:** cart button on storefront cards + survey result cards (buyable only), with a ✓
+  flash; prevents card navigation.
+- **#3 Quantity stepper** on the product page (bounded by remaining) → adds N.
+- **#4 Copy card number** button on the payment screen (Nusxalandi ✓).
+- **#5 Category chips** on the landing page (filter by `products.category`). Needs
+  `docs/ordering-category-in-shop-view.md` (exposes `category` on `v_shop`); storefront degrades
+  gracefully until it's run (verified: category select 400s → base select 200).
+- **#6 My-orders tabs:** Faol / Yakunlangan / Hammasi on `/buyurtmalarim`.
+
+`tsc` clean · `yarn build` ok. Only remaining owner action for these: run the v_shop category SQL.

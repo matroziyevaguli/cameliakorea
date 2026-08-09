@@ -8,6 +8,8 @@ import { stateOf, STATE_LABEL, STATE_STYLE, isBuyable, type ProductState } from 
 import { SKIN_TYPES, CONCERNS, SKIN_TYPE_LABEL, CONCERN_LABEL, TAG_TYPES, type SkinType } from '@/consts/skincare'
 import { Sparkles, ArrowRight, ArrowLeft, Check, RotateCcw } from 'lucide-react'
 import CartFab from '@/components/CartFab'
+import { useCart } from '@/lib/cart'
+import { ShoppingBag } from 'lucide-react'
 
 type SurveyProduct = {
   id: string; name: string; image_url: string | null
@@ -23,6 +25,8 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
   const [step, setStep] = useState<'skin' | 'concerns' | 'results'>('skin')
   const [skinType, setSkinType] = useState<SkinType | ''>('')
   const [concerns, setConcerns] = useState<string[]>([])
+  const { add } = useCart()
+  const [addedId, setAddedId] = useState<string | null>(null)
 
   function toggleConcern(v: string) {
     setConcerns(c => c.includes(v) ? c.filter(x => x !== v) : c.length < MAX_CONCERNS ? [...c, v] : c)
@@ -171,9 +175,18 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
                         {p.matched.length > 0 && (
                           <p className="text-[11px] text-success mt-2 leading-snug">✓ {p.matched.map(c => CONCERN_LABEL[c]).join(', ')} uchun</p>
                         )}
-                        <span className="inline-flex items-center gap-1 text-xs text-rose font-semibold mt-2 group-hover:gap-1.5 transition-all">
-                          Ko'rish <ArrowRight className="w-3.5 h-3.5" />
-                        </span>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1 text-xs text-rose font-semibold group-hover:gap-1.5 transition-all">
+                            Ko'rish <ArrowRight className="w-3.5 h-3.5" />
+                          </span>
+                          {isBuyable(st) && (
+                            <button aria-label="Savatga qo'shish"
+                              onClick={e => { e.preventDefault(); e.stopPropagation(); add({ id: p.id, name: p.name, price, image_url: p.image_url }); setAddedId(p.id); setTimeout(() => setAddedId(c => c === p.id ? null : c), 1500) }}
+                              className={`w-8 h-8 rounded-full grid place-items-center flex-shrink-0 active:scale-90 transition ${addedId === p.id ? 'bg-success text-white' : 'bg-cream text-rose hover:bg-rose hover:text-white'}`}>
+                              {addedId === p.id ? <Check className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </Link>
                   )

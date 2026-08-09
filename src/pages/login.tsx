@@ -3,26 +3,17 @@ import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
 import { GetServerSideProps } from 'next'
 import { createClient as createServerClient } from '@/lib/supabase/server'
-import { createPublicClient } from '@/lib/supabase/api'
 import { sellerEmail } from '@/lib/sellerEmail'
 import { User, Lock, Sparkles } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { SELLER_CONFIG } from '@/consts/sellerConfig'
 import { MiniSpinner } from '@/components/Loader'
 
-const ADMIN = { label: 'Admin (Guli)', email: 'matroziyevaguli@gmail.com', role: 'admin' as const }
-
-export default function Login({ sellerNames }: { sellerNames: string[] }) {
+export default function Login() {
   const router = useRouter()
-  // Build the user list: the admin + every active seller (loaded from the DB).
-  const USERS = [
-    ADMIN,
-    ...sellerNames.map(n => ({ label: n, email: sellerEmail(n), role: 'seller' as const })),
-  ]
-  // ?as=admin / ?as=seller from the landing login menu filters who's shown.
-  const as = router.query.as
-  const users = as === 'admin' || as === 'seller' ? USERS.filter(u => u.role === as) : USERS
-  const [email, setEmail] = useState('')
+  // ?as=admin hints an email login; sellers type their name. We never list names (privacy).
+  const isAdmin = router.query.as === 'admin'
+  const [identity, setIdentity] = useState('')   // seller name, or an email (admin)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -32,13 +23,19 @@ export default function Login({ sellerNames }: { sellerNames: string[] }) {
     setLoading(true)
     setError('')
 
+    // A value with "@" is used as the email as-is (admin); otherwise it's a seller name we
+    // deterministically turn into their login email — no name list is exposed anywhere.
+    const value = identity.trim()
+    const loginEmail = value.includes('@') ? value.toLowerCase() : sellerEmail(value)
+
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const { error: authError } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
 
     if (authError) {
-      // The name comes from a fixed dropdown, so it is always a real account —
-      // "invalid credentials" can only mean the password (G8: say which field).
-      setError(/invalid login|credentials/i.test(authError.message) ? S.loginWrongPassword : S.loginNetworkError)
+      // With a typed identity, a bad login can be a wrong name OR wrong password — say both.
+      setError(/invalid login|credentials/i.test(authError.message)
+        ? "Ism yoki parol noto'g'ri. Qayta urinib ko'ring."
+        : S.loginNetworkError)
       setLoading(false)
       return
     }
@@ -69,20 +66,19 @@ export default function Login({ sellerNames }: { sellerNames: string[] }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* User select */}
+          {/* Identity — typed, not a list (so names aren't exposed) */}
           <div className="relative">
             <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted pointer-events-none" />
-            <select
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+            <input
+              type="text"
+              value={identity}
+              onChange={e => setIdentity(e.target.value)}
               required
-              className={`w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-cream font-sans text-base focus:outline-none focus:border-rose transition appearance-none ${email ? 'text-ink' : 'text-muted'}`}
-            >
-              <option value="" disabled>Ismingizni tanlang</option>
-              {users.map(u => (
-                <option key={u.email} value={u.email} className="text-ink">{u.label}</option>
-              ))}
-            </select>
+              autoComplete="username"
+              autoCapitalize="none"
+              placeholder={isAdmin ? 'Email' : 'Ismingiz'}
+              className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-cream text-ink placeholder:text-muted font-sans text-base focus:outline-none focus:border-rose transition"
+            />
           </div>
 
           {/* Password field */}
@@ -139,16 +135,5 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     if (profile?.role === 'seller') return { redirect: { destination: '/seller', permanent: false } }
   }
 
-  // Load active seller names for the dropdown (public view, anon key).
-  let sellerNames: string[] = []
-  try {
-    const pub = createPublicClient()
-    const { data } = await pub.from('v_login_sellers').select('full_name')
-    if (data) sellerNames = data.map((r: any) => r.full_name)
-  } catch { /* view may not exist yet */ }
-
-  // Fallback so login always works even before the v_login_sellers SQL is run.
-  if (sellerNames.length === 0) sellerNames = ['GULSHAN', 'ADOLAT', 'SAIDA']
-
-  return { props: { sellerNames } }
+  return { props: {} }
 }

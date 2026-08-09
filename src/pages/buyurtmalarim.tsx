@@ -1,6 +1,7 @@
 import { GetServerSideProps } from 'next'
 import Head from 'next/head'
 import Link from 'next/link'
+import { useState } from 'react'
 import { createServiceClient } from '@/lib/supabase/api'
 import { CUSTOMER_COOKIE } from '@/lib/customerAuth'
 import { formatUZS, formatDate } from '@/lib/format'
@@ -19,7 +20,16 @@ const LABEL: Record<string, { t: string; cls: string }> = {
   cancelled:              { t: 'Bekor qilindi',     cls: 'bg-gray-100 text-muted' },
 }
 
+const DONE = ['delivered', 'cancelled']
+const TABS = [
+  { key: 'active', label: 'Faol' },
+  { key: 'done',   label: 'Yakunlangan' },
+  { key: 'all',    label: 'Hammasi' },
+]
+
 export default function MyOrders({ loggedIn, orders }: { loggedIn: boolean; orders: OrderRow[] }) {
+  const [tab, setTab] = useState('active')
+  const shown = orders.filter(o => tab === 'all' ? true : tab === 'done' ? DONE.includes(o.status) : !DONE.includes(o.status))
   return (
     <>
       <Head><title>Mening buyurtmalarim — Camelia Korea</title></Head>
@@ -44,8 +54,23 @@ export default function MyOrders({ loggedIn, orders }: { loggedIn: boolean; orde
               <Link href="/#mahsulotlar" className="inline-flex items-center gap-2 mt-4 text-rose font-semibold">Katalogni ko'rish</Link>
             </div>
           ) : (
-            <div className="space-y-3">
-              {orders.map(o => {
+            <>
+              <div className="flex gap-2 mb-4">
+                {TABS.map(t => {
+                  const n = orders.filter(o => t.key === 'all' ? true : t.key === 'done' ? DONE.includes(o.status) : !DONE.includes(o.status)).length
+                  return (
+                    <button key={t.key} onClick={() => setTab(t.key)}
+                      className={`px-4 py-2 rounded-full text-sm font-semibold transition ${tab === t.key ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted hover:text-ink'}`}>
+                      {t.label}{n > 0 && <span className="ml-1.5 opacity-80">{n}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+              {shown.length === 0 ? (
+                <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted">Bu bo'limda buyurtma yo'q.</div>
+              ) : (
+              <div className="space-y-3">
+              {shown.map(o => {
                 const l = LABEL[o.status] ?? LABEL.pending_payment
                 return (
                   <Link key={o.id} href={`/buyurtma/${o.id}`}
@@ -62,7 +87,9 @@ export default function MyOrders({ loggedIn, orders }: { loggedIn: boolean; orde
                   </Link>
                 )
               })}
-            </div>
+              </div>
+              )}
+            </>
           )}
         </main>
       </div>

@@ -28,6 +28,7 @@ export default function ProductPage({ product }: { product: Product | null }) {
   const [active, setActive] = useState(0)
   const { add } = useCart()
   const [added, setAdded] = useState(false)
+  const [qty, setQty] = useState(1)
 
   if (!product) return (
     <div className="min-h-screen bg-cream grid place-items-center text-muted">Mahsulot topilmadi.</div>
@@ -114,10 +115,20 @@ export default function ProductPage({ product }: { product: Product | null }) {
                   <Check className="w-5 h-5" /> Savatga qo'shildi — Savatga o'tish
                 </Link>
               ) : (
-                <button onClick={() => { add({ id: product.id, name: product.name, price, image_url: product.images[0] ?? null }); setAdded(true) }}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition">
-                  <ShoppingBag className="w-5 h-5" /> Savatga qo'shish
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* Quantity stepper */}
+                  <div className="flex items-center gap-1 bg-cream rounded-full p-1 flex-shrink-0">
+                    <button aria-label="Kamaytirish" onClick={() => setQty(q => Math.max(1, q - 1))}
+                      className="w-10 h-10 rounded-full bg-surface grid place-items-center text-ink active:scale-90 transition">−</button>
+                    <span className="w-8 text-center font-display font-bold text-ink">{qty}</span>
+                    <button aria-label="Ko'paytirish" onClick={() => setQty(q => Math.min(product.remaining, q + 1))}
+                      className="w-10 h-10 rounded-full bg-surface grid place-items-center text-ink active:scale-90 transition">+</button>
+                  </div>
+                  <button onClick={() => { add({ id: product.id, name: product.name, price, image_url: product.images[0] ?? null }, qty); setAdded(true) }}
+                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition">
+                    <ShoppingBag className="w-5 h-5" /> Savatga qo'shish
+                  </button>
+                </div>
               )}
               {!soldOut && (
                 <a href={`${TELEGRAM}?text=${orderText}`} target="_blank" rel="noreferrer"
