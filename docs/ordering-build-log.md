@@ -38,3 +38,18 @@ products. Survey (Phase 1) is only meaningful once some products carry skin_type
 ---
 
 ## Next: Phase 1 — Survey (`/tavsiya`), rule-based matching. Needs a few tagged products to test against.
+
+---
+
+## Phase 0.5 — Catalog tagged  2026-08-09
+
+Owner approved the tag/category proposal (`docs/ordering-product-tags-proposal.md`) with 3 calls:
+Dalba = Waterfull **mist** (face), Glutathione = **included** in survey (brightening add-on),
+Lola Nudy Spray = **body** (excluded).
+
+`scripts/apply-product-tags.mjs --commit` (validates a 1:1 name→rule match, aborts if ambiguous):
+- **32/32** products categorised (no nulls); **23** carry skin_type ⇒ in the survey, 9 are other
+  departments (dental×3, foot×2, deodorant, hair, body spray, — category only).
+- `product_tags`: **127 rows** (78 skin_type + 49 concern). Re-runnable (replaces each product's tags).
+
+Coverage is solid — every skin type + concern maps to multiple products, so Phase 1 has real data.
