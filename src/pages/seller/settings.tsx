@@ -5,14 +5,38 @@ import { useState, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
-import { Lock, CheckCircle, LogOut, ClipboardList, HelpCircle, Type } from 'lucide-react'
+import { Lock, CheckCircle, LogOut, ClipboardList, HelpCircle, Type, CreditCard } from 'lucide-react'
 import { MiniSpinner } from '@/components/Loader'
 import HelpSheet from '@/components/HelpSheet'
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
+import { CITIES } from '@/consts/geo'
 
-export default function SellerSettings({ sellerName }: { sellerName: string }) {
+type CardInfo = { card_number: string | null; card_holder: string | null; city: string | null }
+
+export default function SellerSettings({ sellerName, card }: { sellerName: string; card: CardInfo }) {
   const router = useRouter()
+
+  // Payout card — shown to customers who order for this seller's city.
+  const [cardForm, setCardForm] = useState({
+    card_number: card.card_number ?? '', card_holder: card.card_holder ?? '', city: card.city ?? '',
+  })
+  const [cardBusy, setCardBusy] = useState(false)
+  const [cardDone, setCardDone] = useState(false)
+  const [cardErr, setCardErr] = useState('')
+
+  async function saveCard(e: React.FormEvent) {
+    e.preventDefault()
+    setCardBusy(true); setCardErr(''); setCardDone(false)
+    const res = await fetch('/api/seller/update-card', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cardForm),
+    })
+    const j = await res.json().catch(() => ({}))
+    setCardBusy(false)
+    if (!res.ok) { setCardErr(j.error ?? 'Xatolik'); return }
+    setCardDone(true); setTimeout(() => setCardDone(false), 2500)
+  }
+
   const [pw1, setPw1] = useState('')
   const [pw2, setPw2] = useState('')
   const [loading, setLoading] = useState(false)
@@ -90,6 +114,42 @@ export default function SellerSettings({ sellerName }: { sellerName: string }) {
           <p className="font-semibold text-ink text-sm">{S.help}</p>
         </button>
 
+        {/* Payout card — for online orders */}
+        <div className="bg-surface rounded-2xl shadow-card p-6">
+          <h2 className="font-display font-bold text-ink text-lg mb-1 flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-rose" /> To'lov kartangiz
+          </h2>
+          <p className="text-xs text-muted mb-5">Onlayn buyurtmalarda mijozlar shu kartaga o'tkazma qiladi.</p>
+          <form onSubmit={saveCard} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Shahar</label>
+              <select value={cardForm.city} onChange={e => setCardForm(f => ({ ...f, city: e.target.value }))}
+                className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
+                <option value="">— tanlang —</option>
+                {CITIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Karta raqami</label>
+              <input value={cardForm.card_number} onChange={e => setCardForm(f => ({ ...f, card_number: e.target.value }))}
+                placeholder="8600 **** **** ****" inputMode="numeric"
+                className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-muted mb-1">Karta egasi (ism)</label>
+              <input value={cardForm.card_holder} onChange={e => setCardForm(f => ({ ...f, card_holder: e.target.value }))}
+                placeholder="Masalan: GULSHANOY M."
+                className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+            </div>
+            {cardErr && <div className="bg-red-50 text-danger text-sm text-center py-3 rounded-xl">{cardErr}</div>}
+            {cardDone && <div className="flex items-center justify-center gap-2 bg-green-50 text-success text-sm font-semibold py-3 rounded-xl"><CheckCircle className="w-4 h-4" /> Saqlandi!</div>}
+            <button type="submit" disabled={cardBusy}
+              className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-60">
+              {cardBusy && <MiniSpinner />} {cardBusy ? 'Saqlanmoqda…' : 'Kartani saqlash'}
+            </button>
+          </form>
+        </div>
+
         {/* Change password */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h2 className="font-display font-bold text-ink text-lg mb-1 flex items-center gap-2">
@@ -144,7 +204,15 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
 
   const supabase = createClient(ctx)
   const { data: { session } } = await supabase.auth.getSession()
-  const { data: profile } = await supabase.from('profiles').select('full_name').eq('user_id', session!.user.id).single()
+  const { data: profile } = await supabase.from('profiles')
+    .select('full_name, card_number, card_holder, city').eq('user_id', session!.user.id).single()
 
-  return { props: { sellerName: profile?.full_name ?? '' } }
+  return { props: {
+    sellerName: profile?.full_name ?? '',
+    card: {
+      card_number: profile?.card_number ?? null,
+      card_holder: profile?.card_holder ?? null,
+      city: profile?.city ?? null,
+    },
+  } }
 }
