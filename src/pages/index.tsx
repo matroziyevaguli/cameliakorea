@@ -121,13 +121,13 @@ export default function Store({ products }: { products: ShopProduct[] }) {
               buyurtma uchun Telegram yoki telefon orqali bog'laning.
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
-              <a href="#mahsulotlar"
+              <a href="/tavsiya"
                 className="flex items-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold px-6 py-3.5 rounded-full shadow-rose active:scale-95 transition">
-                Katalogni ko'rish <ArrowRight className="w-5 h-5" />
+                <Sparkles className="w-5 h-5" /> Teringizga mos mahsulotni toping
               </a>
-              <a href={TELEGRAM} target="_blank" rel="noreferrer"
+              <a href="#mahsulotlar"
                 className="flex items-center gap-2 bg-white text-ink font-semibold px-6 py-3.5 rounded-full shadow-card active:scale-95 transition">
-                <Send className="w-5 h-5 text-rose" /> Telegram'da yozish
+                Katalogni ko'rish <ArrowRight className="w-5 h-5" />
               </a>
             </div>
 

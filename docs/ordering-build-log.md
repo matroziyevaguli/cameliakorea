@@ -53,3 +53,20 @@ Lola Nudy Spray = **body** (excluded).
 - `product_tags`: **127 rows** (78 skin_type + 49 concern). Re-runnable (replaces each product's tags).
 
 Coverage is solid — every skin type + concern maps to multiple products, so Phase 1 has real data.
+
+---
+
+## Phase 1 — Survey (`/tavsiya`) ✅  2026-08-09
+
+Public, rule-based skincare quiz → recommendations. No auth, no writes.
+- `src/pages/tavsiya.tsx`: 2-step quiz (skin type → concerns, ≤3), then ranked results.
+  SSR pulls `v_shop` (buyable/state/remaining) + `product_tags` (anon read) and merges.
+- **Ranking (plan §1):** tier 0 = skin match AND ≥1 concern (by # matched), tier 1 = skin-only,
+  tier 2 = rest; in-stock and discounted rise within a tier; top 8 shown. Fallback header
+  "Sizga yoqishi mumkin" + soft note when exact matches < 3. Out-of-stock ranked last, greyed.
+- Result cards show state badge (shared availability lib) + a "✓ … uchun" why-line, linking to
+  the product page. (Add-to-cart lands in Phase 2.)
+- Entry point: hero button on `/` — "Teringizga mos mahsulotni toping".
+
+**Verify:** simulated dry + dryness/dullness → 14 exact matches, best (Glow Oil Mist, Snail Cream)
+ranked first. `tsc` clean · `yarn build` ok (`/tavsiya`).
