@@ -26,6 +26,15 @@ Pending owner action: run the Phase 0 SQL, then set seller cards/cities and tag 
 After tagging, run the "buyable but untagged" query in the setup doc — those products are invisible
 to the survey. Decide the fallback (plan §1 Phase 1) before Phase 1 ships.
 
+### Addendum — DB confirmed applied + `category` column  2026-08-09
+Owner ran the Phase 0 SQL. Verified live: `profiles.city/card_number/card_holder` present,
+`product_tags` exists (0 rows so far), RLS policies in place. A bonus **`products.category`**
+(nullable free-text + index) was also added out of band — now wired into the product form as a
+suggestion-backed input (`admin/products.tsx`), saved on create/edit. All categories null so far.
+
+**Still outstanding (owner content work):** set seller cards/cities, and tag + categorise the 32
+products. Survey (Phase 1) is only meaningful once some products carry skin_type/concern tags.
+
 ---
 
-## Next: Phase 1 — Survey (`/tavsiya`), rule-based matching (pending Phase 0 SQL + some tags to test against).
+## Next: Phase 1 — Survey (`/tavsiya`), rule-based matching. Needs a few tagged products to test against.

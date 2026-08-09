@@ -38,6 +38,7 @@ type Product = {
   link: string | null
   expiry_date: string | null
   discontinued_at: string | null
+  category: string | null   // free-text product type (Tozalovchi, Krem, Serum, …)
   // From v_product_availability — the single source of truth for stock.
   // `remaining` = max(0, arrived − sold); `incoming_qty` = units still "yo'lda".
   // `state` drives the badge (`not_arrived` ⇒ nothing landed yet).
@@ -139,6 +140,8 @@ export default function Products({ products: initial }: { products: Product[] })
   // Survey tags (product_tags): which skin types / concerns this product suits.
   const [skinTypes,    setSkinTypes]    = useState<string[]>([])
   const [concerns,     setConcerns]     = useState<string[]>([])
+  // Free-text product category (products.category) — used for grouping / future departments.
+  const [category,     setCategory]     = useState('')
   const [imageFile,    setImageFile]    = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [description,  setDescription] = useState('')
@@ -190,7 +193,7 @@ export default function Products({ products: initial }: { products: Product[] })
   function openNew() {
     setShowNew(true); setEditing(null); setForm(EMPTY); setArrived(true)
     setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setExpiry(''); setError('')
-    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([])
+    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([]); setCategory('')
     closeAnnounce()
   }
 
@@ -199,7 +202,7 @@ export default function Products({ products: initial }: { products: Product[] })
     // A "Yo'lda" product keeps its stock in an in_transit batch, so its quantity is incoming_qty
     // (total_qty is 0). Show that number in the form so editing round-trips correctly.
     const notArrived = p.state === 'not_arrived'
-    setArrived(!notArrived)
+    setArrived(!notArrived); setCategory(p.category ?? '')
     const qty = notArrived ? (p.incoming_qty ?? 0) : p.total_qty
     setForm({ name: p.name, retail_price: String(p.retail_price), discount_price: p.discount_price != null ? String(p.discount_price) : '', cost: String(p.cost), total_qty: String(qty) })
     setImageFile(null); setImagePreview(p.image_url)
@@ -225,7 +228,7 @@ export default function Products({ products: initial }: { products: Product[] })
     gallery.forEach(g => { if (g.id === null && g.url.startsWith('blob:')) URL.revokeObjectURL(g.url) })
     setShowNew(false); setEditing(null); setArrived(true)
     setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setExpiry(''); setError('')
-    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([])
+    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([]); setCategory('')
   }
 
   // ── Crop ──────────────────────────────────────────────────────────
@@ -369,6 +372,7 @@ export default function Products({ products: initial }: { products: Product[] })
       description: description || null,
       link: link || null,
       expiry_date: expiry || null,
+      category: category.trim() || null,
     }
 
     let productId: string
@@ -666,6 +670,18 @@ export default function Products({ products: initial }: { products: Product[] })
         </label>
         <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
           className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+      </div>
+
+      {/* Category — free text with suggestions (products.category) */}
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-muted mb-1">Kategoriya (mahsulot turi)</label>
+        <input list="product-categories" value={category} onChange={e => setCategory(e.target.value)}
+          placeholder="Masalan: Krem, Tozalovchi, Serum…"
+          className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+        <datalist id="product-categories">
+          {['Tozalovchi', 'Krem', 'Serum', 'Quyoshdan himoya', 'Niqob', 'Toner', "Ko'z kremi", 'Soch', 'Tana', 'Lab', 'Deodorant', 'Tish pastasi', 'Toplam']
+            .map(c => <option key={c} value={c} />)}
+        </datalist>
       </div>
 
       {/* Survey tags — which skin types & concerns this product suits (drives /tavsiya) */}
