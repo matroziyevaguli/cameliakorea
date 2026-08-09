@@ -5,14 +5,25 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import CartFab from '@/components/CartFab'
+import TelegramLogin from '@/components/TelegramLogin'
 import { formatUZS } from '@/lib/format'
 import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
-import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ShieldCheck as Shield } from 'lucide-react'
+import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ClipboardList, LogOut, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // Customer (Telegram) login state — so the "Xaridor" row is a real account, not a scroll link.
+  const [customer, setCustomer] = useState<{ full_name: string | null } | null>(null)
+  const [checked, setChecked] = useState(false)
+  async function loadMe() {
+    const r = await fetch('/api/auth/me'); const j = await r.json().catch(() => ({}))
+    setCustomer(j.customer ?? null); setChecked(true)
+  }
+  useEffect(() => { loadMe() }, [])
+  async function logout() { await fetch('/api/auth/logout', { method: 'POST' }); setCustomer(null) }
 
   // Portal to <body> so the menu escapes the sticky/backdrop-blur header, which on
   // Android clips absolutely-positioned descendants (menu appeared "not showing up").
@@ -34,11 +45,35 @@ function LoginMenu() {
           <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
           <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
         </Link>
-        <a href="#mahsulotlar" onClick={() => setOpen(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-lavender to-peach text-white grid place-items-center"><User className="w-4 h-4" /></span>
-          <span><span className="block text-sm font-semibold text-ink">Xaridor sifatida</span><span className="block text-xs text-muted">Katalogni ko'rish</span></span>
-        </a>
+        {/* Xaridor — real Telegram account */}
+        <div className="mt-1 pt-2 border-t border-black/5">
+          {!checked ? (
+            <div className="px-3 py-2.5 text-xs text-muted">Yuklanmoqda…</div>
+          ) : customer ? (
+            <>
+              <div className="flex items-center gap-3 px-3 py-2">
+                <span className="w-9 h-9 rounded-full bg-gradient-to-br from-lavender to-peach text-white grid place-items-center"><User className="w-4 h-4" /></span>
+                <span><span className="block text-sm font-semibold text-ink">{customer.full_name || 'Xaridor'}</span><span className="block text-xs text-muted">Xaridor</span></span>
+              </div>
+              <Link href="/buyurtmalarim" onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+                <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center"><ClipboardList className="w-4 h-4 text-rose" /></span>
+                <span className="text-sm font-semibold text-ink">Mening buyurtmalarim</span>
+              </Link>
+              <button onClick={logout}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-left">
+                <span className="w-9 h-9 rounded-full bg-gray-100 grid place-items-center"><LogOut className="w-4 h-4 text-muted" /></span>
+                <span className="text-sm font-semibold text-danger">Chiqish</span>
+              </button>
+            </>
+          ) : (
+            <div className="px-3 py-2.5">
+              <p className="text-sm font-semibold text-ink mb-0.5">Xaridor sifatida</p>
+              <p className="text-xs text-muted mb-2.5">Buyurtma berish uchun Telegram orqali kiring.</p>
+              <TelegramLogin onSuccess={loadMe} />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
