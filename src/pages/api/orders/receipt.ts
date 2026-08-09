@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createServiceClient } from '@/lib/supabase/api'
 import { getCustomer } from '@/lib/customerAuth'
+import { notifyOwner } from '@/lib/telegram'
 
 export const config = { api: { bodyParser: { sizeLimit: '6mb' } } }
 
@@ -34,5 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }).eq('id', orderId)
   if (error) return res.status(500).json({ error: error.message })
 
+  notifyOwner('🧾 Yangi buyurtma cheki yuklandi — tasdiqlash kutilmoqda (/admin/orders).')
   return res.status(200).json({ ok: true })
 }

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
-import { LayoutDashboard, Package, Users, CreditCard, Inbox, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Package, Users, CreditCard, Inbox, ShoppingBag, LogOut, Menu, X } from 'lucide-react'
 
 // Five areas, grouped by the decision each one serves (redesign.md §5.0) — not nine
 // flat links. Batches + Distribute live under Mahsulotlar; Giveaways under Pul; Stats
@@ -10,6 +10,7 @@ import { LayoutDashboard, Package, Users, CreditCard, Inbox, LogOut, Menu, X } f
 const areas = [
   { href: '/admin',            label: 'Boshqaruv',   icon: LayoutDashboard, match: ['/admin'] },
   { href: '/admin/products',   label: 'Mahsulotlar', icon: Package,         match: ['/admin/products', '/admin/batches', '/admin/distribute'] },
+  { href: '/admin/orders',     label: 'Buyurtmalar', icon: ShoppingBag,     match: ['/admin/orders'] },
   { href: '/admin/sellers',    label: 'Sotuvchilar', icon: Users,           match: ['/admin/sellers', '/admin/sellers/[id]'] },
   { href: '/admin/payments',   label: 'Pul',         icon: CreditCard,      match: ['/admin/payments', '/admin/giveaways'] },
   { href: '/admin/requests',   label: "So'rovlar",   icon: Inbox,           match: ['/admin/requests'] },

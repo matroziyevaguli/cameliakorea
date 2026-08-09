@@ -100,3 +100,31 @@ card + amount, receipt upload, and re-upload on reject.
 Order confirmation → seller sale (stock integration) is **Phase 3** (admin Orders page).
 
 ## Next: Phase 3 — /admin/orders (view receipt, confirm→seller sale, assign, deliver) + notifications.
+
+---
+
+## Phase 3 — Admin orders + confirm→sale ✅ (code)  2026-08-09
+
+**DB (owner runs):** `docs/ordering-phase3-setup.md` — atomic `confirm_order(uuid)` (SECURITY
+DEFINER): checks v_product_availability stock, bumps the assigned seller's allocation to cover
+sold+qty, inserts `sales` rows, sets status=confirmed — all-or-nothing. Grant to service_role.
+
+**Code**
+- `api/admin/order-action` (admin-verified): `confirm` → confirm_order RPC; `reject` →
+  awaiting_payment_retry + reason; `assign` → seller; `delivering`/`delivered`/`cancelled`.
+- `pages/admin/orders.tsx`: tabbed list (Tasdiqlash / To'lov / Jarayonda / Yakunlangan),
+  customer+delivery+items, seller assign dropdown, signed-URL receipt thumbnail, confirm/reject/
+  deliver actions. SSR uses the service role (reads + signs receipts).
+- `lib/telegram.ts` `notifyOwner` — owner pinged on receipt upload + on confirm.
+- AdminNav gains **Buyurtmalar**.
+
+**Verify:** `tsc` clean · `yarn build` ok (/admin/orders, /api/admin/order-action).
+Confirm turns an online order into the assigned seller's sale, so remaining/balances stay
+consistent (reuse `scripts/audit-stock.mjs` to check after a live confirm).
+
+## Remaining owner actions to go live end-to-end
+1. Run Phase 2 SQL (`ordering-phase2-setup.md`) + Phase 3 SQL (`ordering-phase3-setup.md`).
+2. BotFather `/setdomain` + env `NEXT_PUBLIC_TELEGRAM_BOT`.
+3. Set seller cards/cities in /admin/sellers.
+
+## Next (optional): Phase 4 — seller order view, email notifications, post-confirm reassignment reversal.
