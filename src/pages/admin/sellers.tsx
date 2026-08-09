@@ -6,12 +6,16 @@ import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import AdminNav from '@/components/AdminNav'
 import { formatUZS } from '@/lib/format'
-import { Pencil, X, CheckCircle, ChevronRight, UserPlus } from 'lucide-react'
+import { Pencil, X, CheckCircle, ChevronRight, UserPlus, CreditCard } from 'lucide-react'
 import { MiniSpinner } from '@/components/Loader'
+import { CITIES, CITY_LABEL } from '@/consts/geo'
 
-type Seller = { id: string; full_name: string; commission_rate: number; opening_balance: number; active: boolean }
+type Seller = {
+  id: string; full_name: string; commission_rate: number; opening_balance: number; active: boolean
+  city: string | null; card_number: string | null; card_holder: string | null
+}
 
-type EditForm = { full_name: string; commissionPct: string; opening_balance: string; active: boolean }
+type EditForm = { full_name: string; commissionPct: string; opening_balance: string; active: boolean; city: string; card_number: string; card_holder: string }
 type AddForm = { full_name: string; password: string; commissionPct: string; opening_balance: string }
 
 export default function Sellers({ sellers: initialSellers }: { sellers: Seller[] }) {
@@ -22,14 +26,14 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
   async function reconcile() {
     const supabase = createBrowser()
     const { data } = await supabase.from('profiles')
-      .select('id, full_name, commission_rate, opening_balance, active')
+      .select('id, full_name, commission_rate, opening_balance, active, city, card_number, card_holder')
       .eq('role', 'seller').order('full_name')
     if (data) setSellers(data as Seller[])
   }
 
   // Edit state
   const [editing, setEditing] = useState<string | null>(null)
-  const [form, setForm] = useState<EditForm>({ full_name: '', commissionPct: '', opening_balance: '', active: true })
+  const [form, setForm] = useState<EditForm>({ full_name: '', commissionPct: '', opening_balance: '', active: true, city: '', card_number: '', card_holder: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -42,7 +46,11 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
 
   function openEdit(s: Seller) {
     setEditing(s.id)
-    setForm({ full_name: s.full_name, commissionPct: String(Math.round(s.commission_rate * 100)), opening_balance: String(s.opening_balance), active: s.active })
+    setForm({
+      full_name: s.full_name, commissionPct: String(Math.round(s.commission_rate * 100)),
+      opening_balance: String(s.opening_balance), active: s.active,
+      city: s.city ?? '', card_number: s.card_number ?? '', card_holder: s.card_holder ?? '',
+    })
     setError('')
   }
 
@@ -52,22 +60,20 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
     if (pct < 0 || pct > 100) { setError('Komissiya 0–100% oralig\'ida'); return }
     setLoading(true); setError('')
     const supabase = createBrowser()
-    const { error: err } = await supabase.from('profiles').update({
+    const patch = {
       full_name: form.full_name.trim(),
       commission_rate: pct / 100,
       opening_balance: Number(form.opening_balance) || 0,
       active: form.active,
-    }).eq('id', id)
+      city: form.city || null,
+      card_number: form.card_number.trim() || null,
+      card_holder: form.card_holder.trim() || null,
+    }
+    const { error: err } = await supabase.from('profiles').update(patch).eq('id', id)
     setLoading(false)
     if (err) { setError(err.message); return }
     // Optimistic
-    setSellers(list => list.map(s => s.id === id ? {
-      ...s,
-      full_name: form.full_name.trim(),
-      commission_rate: pct / 100,
-      opening_balance: Number(form.opening_balance) || 0,
-      active: form.active,
-    } : s))
+    setSellers(list => list.map(s => s.id === id ? { ...s, ...patch } : s))
     setEditing(null)
     reconcile()
   }
@@ -184,6 +190,28 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
                         className="w-5 h-5 rounded accent-rose" />
                       <span className="text-sm font-medium text-ink">Faol</span>
                     </label>
+
+                    {/* Payout card + default city — shown to customers who order for this seller's city */}
+                    <div>
+                      <label className="block text-xs font-semibold text-muted mb-1">Shahar (buyurtma uchun)</label>
+                      <select value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                        className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
+                        <option value="">— tanlanmagan —</option>
+                        {CITIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-muted mb-1">Karta raqami</label>
+                      <input value={form.card_number} onChange={e => setForm(f => ({ ...f, card_number: e.target.value }))}
+                        placeholder="8600 **** **** ****" inputMode="numeric"
+                        className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-muted mb-1">Karta egasi (ism)</label>
+                      <input value={form.card_holder} onChange={e => setForm(f => ({ ...f, card_holder: e.target.value }))}
+                        placeholder="Masalan: GULSHANOY MATNAZAROVA"
+                        className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+                    </div>
                   </div>
                   {error && <p className="text-danger text-sm mt-2">{error}</p>}
                   <div className="flex gap-3 mt-4">
@@ -203,6 +231,10 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
                       <span className="text-xs text-muted bg-cream px-2.5 py-1 rounded-full">Komissiya: {(s.commission_rate * 100).toFixed(0)}%</span>
                       {s.opening_balance > 0 && <span className="text-xs text-warning bg-orange-50 px-2.5 py-1 rounded-full">Boshl. qarz: {formatUZS(s.opening_balance)}</span>}
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${s.active ? 'bg-green-100 text-success' : 'bg-red-100 text-danger'}`}>{s.active ? 'Faol' : 'Nofaol'}</span>
+                      {s.city && <span className="text-xs text-sky bg-sky/10 px-2.5 py-1 rounded-full">{CITY_LABEL[s.city] ?? s.city}</span>}
+                      <span className={`text-xs px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${s.card_number ? 'bg-lavender/15 text-lavender' : 'bg-orange-50 text-warning'}`}>
+                        <CreditCard className="w-3 h-3" /> {s.card_number ? 'Karta bor' : 'Karta yo\'q'}
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -225,6 +257,6 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const guard = await requireRole(ctx, 'admin')
   if (guard) return guard
   const supabase = createClient(ctx)
-  const { data: sellers } = await supabase.from('profiles').select('id, full_name, commission_rate, opening_balance, active').eq('role', 'seller').order('full_name')
+  const { data: sellers } = await supabase.from('profiles').select('id, full_name, commission_rate, opening_balance, active, city, card_number, card_holder').eq('role', 'seller').order('full_name')
   return { props: { sellers: sellers ?? [] } }
 }

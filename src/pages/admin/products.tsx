@@ -10,6 +10,7 @@ import { Plus, Pencil, X, ImagePlus, Send, CheckCircle, Sparkles, Loader2, Link2
 import ConfirmBar from '@/components/ConfirmBar'
 import { formatDate } from '@/lib/format'
 import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
+import { SKIN_TYPES, CONCERNS, TAG_TYPES } from '@/consts/skincare'
 
 const EXPIRY_STYLE: Record<ExpiryStatus, string> = {
   expired: 'bg-red-100 text-danger',
@@ -135,6 +136,9 @@ export default function Products({ products: initial }: { products: Product[] })
   // Edit-only restock: quantity for a new incoming ("yo'lda") partiya.
   const [restockQty,   setRestockQty]   = useState('')
   const [restockBusy,  setRestockBusy]  = useState(false)
+  // Survey tags (product_tags): which skin types / concerns this product suits.
+  const [skinTypes,    setSkinTypes]    = useState<string[]>([])
+  const [concerns,     setConcerns]     = useState<string[]>([])
   const [imageFile,    setImageFile]    = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [description,  setDescription] = useState('')
@@ -186,7 +190,7 @@ export default function Products({ products: initial }: { products: Product[] })
   function openNew() {
     setShowNew(true); setEditing(null); setForm(EMPTY); setArrived(true)
     setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setExpiry(''); setError('')
-    setGallery([]); setDeletedGalleryIds([])
+    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([])
     closeAnnounce()
   }
 
@@ -200,17 +204,20 @@ export default function Products({ products: initial }: { products: Product[] })
     setForm({ name: p.name, retail_price: String(p.retail_price), discount_price: p.discount_price != null ? String(p.discount_price) : '', cost: String(p.cost), total_qty: String(qty) })
     setImageFile(null); setImagePreview(p.image_url)
     setDescription(p.description ?? ''); setLink(p.link ?? ''); setExpiry(p.expiry_date ?? ''); setError('')
-    setGallery([]); setDeletedGalleryIds([])
+    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([])
     closeAnnounce()
 
-    // Load existing gallery rows for this product
+    // Load existing gallery rows + survey tags for this product
     const supabase = createBrowser()
-    const { data } = await supabase
-      .from('product_images')
-      .select('id, url')
-      .eq('product_id', p.id)
-      .order('sort_order', { ascending: true })
+    const [{ data }, { data: tags }] = await Promise.all([
+      supabase.from('product_images').select('id, url').eq('product_id', p.id).order('sort_order', { ascending: true }),
+      supabase.from('product_tags').select('tag_type, tag_value').eq('product_id', p.id),
+    ])
     if (data) setGallery(data.map(r => ({ id: r.id, url: r.url })))
+    if (tags) {
+      setSkinTypes(tags.filter(t => t.tag_type === TAG_TYPES.skinType).map(t => t.tag_value))
+      setConcerns(tags.filter(t => t.tag_type === TAG_TYPES.concern).map(t => t.tag_value))
+    }
   }
 
   function cancel() {
@@ -218,7 +225,7 @@ export default function Products({ products: initial }: { products: Product[] })
     gallery.forEach(g => { if (g.id === null && g.url.startsWith('blob:')) URL.revokeObjectURL(g.url) })
     setShowNew(false); setEditing(null); setArrived(true)
     setImageFile(null); setImagePreview(null); setDescription(''); setLink(''); setExpiry(''); setError('')
-    setGallery([]); setDeletedGalleryIds([])
+    setGallery([]); setDeletedGalleryIds([]); setSkinTypes([]); setConcerns([])
   }
 
   // ── Crop ──────────────────────────────────────────────────────────
@@ -416,6 +423,14 @@ export default function Products({ products: initial }: { products: Product[] })
         await supabase.from('product_images').update({ sort_order: i }).eq('id', item.id)
       }
     }
+
+    // ── Survey tags sync ── replace the whole set (simplest, PK-safe).
+    await supabase.from('product_tags').delete().eq('product_id', productId)
+    const tagRows = [
+      ...skinTypes.map(v => ({ product_id: productId, tag_type: TAG_TYPES.skinType, tag_value: v })),
+      ...concerns.map(v => ({ product_id: productId, tag_type: TAG_TYPES.concern, tag_value: v })),
+    ]
+    if (tagRows.length) await supabase.from('product_tags').insert(tagRows)
 
     // Re-fetch product list client-side — no router.replace needed
     const refreshed = await fetchProductsWithState(supabase)
@@ -651,6 +666,39 @@ export default function Products({ products: initial }: { products: Product[] })
         </label>
         <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
           className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+      </div>
+
+      {/* Survey tags — which skin types & concerns this product suits (drives /tavsiya) */}
+      <div className="mt-5">
+        <label className="block text-sm font-medium text-muted mb-2">Teri turi (so'rovnoma uchun)</label>
+        <div className="flex flex-wrap gap-2">
+          {SKIN_TYPES.map(t => {
+            const on = skinTypes.includes(t.value)
+            return (
+              <button key={t.value} type="button"
+                onClick={() => setSkinTypes(s => on ? s.filter(x => x !== t.value) : [...s, t.value])}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition ${on ? 'bg-lavender/20 text-lavender border-lavender/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
+                {t.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="mt-4">
+        <label className="block text-sm font-medium text-muted mb-2">Qaysi muammolarga (so'rovnoma uchun)</label>
+        <div className="flex flex-wrap gap-2">
+          {CONCERNS.map(c => {
+            const on = concerns.includes(c.value)
+            return (
+              <button key={c.value} type="button"
+                onClick={() => setConcerns(s => on ? s.filter(x => x !== c.value) : [...s, c.value])}
+                className={`px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition ${on ? 'bg-mint/20 text-success border-success/30' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
+                {c.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-muted mt-1.5">So'rovnoma shu teglar bo'yicha mos mahsulotni tavsiya qiladi.</p>
       </div>
 
       {/* Gallery — result photos */}
