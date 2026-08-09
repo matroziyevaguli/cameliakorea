@@ -9,6 +9,8 @@ import { formatUZS } from '@/lib/format'
 import { Pencil, X, CheckCircle, ChevronRight, UserPlus, CreditCard } from 'lucide-react'
 import { MiniSpinner } from '@/components/Loader'
 import { CITIES, CITY_LABEL } from '@/consts/geo'
+import CardNumberInput from '@/components/CardNumberInput'
+import { cardDigits, isValidCard, maskCard, detectBrand } from '@/lib/card'
 
 type Seller = {
   id: string; full_name: string; commission_rate: number; opening_balance: number; active: boolean
@@ -58,6 +60,9 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
     const pct = Number(form.commissionPct)
     if (!form.full_name.trim()) { setError('Ism kiriting'); return }
     if (pct < 0 || pct > 100) { setError('Komissiya 0–100% oralig\'ida'); return }
+    if (cardDigits(form.card_number).length > 0 && !isValidCard(form.card_number)) {
+      setError('Karta raqami to\'liq emas (16 ta raqam)'); return
+    }
     setLoading(true); setError('')
     const supabase = createBrowser()
     const patch = {
@@ -202,9 +207,7 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-muted mb-1">Karta raqami</label>
-                      <input value={form.card_number} onChange={e => setForm(f => ({ ...f, card_number: e.target.value }))}
-                        placeholder="8600 **** **** ****" inputMode="numeric"
-                        className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+                      <CardNumberInput value={form.card_number} onChange={v => setForm(f => ({ ...f, card_number: v }))} />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-xs font-semibold text-muted mb-1">Karta egasi (ism)</label>
@@ -233,7 +236,7 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${s.active ? 'bg-green-100 text-success' : 'bg-red-100 text-danger'}`}>{s.active ? 'Faol' : 'Nofaol'}</span>
                       {s.city && <span className="text-xs text-sky bg-sky/10 px-2.5 py-1 rounded-full">{CITY_LABEL[s.city] ?? s.city}</span>}
                       <span className={`text-xs px-2.5 py-1 rounded-full inline-flex items-center gap-1 ${s.card_number ? 'bg-lavender/15 text-lavender' : 'bg-orange-50 text-warning'}`}>
-                        <CreditCard className="w-3 h-3" /> {s.card_number ? 'Karta bor' : 'Karta yo\'q'}
+                        <CreditCard className="w-3 h-3" /> {s.card_number ? `${detectBrand(s.card_number)?.label ?? 'Karta'} ${maskCard(s.card_number)}` : 'Karta yo\'q'}
                       </span>
                     </div>
                   </div>

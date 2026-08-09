@@ -11,6 +11,9 @@ import HelpSheet from '@/components/HelpSheet'
 import SellerNav from '@/components/SellerNav'
 import { S } from '@/consts/strings'
 import { CITIES } from '@/consts/geo'
+import CardNumberInput from '@/components/CardNumberInput'
+import CardPreview from '@/components/CardPreview'
+import { cardDigits, isValidCard } from '@/lib/card'
 
 type CardInfo = { card_number: string | null; card_holder: string | null; city: string | null }
 
@@ -27,6 +30,10 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
 
   async function saveCard(e: React.FormEvent) {
     e.preventDefault()
+    // Validate: a card, if entered, must be complete (16 digits).
+    if (cardDigits(cardForm.card_number).length > 0 && !isValidCard(cardForm.card_number)) {
+      setCardErr('Karta raqami to\'liq emas (16 ta raqam).'); return
+    }
     setCardBusy(true); setCardErr(''); setCardDone(false)
     const res = await fetch('/api/seller/update-card', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cardForm),
@@ -120,6 +127,9 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
             <CreditCard className="w-5 h-5 text-rose" /> To'lov kartangiz
           </h2>
           <p className="text-xs text-muted mb-5">Onlayn buyurtmalarda mijozlar shu kartaga o'tkazma qiladi.</p>
+
+          <div className="mb-5"><CardPreview number={cardForm.card_number} holder={cardForm.card_holder} /></div>
+
           <form onSubmit={saveCard} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-muted mb-1">Shahar</label>
@@ -131,9 +141,7 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
             </div>
             <div>
               <label className="block text-sm font-medium text-muted mb-1">Karta raqami</label>
-              <input value={cardForm.card_number} onChange={e => setCardForm(f => ({ ...f, card_number: e.target.value }))}
-                placeholder="8600 **** **** ****" inputMode="numeric"
-                className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+              <CardNumberInput value={cardForm.card_number} onChange={v => setCardForm(f => ({ ...f, card_number: v }))} />
             </div>
             <div>
               <label className="block text-sm font-medium text-muted mb-1">Karta egasi (ism)</label>

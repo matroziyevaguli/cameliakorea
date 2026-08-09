@@ -8,6 +8,7 @@ import { CUSTOMER_COOKIE } from '@/lib/customerAuth'
 import { compressImage } from '@/lib/image'
 import { formatUZS } from '@/lib/format'
 import { CITY_LABEL } from '@/consts/geo'
+import CardPreview from '@/components/CardPreview'
 import { ArrowLeft, Upload, Loader2, CheckCircle, Clock, Truck, XCircle, CreditCard } from 'lucide-react'
 
 type Item = { product_name: string; unit_price: number; qty: number }
@@ -83,11 +84,10 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
             <div className="bg-surface rounded-2xl shadow-card p-6">
               <h2 className="font-display font-bold text-ink mb-3 flex items-center gap-2"><CreditCard className="w-5 h-5 text-rose" /> To'lov</h2>
               {seller?.card_number ? (
-                <div className="bg-cream rounded-xl p-4 mb-4">
-                  <p className="text-xs text-muted">Ushbu kartaga o'tkazing</p>
-                  <p className="font-display font-bold text-ink text-xl tracking-wide mt-1">{seller.card_number}</p>
-                  {seller.card_holder && <p className="text-sm text-muted mt-0.5">{seller.card_holder}</p>}
-                  <p className="text-sm mt-2">Summa: <b className="text-ink">{formatUZS(order.subtotal)}</b></p>
+                <div className="mb-4">
+                  <p className="text-xs text-muted mb-2">Ushbu kartaga o'tkazing:</p>
+                  <CardPreview number={seller.card_number} holder={seller.card_holder} />
+                  <p className="text-sm mt-3 text-center">Summa: <b className="text-ink text-base">{formatUZS(order.subtotal)}</b></p>
                 </div>
               ) : (
                 <p className="text-sm text-warning bg-orange-50 rounded-xl px-4 py-3 mb-4">Karta hali sozlanmagan — iltimos Telegram orqali bog'laning.</p>
