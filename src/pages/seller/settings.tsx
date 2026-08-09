@@ -132,7 +132,7 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
 
           <form onSubmit={saveCard} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Shahar</label>
+              <label className="block text-sm font-medium text-muted mb-1">Viloyat</label>
               <select value={cardForm.city} onChange={e => setCardForm(f => ({ ...f, city: e.target.value }))}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
                 <option value="">— tanlang —</option>

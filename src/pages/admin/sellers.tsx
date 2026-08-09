@@ -198,7 +198,7 @@ export default function Sellers({ sellers: initialSellers }: { sellers: Seller[]
 
                     {/* Payout card + default city — shown to customers who order for this seller's city */}
                     <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Shahar (buyurtma uchun)</label>
+                      <label className="block text-xs font-semibold text-muted mb-1">Viloyat (buyurtma uchun)</label>
                       <select value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
                         className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
                         <option value="">— tanlanmagan —</option>

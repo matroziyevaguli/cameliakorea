@@ -111,7 +111,7 @@ export default function Cart() {
                   <h2 className="font-display font-bold text-ink">Yetkazish ma'lumotlari</h2>
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Shahar</label>
+                      <label className="block text-xs font-semibold text-muted mb-1">Viloyat</label>
                       <select value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
                         className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
                         <option value="">— tanlang —</option>
@@ -137,7 +137,7 @@ export default function Cart() {
                   <div>
                     <label className="block text-xs font-semibold text-muted mb-1">Manzil</label>
                     <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2}
-                      placeholder="Tuman, ko'cha, uy…" className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition resize-none" />
+                      placeholder="Tuman, ko'cha, uy, mo'ljal…" className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition resize-none" />
                   </div>
                   <p className="text-xs text-muted">To'lov — buyurtmadan so'ng ko'rsatilgan kartaga o'tkazma. Yetkazish haqi alohida.</p>
                   {error && <p className="text-danger text-sm">{error}</p>}
