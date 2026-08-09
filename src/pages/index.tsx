@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
-import CartFab from '@/components/CartFab'
+import HeaderCart from '@/components/HeaderCart'
 import TelegramLogin from '@/components/TelegramLogin'
 import { formatUZS } from '@/lib/format'
 import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
@@ -27,53 +27,56 @@ function LoginMenu() {
 
   // Portal to <body> so the menu escapes the sticky/backdrop-blur header, which on
   // Android clips absolutely-positioned descendants (menu appeared "not showing up").
+  const loggedIn = !!customer
   const menuContent = (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
       <div className="relative w-full max-w-xs bg-surface rounded-2xl shadow-card p-3 border border-black/5">
         <div className="flex items-center justify-between px-1 pb-2 mb-1">
-          <p className="text-sm font-bold text-ink">Kirish</p>
+          <p className="text-sm font-bold text-ink">{loggedIn ? (customer!.full_name || 'Xaridor') : 'Kirish'}</p>
           <button aria-label="Yopish" onClick={() => setOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
         </div>
-        <Link href="/login?as=admin" onClick={() => setOpen(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
-          <span><span className="block text-sm font-semibold text-ink">Admin sifatida</span><span className="block text-xs text-muted">Boshqaruv paneli</span></span>
-        </Link>
-        <Link href="/login?as=seller" onClick={() => setOpen(false)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-          <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
-          <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
-        </Link>
-        {/* Xaridor — real Telegram account */}
-        <div className="mt-1 pt-2 border-t border-black/5">
-          {!checked ? (
-            <div className="px-3 py-2.5 text-xs text-muted">Yuklanmoqda…</div>
-          ) : customer ? (
-            <>
-              <div className="flex items-center gap-3 px-3 py-2">
-                <span className="w-9 h-9 rounded-full bg-gradient-to-br from-lavender to-peach text-white grid place-items-center"><User className="w-4 h-4" /></span>
-                <span><span className="block text-sm font-semibold text-ink">{customer.full_name || 'Xaridor'}</span><span className="block text-xs text-muted">Xaridor</span></span>
-              </div>
-              <Link href="/buyurtmalarim" onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
-                <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center"><ClipboardList className="w-4 h-4 text-rose" /></span>
-                <span className="text-sm font-semibold text-ink">Mening buyurtmalarim</span>
-              </Link>
-              <button onClick={logout}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-left">
-                <span className="w-9 h-9 rounded-full bg-gray-100 grid place-items-center"><LogOut className="w-4 h-4 text-muted" /></span>
-                <span className="text-sm font-semibold text-danger">Chiqish</span>
-              </button>
-            </>
-          ) : (
+
+        {loggedIn ? (
+          // ── Customer account menu ──
+          <>
+            <Link href="/buyurtmalarim" onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+              <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center"><ClipboardList className="w-4 h-4 text-rose" /></span>
+              <span className="text-sm font-semibold text-ink">Mening buyurtmalarim</span>
+            </Link>
+            <button onClick={logout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-left">
+              <span className="w-9 h-9 rounded-full bg-gray-100 grid place-items-center"><LogOut className="w-4 h-4 text-muted" /></span>
+              <span className="text-sm font-semibold text-danger">Chiqish</span>
+            </button>
+            <Link href="/login" onClick={() => setOpen(false)}
+              className="block px-3 py-2 mt-1 pt-2 border-t border-black/5 text-xs text-muted hover:text-ink transition">
+              Admin / Sotuvchi sifatida kirish
+            </Link>
+          </>
+        ) : (
+          // ── Not logged in: customer Telegram login + staff ──
+          <>
             <div className="px-3 py-2.5">
               <p className="text-sm font-semibold text-ink mb-0.5">Xaridor sifatida</p>
               <p className="text-xs text-muted mb-2.5">Buyurtma berish uchun Telegram orqali kiring.</p>
-              <TelegramLogin onSuccess={loadMe} />
+              {checked && <TelegramLogin onSuccess={loadMe} />}
             </div>
-          )}
-        </div>
+            <div className="mt-1 pt-2 border-t border-black/5">
+              <Link href="/login?as=admin" onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+                <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
+                <span><span className="block text-sm font-semibold text-ink">Admin sifatida</span><span className="block text-xs text-muted">Boshqaruv paneli</span></span>
+              </Link>
+              <Link href="/login?as=seller" onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
+                <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
+                <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
+              </Link>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -82,10 +85,13 @@ function LoginMenu() {
     : null
 
   return (
-    <div className="relative">
+    <div className="flex items-center gap-2">
+      {/* Cart is always reachable from the header */}
+      {mounted && <HeaderCart />}
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 bg-white text-ink text-sm font-semibold px-4 py-2 rounded-full shadow-card active:scale-95 transition">
-        <User className="w-4 h-4 text-rose" /> Kirish
+        <User className="w-4 h-4 text-rose" />
+        {loggedIn ? <span className="max-w-[9rem] truncate">{customer!.full_name || 'Xaridor'}</span> : 'Kirish'}
       </button>
       {menu}
     </div>
@@ -320,7 +326,6 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             © 2026 Camelia Korea · <Link href="/login" className="hover:text-white/80">Kirish</Link>
           </div>
         </footer>
-        <CartFab />
       </div>
     </>
   )

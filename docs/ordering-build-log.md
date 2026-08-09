@@ -128,3 +128,13 @@ consistent (reuse `scripts/audit-stock.mjs` to check after a live confirm).
 3. Set seller cards/cities in /admin/sellers.
 
 ## Next (optional): Phase 4 — seller order view, email notifications, post-confirm reassignment reversal.
+
+---
+
+## UX #1 — Header logged-in state ✅  2026-08-09
+
+Per `docs/user-experience-plan.md` §1. When a customer is logged in, the header no longer shows
+"Kirish" — it shows their **name** (opening a compact account menu: Mening buyurtmalarim · Chiqish,
++ a small "Admin / Sotuvchi sifatida kirish" link). A **cart icon with count badge** (`HeaderCart`)
+is now always in the header; the landing-page floating cart is removed as redundant. Logged-out
+header is unchanged (Kirish → Telegram login + staff options).
