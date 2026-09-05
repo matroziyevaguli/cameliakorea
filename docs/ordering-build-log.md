@@ -158,3 +158,22 @@ header is unchanged (Kirish → Telegram login + staff options).
 - **#6 My-orders tabs:** Faol / Yakunlangan / Hammasi on `/buyurtmalarim`.
 
 `tsc` clean · `yarn build` ok. Only remaining owner action for these: run the v_shop category SQL.
+
+---
+
+## Community / Q&A ("Savol-javob") ✅ (code)  2026-09-05
+
+Per `docs/community-prd.md`. Public ask → admin answers → public browse.
+- **DB (owner runs):** `docs/community-setup.md` — `community_questions` + RLS (anon reads only
+  `answered`; submits/moderation via service-role APIs).
+- `src/consts/community.ts` — 7 topics (Dasturchilik, Ingliz tili, Koreys tili, Shaxsiy maslahat,
+  Koreya, Koreyada ishlash, Boshqa).
+- `/community` — intro + "Savol berish", topic filter chips, answered Q&A cards, **ask modal**;
+  **`/community?ask=1`** auto-opens the modal (Instagram link).
+- `/api/community/ask` — validates (5–1000), inserts `pending`, **notifyOwner** Telegram ping.
+- `/admin/community` — tabs Yangi / Javob berilgan / Yashirilgan; answer / hide / unhide / delete.
+- `/api/admin/community` — admin-only moderation.
+- Links: AdminNav "Savol-javob" + landing footer link.
+
+Deferred (PRD §13): rate-limiting/spam guard. `tsc` clean · `yarn build` ok. Owner action:
+run `community-setup.md`, then set the Instagram bio link to `<site>/community?ask=1`.

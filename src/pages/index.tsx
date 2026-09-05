@@ -359,7 +359,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             </div>
           </div>
           <div className="border-t border-white/10 py-5 text-center text-xs text-white/50">
-            © 2026 Camelia Korea · <Link href="/login" className="hover:text-white/80">Kirish</Link>
+            © 2026 Camelia Korea · <Link href="/community" className="hover:text-white/80">Savol-javob</Link> · <Link href="/login" className="hover:text-white/80">Kirish</Link>
           </div>
         </footer>
       </div>
