@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { TOPICS, TOPIC_LABEL } from '@/consts/community'
-import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check } from 'lucide-react'
+import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check, Tag, User } from 'lucide-react'
 
 type QA = { id: string; name: string | null; question: string; answer: string; topic: string | null; answered_at: string | null }
 
@@ -108,9 +108,15 @@ export default function Community({ items }: { items: QA[] }) {
             <div className="space-y-4">
               {shown.map(qa => (
                 <div key={qa.id} className="bg-surface rounded-2xl shadow-card p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    {qa.topic && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-lavender/15 text-lavender">{TOPIC_LABEL[qa.topic] ?? qa.topic}</span>}
-                    <span className="text-xs text-muted">{qa.name || 'Anonim'}</span>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {qa.topic && (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-lavender/20 text-lavender">
+                        <Tag className="w-3 h-3" /> {TOPIC_LABEL[qa.topic] ?? qa.topic}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 text-xs text-muted">
+                      <User className="w-3.5 h-3.5" /> {qa.name || 'Anonim'}
+                    </span>
                   </div>
                   <p className="font-semibold text-ink">{qa.question}</p>
                   <div className="mt-3 pl-3 border-l-2 border-rose/40">
