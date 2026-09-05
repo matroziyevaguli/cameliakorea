@@ -16,14 +16,19 @@ create table if not exists public.community_questions (
   answer      text,                       -- null until answered
   topic       text,                       -- slug from src/consts/community.ts
   status      text not null default 'pending',
+  ip_hash     text,                       -- hashed submitter IP, for rate-limiting only (not raw IP)
   created_at  timestamptz not null default now(),
   answered_at timestamptz
 );
+-- If the table already existed without ip_hash, add it:
+alter table public.community_questions add column if not exists ip_hash text;
+
 alter table public.community_questions drop constraint if exists community_questions_status_check;
 alter table public.community_questions add constraint community_questions_status_check
   check (status in ('pending','answered','hidden'));
 
 create index if not exists idx_cq_public on public.community_questions(status, answered_at desc);
+create index if not exists idx_cq_ratelimit on public.community_questions(ip_hash, created_at desc);
 ```
 
 ## Block 2 — RLS

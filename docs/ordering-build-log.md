@@ -177,3 +177,12 @@ Per `docs/community-prd.md`. Public ask → admin answers → public browse.
 
 Deferred (PRD §13): rate-limiting/spam guard. `tsc` clean · `yarn build` ok. Owner action:
 run `community-setup.md`, then set the Instagram bio link to `<site>/community?ask=1`.
+
+---
+
+## Community: spam guard (rate limit)  2026-09-05
+
+Kept asking anonymous (no login) + added a DB-backed per-IP rate limit on `/api/community/ask`:
+max 5 questions / 10 min. Stores a salted **hash** of the IP (`ip_hash`, never the raw IP) —
+column + index folded into `docs/community-setup.md`. Over-limit → HTTP 429 with an Uzbek message.
+tsc + build ok.
