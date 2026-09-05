@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { TOPICS, TOPIC_LABEL } from '@/consts/community'
-import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check } from 'lucide-react'
 
 type QA = { id: string; name: string | null; question: string; answer: string; topic: string | null; answered_at: string | null }
 
@@ -31,6 +31,12 @@ export default function Community({ items }: { items: QA[] }) {
   const [busy, setBusy] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/community` : 'cameliakorea.com/community'
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 2000) } catch { /* clipboard blocked */ }
+  }
 
   async function submit() {
     setError('')
@@ -129,16 +135,23 @@ export default function Community({ items }: { items: QA[] }) {
                 <button aria-label="Yopish" onClick={closeAsk} className="absolute top-4 right-4 text-white/80 hover:text-white transition z-10"><X className="w-5 h-5" /></button>
                 <div className="text-5xl mb-1 relative">💌</div>
                 <h3 className="font-display font-bold text-2xl relative">Menga yozing</h3>
-                <p className="text-white/90 text-sm mt-1 max-w-xs mx-auto relative">Savolingiz ham, orzu qilgan kontentingiz ham — hammasi shu yerga 🌸</p>
+                <p className="text-white/90 text-sm mt-1 max-w-xs mx-auto relative">Savolingiz yoki mendan kutgan kontentingiz bo'lsa , albatta javob beraman 🌸</p>
               </div>
 
               <div className="px-6 py-5 -mt-5 bg-surface rounded-t-3xl relative">
                 {sent ? (
-                  <div className="text-center py-6">
+                  <div className="text-center py-4">
                     <div className="text-5xl mb-3">🌷</div>
                     <p className="font-display font-bold text-ink text-lg">Rahmat! Yozganingiz men uchun qadrli 💛</p>
-                    <p className="text-sm text-muted mt-1">Javob berilgach, shu sahifada paydo bo'ladi.</p>
-                    <button onClick={closeAsk} className="mt-5 bg-cream text-ink font-semibold px-6 py-2.5 rounded-full active:scale-95 transition">Yopish</button>
+                    <p className="text-sm text-muted mt-1">Javobni shu <b className="text-ink">Savol-javob</b> sahifasida ko'rasiz. Havolani saqlab qo'ying va keyinroq qarab turing:</p>
+                    <div className="mt-3 flex items-center gap-2 bg-cream rounded-xl pl-3 pr-1.5 py-1.5">
+                      <span className="text-sm text-ink truncate flex-1 text-left">{shareUrl}</span>
+                      <button onClick={copyLink}
+                        className={`flex items-center gap-1 text-sm font-semibold px-3 py-1.5 rounded-lg active:scale-95 transition flex-shrink-0 ${copied ? 'text-success' : 'text-white bg-gradient-to-br from-rose to-peach'}`}>
+                        {copied ? <><Check className="w-4 h-4" /> Nusxa olindi</> : <><Copy className="w-4 h-4" /> Nusxa olish</>}
+                      </button>
+                    </div>
+                    <button onClick={closeAsk} className="mt-4 bg-cream text-ink font-semibold px-6 py-2.5 rounded-full active:scale-95 transition">Savol-javoblarni ko'rish</button>
                   </div>
                 ) : (
                   <>
