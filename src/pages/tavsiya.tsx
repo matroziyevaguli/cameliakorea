@@ -4,11 +4,13 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
-import { stateOf, STATE_LABEL, STATE_STYLE, isBuyable, type ProductState } from '@/lib/availability'
-import { SKIN_TYPES, CONCERNS, SKIN_TYPE_LABEL, CONCERN_LABEL, TAG_TYPES, type SkinType } from '@/consts/skincare'
+import { stateOf, STATE_STYLE, isBuyable, type ProductState } from '@/lib/availability'
+import { SKIN_TYPES, CONCERNS, TAG_TYPES, type SkinType } from '@/consts/skincare'
 import { Sparkles, ArrowRight, ArrowLeft, Check, RotateCcw } from 'lucide-react'
 import CartFab from '@/components/CartFab'
 import { useCart } from '@/lib/cart'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
 import { ShoppingBag } from 'lucide-react'
 
 type SurveyProduct = {
@@ -22,6 +24,7 @@ const MAX_CONCERNS = 3
 const RESULTS_LIMIT = 8
 
 export default function Survey({ products }: { products: SurveyProduct[] }) {
+  const t = useT()
   const [step, setStep] = useState<'skin' | 'concerns' | 'results'>('skin')
   const [skinType, setSkinType] = useState<SkinType | ''>('')
   const [concerns, setConcerns] = useState<string[]>([])
@@ -57,8 +60,8 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
 
   return (
     <>
-      <Head><title>Teri parvarishi tavsiyasi — Camelia Korea</title>
-        <meta name="description" content="Bir necha savolga javob bering — teringizga mos Koreya mahsulotlarini tavsiya qilamiz." />
+      <Head><title>{t('survey.metaTitle')}</title>
+        <meta name="description" content={t('survey.metaDesc')} />
       </Head>
       <div className="min-h-screen bg-cream">
         {/* Header */}
@@ -68,11 +71,14 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
               <span className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center text-sm shadow-rose">C</span>
               Camelia
             </Link>
-            {step !== 'skin' && (
-              <button onClick={restart} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition">
-                <RotateCcw className="w-4 h-4" /> Qaytadan
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              <LangSwitcher />
+              {step !== 'skin' && (
+                <button onClick={restart} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition">
+                  <RotateCcw className="w-4 h-4" /> {t('survey.restart')}
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -89,15 +95,15 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
               {step === 'skin' && (
                 <section>
                   <p className="inline-flex items-center gap-2 text-sm font-medium text-rose bg-white rounded-full px-3 py-1 shadow-card mb-4">
-                    <Sparkles className="w-4 h-4" /> 1-savol
+                    <Sparkles className="w-4 h-4" /> {t('survey.q1')}
                   </p>
-                  <h1 className="font-display font-bold text-3xl md:text-4xl text-ink">Teringiz qanday?</h1>
-                  <p className="text-muted mt-2 mb-6">Bittasini tanlang.</p>
+                  <h1 className="font-display font-bold text-3xl md:text-4xl text-ink">{t('survey.skinTitle')}</h1>
+                  <p className="text-muted mt-2 mb-6">{t('survey.pickOne')}</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {SKIN_TYPES.map(t => (
-                      <button key={t.value} onClick={() => { setSkinType(t.value); setStep('concerns') }}
-                        className={`rounded-2xl p-5 text-left font-semibold border-2 transition active:scale-95 ${skinType === t.value ? 'bg-rose/10 border-rose text-ink' : 'bg-surface border-transparent shadow-card hover:border-rose/40 text-ink'}`}>
-                        {t.label}
+                    {SKIN_TYPES.map(s => (
+                      <button key={s.value} onClick={() => { setSkinType(s.value); setStep('concerns') }}
+                        className={`rounded-2xl p-5 text-left font-semibold border-2 transition active:scale-95 ${skinType === s.value ? 'bg-rose/10 border-rose text-ink' : 'bg-surface border-transparent shadow-card hover:border-rose/40 text-ink'}`}>
+                        {t(`skin.${s.value}`)}
                       </button>
                     ))}
                   </div>
@@ -107,13 +113,13 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
               {step === 'concerns' && (
                 <section>
                   <button onClick={() => setStep('skin')} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition mb-4">
-                    <ArrowLeft className="w-4 h-4" /> Orqaga
+                    <ArrowLeft className="w-4 h-4" /> {t('common.back')}
                   </button>
                   <p className="inline-flex items-center gap-2 text-sm font-medium text-rose bg-white rounded-full px-3 py-1 shadow-card mb-4">
-                    <Sparkles className="w-4 h-4" /> 2-savol
+                    <Sparkles className="w-4 h-4" /> {t('survey.q2')}
                   </p>
-                  <h1 className="font-display font-bold text-3xl md:text-4xl text-ink">Nima sizni bezovta qiladi?</h1>
-                  <p className="text-muted mt-2 mb-6">{MAX_CONCERNS} tagacha tanlang (ixtiyoriy).</p>
+                  <h1 className="font-display font-bold text-3xl md:text-4xl text-ink">{t('survey.concernTitle')}</h1>
+                  <p className="text-muted mt-2 mb-6">{t('survey.pickUpTo', { n: MAX_CONCERNS })}</p>
                   <div className="flex flex-wrap gap-2.5">
                     {CONCERNS.map(c => {
                       const on = concerns.includes(c.value)
@@ -121,14 +127,14 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
                       return (
                         <button key={c.value} onClick={() => toggleConcern(c.value)} disabled={disabled}
                           className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-semibold border-2 transition ${on ? 'bg-mint/20 border-success/40 text-success' : disabled ? 'bg-cream border-transparent text-muted/40' : 'bg-surface border-transparent shadow-card text-ink hover:border-rose/40'}`}>
-                          {on && <Check className="w-4 h-4" />} {c.label}
+                          {on && <Check className="w-4 h-4" />} {t(`concern.${c.value}`)}
                         </button>
                       )
                     })}
                   </div>
                   <button onClick={() => setStep('results')}
                     className="mt-8 w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold px-8 py-4 rounded-full shadow-rose active:scale-95 transition">
-                    Tavsiyani ko'rish <ArrowRight className="w-5 h-5" />
+                    {t('survey.seeReco')} <ArrowRight className="w-5 h-5" />
                   </button>
                 </section>
               )}
@@ -136,18 +142,18 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
           ) : (
             <section>
               <button onClick={() => setStep('concerns')} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition mb-4">
-                <ArrowLeft className="w-4 h-4" /> Savollarga qaytish
+                <ArrowLeft className="w-4 h-4" /> {t('survey.backToQ')}
               </button>
               <h1 className="font-display font-bold text-3xl md:text-4xl text-ink">
-                {ranked.exact >= 3 ? 'Sizga mos mahsulotlar' : 'Sizga yoqishi mumkin'}
+                {ranked.exact >= 3 ? t('survey.resExact') : t('survey.resFallback')}
               </h1>
               <p className="text-muted mt-2 mb-2">
-                {SKIN_TYPE_LABEL[skinType] ? `${SKIN_TYPE_LABEL[skinType]} teri` : ''}
-                {concerns.length > 0 && ` · ${concerns.map(c => CONCERN_LABEL[c]).join(', ')}`}
+                {skinType ? t('survey.skinSuffix', { skin: t(`skin.${skinType}`) }) : ''}
+                {concerns.length > 0 && ` · ${concerns.map(c => t(`concern.${c}`)).join(', ')}`}
               </p>
               {ranked.exact < 3 && (
                 <p className="text-sm text-muted mb-6 bg-white rounded-xl px-4 py-3 shadow-card">
-                  Aniq mos mahsulot kam topildi — quyidagilar ham teringizga yaxshi tanlov.
+                  {t('survey.fallbackNote')}
                 </p>
               )}
 
@@ -166,21 +172,21 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
                       <div className="p-4 flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="font-semibold text-ink text-sm leading-snug line-clamp-2">{p.name}</h3>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATE_STYLE[st]}`}>{STATE_LABEL[st]}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${STATE_STYLE[st]}`}>{t(`state.${st}`)}</span>
                         </div>
                         <div className="mt-1.5 flex items-baseline gap-2">
                           <span className="font-display font-bold text-ink">{formatUZS(price)}</span>
                           {p.discount_price != null && <span className="text-xs text-muted line-through">{formatUZS(p.retail_price)}</span>}
                         </div>
                         {p.matched.length > 0 && (
-                          <p className="text-[11px] text-success mt-2 leading-snug">✓ {p.matched.map(c => CONCERN_LABEL[c]).join(', ')} uchun</p>
+                          <p className="text-[11px] text-success mt-2 leading-snug">✓ {t('survey.goodFor', { list: p.matched.map(c => t(`concern.${c}`)).join(', ') })}</p>
                         )}
                         <div className="mt-2 flex items-center justify-between">
                           <span className="inline-flex items-center gap-1 text-xs text-rose font-semibold group-hover:gap-1.5 transition-all">
-                            Ko'rish <ArrowRight className="w-3.5 h-3.5" />
+                            {t('survey.view')} <ArrowRight className="w-3.5 h-3.5" />
                           </span>
                           {isBuyable(st) && (
-                            <button aria-label="Savatga qo'shish"
+                            <button aria-label={t('product.addToCart')}
                               onClick={e => { e.preventDefault(); e.stopPropagation(); add({ id: p.id, name: p.name, price, image_url: p.image_url }); setAddedId(p.id); setTimeout(() => setAddedId(c => c === p.id ? null : c), 1500) }}
                               className={`w-8 h-8 rounded-full grid place-items-center flex-shrink-0 active:scale-90 transition ${addedId === p.id ? 'bg-success text-white' : 'bg-cream text-rose hover:bg-rose hover:text-white'}`}>
                               {addedId === p.id ? <Check className="w-4 h-4" /> : <ShoppingBag className="w-4 h-4" />}
@@ -195,16 +201,16 @@ export default function Survey({ products }: { products: SurveyProduct[] }) {
 
               {ranked.list.length === 0 && (
                 <p className="text-muted bg-white rounded-xl px-4 py-6 text-center shadow-card mt-4">
-                  Hozircha mos mahsulot topilmadi. <Link href="/#mahsulotlar" className="text-rose font-semibold">Katalogni ko'ring →</Link>
+                  {t('survey.noMatch')} <Link href="/#mahsulotlar" className="text-rose font-semibold">{t('survey.seeCatalog')}</Link>
                 </p>
               )}
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <button onClick={restart} className="flex items-center gap-2 bg-white text-ink font-semibold px-6 py-3 rounded-full shadow-card active:scale-95 transition">
-                  <RotateCcw className="w-4 h-4" /> Qaytadan boshlash
+                  <RotateCcw className="w-4 h-4" /> {t('survey.restartFull')}
                 </button>
                 <Link href="/#mahsulotlar" className="flex items-center gap-2 text-ink font-semibold px-6 py-3 rounded-full hover:bg-black/5 transition">
-                  Butun katalog <ArrowRight className="w-4 h-4" />
+                  {t('survey.wholeCatalog')} <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             </section>

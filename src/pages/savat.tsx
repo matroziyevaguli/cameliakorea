@@ -6,11 +6,14 @@ import { useCart, type CartItem } from '@/lib/cart'
 import { formatUZS } from '@/lib/format'
 import { CITIES } from '@/consts/geo'
 import TelegramLogin from '@/components/TelegramLogin'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
 import { ShoppingBag, Minus, Plus, Trash2, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
 
 type Customer = { full_name: string | null; phone: string | null; email: string | null }
 
 export default function Cart() {
+  const t = useT()
   const router = useRouter()
   const { items, setQty, remove, clear, total, count } = useCart()
 
@@ -42,9 +45,9 @@ export default function Cart() {
 
   async function place() {
     setError('')
-    if (!form.city) { setError('Shaharni tanlang'); return }
+    if (!form.city) { setError(t('checkout.errRegion')); return }
     if (!form.address.trim() || !form.contact_name.trim() || !form.contact_phone.trim()) {
-      setError("Ism, telefon va manzilni to'ldiring"); return
+      setError(t('checkout.errContact')); return
     }
     setPlacing(true)
     const res = await fetch('/api/orders/create', {
@@ -60,21 +63,22 @@ export default function Cart() {
 
   return (
     <>
-      <Head><title>Savat — Camelia Korea</title></Head>
+      <Head><title>{t('cart.title')} — Camelia Korea</title></Head>
       <div className="min-h-screen bg-cream">
         <header className="sticky top-0 z-20 bg-cream/80 backdrop-blur border-b border-black/5">
           <div className="max-w-2xl mx-auto px-5 h-16 flex items-center gap-3">
             <Link href="/" className="text-muted hover:text-ink transition"><ArrowLeft className="w-5 h-5" /></Link>
-            <h1 className="font-display font-bold text-ink text-lg flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-rose" /> Savat</h1>
+            <h1 className="font-display font-bold text-ink text-lg flex items-center gap-2"><ShoppingBag className="w-5 h-5 text-rose" /> {t('cart.title')}</h1>
+            <div className="ml-auto"><LangSwitcher /></div>
           </div>
         </header>
 
         <main className="max-w-2xl mx-auto px-5 py-8">
           {count === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-8 text-center">
-              <p className="text-muted">Savat bo'sh.</p>
+              <p className="text-muted">{t('cart.empty')}</p>
               <Link href="/#mahsulotlar" className="inline-flex items-center gap-2 mt-4 text-rose font-semibold">
-                Katalogni ko'rish <ArrowRight className="w-4 h-4" />
+                {t('home.viewCatalog')} <ArrowRight className="w-4 h-4" />
               </Link>
             </div>
           ) : (
@@ -94,63 +98,63 @@ export default function Cart() {
                       <button onClick={() => decrement(i)} className="w-8 h-8 rounded-full bg-cream grid place-items-center active:scale-90 transition"><Minus className="w-4 h-4" /></button>
                       <span className="w-7 text-center font-semibold">{i.qty}</span>
                       <button onClick={() => setQty(i.id, i.qty + 1)} className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition"><Plus className="w-4 h-4" /></button>
-                      <button onClick={() => setConfirmRemove(i)} aria-label="O'chirish" className="ml-1 text-muted hover:text-danger transition"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => setConfirmRemove(i)} aria-label={t('common.remove')} className="ml-1 text-muted hover:text-danger transition"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
                 <div className="flex items-center justify-between p-4">
-                  <span className="text-muted">Jami</span>
+                  <span className="text-muted">{t('cart.total')}</span>
                   <span className="font-display font-bold text-ink text-lg">{formatUZS(total)}</span>
                 </div>
               </div>
 
               {/* Auth + checkout */}
               {!checkedAuth ? (
-                <div className="bg-surface rounded-2xl shadow-card p-6 flex items-center gap-2 text-muted"><Loader2 className="w-4 h-4 animate-spin" /> Yuklanmoqda…</div>
+                <div className="bg-surface rounded-2xl shadow-card p-6 flex items-center gap-2 text-muted"><Loader2 className="w-4 h-4 animate-spin" /> {t('common.loading')}</div>
               ) : !customer ? (
                 <div className="bg-surface rounded-2xl shadow-card p-6 text-center">
-                  <p className="font-display font-bold text-ink mb-1">Buyurtma berish uchun kiring</p>
-                  <p className="text-sm text-muted mb-4">Telegram orqali bir bosishda.</p>
+                  <p className="font-display font-bold text-ink mb-1">{t('cart.loginTitle')}</p>
+                  <p className="text-sm text-muted mb-4">{t('cart.loginSub')}</p>
                   <div className="flex justify-center"><TelegramLogin onSuccess={loadMe} /></div>
                 </div>
               ) : (
                 <div className="bg-surface rounded-2xl shadow-card p-6 space-y-4">
-                  <h2 className="font-display font-bold text-ink">Yetkazish ma'lumotlari</h2>
+                  <h2 className="font-display font-bold text-ink">{t('checkout.deliveryInfo')}</h2>
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Viloyat</label>
+                      <label className="block text-xs font-semibold text-muted mb-1">{t('checkout.region')}</label>
                       <select value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
                         className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
-                        <option value="">— tanlang —</option>
-                        {CITIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        <option value="">{t('common.select')}</option>
+                        {CITIES.map(c => <option key={c.value} value={c.value}>{t(`region.${c.value}`)}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Telefon</label>
+                      <label className="block text-xs font-semibold text-muted mb-1">{t('checkout.phone')}</label>
                       <input value={form.contact_phone} onChange={e => setForm(f => ({ ...f, contact_phone: e.target.value }))}
                         placeholder="+998 ..." className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Ism</label>
+                      <label className="block text-xs font-semibold text-muted mb-1">{t('checkout.name')}</label>
                       <input value={form.contact_name} onChange={e => setForm(f => ({ ...f, contact_name: e.target.value }))}
                         className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-muted mb-1">Email (ixtiyoriy)</label>
+                      <label className="block text-xs font-semibold text-muted mb-1">{t('checkout.email')}</label>
                       <input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                         className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-muted mb-1">Manzil</label>
+                    <label className="block text-xs font-semibold text-muted mb-1">{t('checkout.address')}</label>
                     <textarea value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} rows={2}
-                      placeholder="Tuman, ko'cha, uy, mo'ljal…" className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition resize-none" />
+                      placeholder={t('checkout.addressPh')} className="w-full bg-cream text-ink rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition resize-none" />
                   </div>
-                  <p className="text-xs text-muted">To'lov — buyurtmadan so'ng ko'rsatilgan kartaga o'tkazma. Yetkazish haqi alohida.</p>
+                  <p className="text-xs text-muted">{t('checkout.payNote')}</p>
                   {error && <p className="text-danger text-sm">{error}</p>}
                   <button onClick={place} disabled={placing}
                     className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
-                    {placing ? <><Loader2 className="w-5 h-5 animate-spin" /> Yuborilmoqda…</> : <>Buyurtma berish <ArrowRight className="w-5 h-5" /></>}
+                    {placing ? <><Loader2 className="w-5 h-5 animate-spin" /> {t('common.sending')}</> : <>{t('checkout.placeOrder')} <ArrowRight className="w-5 h-5" /></>}
                   </button>
                 </div>
               )}
@@ -163,15 +167,15 @@ export default function Cart() {
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmRemove(null)} />
             <div className="relative bg-surface rounded-2xl shadow-card p-6 max-w-xs w-full">
-              <p className="font-display font-bold text-ink text-lg mb-1">Savatdan olib tashlash</p>
+              <p className="font-display font-bold text-ink text-lg mb-1">{t('cart.removeTitle')}</p>
               <p className="text-sm text-muted mb-5">
-                <b className="text-ink">«{confirmRemove.name}»</b> savatdan olib tashlansinmi?
+                {t('cart.removeQ', { name: confirmRemove.name })}
               </p>
               <div className="flex gap-2">
                 <button onClick={() => setConfirmRemove(null)}
-                  className="flex-1 bg-cream text-ink text-sm font-semibold py-3 rounded-full active:scale-95 transition">Yo'q</button>
+                  className="flex-1 bg-cream text-ink text-sm font-semibold py-3 rounded-full active:scale-95 transition">{t('common.no')}</button>
                 <button onClick={() => { remove(confirmRemove.id); setConfirmRemove(null) }}
-                  className="flex-1 bg-danger text-white text-sm font-semibold py-3 rounded-full active:scale-95 transition">Ha, olib tashlash</button>
+                  className="flex-1 bg-danger text-white text-sm font-semibold py-3 rounded-full active:scale-95 transition">{t('cart.removeYes')}</button>
               </div>
             </div>
           </div>

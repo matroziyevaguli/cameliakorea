@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import { formatUZS } from '@/lib/format'
-import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
+import { stateOf, isBuyable, STATE_STYLE } from '@/lib/availability'
 import { useCart } from '@/lib/cart'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
 import CartFab from '@/components/CartFab'
 import { Send, ChevronLeft, Play, ShoppingBag, Check } from 'lucide-react'
 
@@ -25,16 +27,17 @@ type Product = {
 const TELEGRAM = 'https://t.me/cameliakorea'
 
 export default function ProductPage({ product }: { product: Product | null }) {
+  const t = useT()
   const [active, setActive] = useState(0)
   const { add } = useCart()
   const [added, setAdded] = useState(false)
   const [qty, setQty] = useState(1)
 
   if (!product) return (
-    <div className="min-h-screen bg-cream grid place-items-center text-muted">Mahsulot topilmadi.</div>
+    <div className="min-h-screen bg-cream grid place-items-center text-muted">{t('product.notFound')}</div>
   )
 
-  const orderText = encodeURIComponent(`Assalomu alaykum! Men "${product.name}" mahsulotiga buyurtma bermoqchiman.`)
+  const orderText = encodeURIComponent(t('product.tgOrder', { name: product.name }))
   const price = product.discount_price ?? product.retail_price
   const st = stateOf(product)
   const soldOut = !isBuyable(st)
@@ -51,9 +54,12 @@ export default function ProductPage({ product }: { product: Product | null }) {
         <header className="sticky top-0 z-30 bg-cream/90 backdrop-blur border-b border-black/5">
           <div className="max-w-5xl mx-auto px-5 h-16 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-1.5 text-sm text-muted hover:text-rose transition">
-              <ChevronLeft className="w-4 h-4" /> Do'konga qaytish
+              <ChevronLeft className="w-4 h-4" /> {t('nav.backToShop')}
             </Link>
-            <Link href="/" className="font-display font-bold">Camelia Korea</Link>
+            <div className="flex items-center gap-2">
+              <LangSwitcher />
+              <Link href="/" className="font-display font-bold">Camelia Korea</Link>
+            </div>
           </div>
         </header>
 
@@ -85,7 +91,7 @@ export default function ProductPage({ product }: { product: Product | null }) {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="font-display font-bold text-2xl md:text-3xl leading-tight">{product.name}</h1>
-              <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${STATE_STYLE[st]}`}>{STATE_LABEL[st]}</span>
+              <span className={`text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${STATE_STYLE[st]}`}>{t(`state.${st}`)}</span>
             </div>
 
             <div className="flex items-baseline gap-3 mt-4">
@@ -96,7 +102,7 @@ export default function ProductPage({ product }: { product: Product | null }) {
             </div>
 
             {st === 'low' && (
-              <p className="mt-2 text-sm font-semibold text-warning">⚡ Kam qoldi — atigi {product.remaining} ta</p>
+              <p className="mt-2 text-sm font-semibold text-warning">{t('product.lowLeft', { n: product.remaining })}</p>
             )}
 
             {product.description && (
@@ -105,51 +111,51 @@ export default function ProductPage({ product }: { product: Product | null }) {
 
             <div className="mt-8 space-y-3">
               {soldOut ? (
-                <a href={`${TELEGRAM}?text=${encodeURIComponent(`Assalomu alaykum! "${product.name}" mahsuloti qachon bo'ladi?`)}`} target="_blank" rel="noreferrer"
+                <a href={`${TELEGRAM}?text=${encodeURIComponent(t('product.tgAsk', { name: product.name }))}`} target="_blank" rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 bg-ink text-white font-display font-bold text-lg py-4 rounded-full active:scale-95 transition">
-                  <Send className="w-5 h-5" /> Mavjudligini so'rash
+                  <Send className="w-5 h-5" /> {t('product.askAvailable')}
                 </a>
               ) : added ? (
                 <Link href="/savat"
                   className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-mint to-success text-white font-display font-bold text-lg py-4 rounded-full shadow-card active:scale-95 transition">
-                  <Check className="w-5 h-5" /> Savatga qo'shildi — Savatga o'tish
+                  <Check className="w-5 h-5" /> {t('product.addedGoCart')}
                 </Link>
               ) : (
                 <div className="flex items-center gap-3">
                   {/* Quantity stepper */}
                   <div className="flex items-center gap-1 bg-cream rounded-full p-1 flex-shrink-0">
-                    <button aria-label="Kamaytirish" onClick={() => setQty(q => Math.max(1, q - 1))}
+                    <button aria-label={t('common.decrease')} onClick={() => setQty(q => Math.max(1, q - 1))}
                       className="w-10 h-10 rounded-full bg-surface grid place-items-center text-ink active:scale-90 transition">−</button>
                     <span className="w-8 text-center font-display font-bold text-ink">{qty}</span>
-                    <button aria-label="Ko'paytirish" onClick={() => setQty(q => Math.min(product.remaining, q + 1))}
+                    <button aria-label={t('common.increase')} onClick={() => setQty(q => Math.min(product.remaining, q + 1))}
                       className="w-10 h-10 rounded-full bg-surface grid place-items-center text-ink active:scale-90 transition">+</button>
                   </div>
                   <button onClick={() => { add({ id: product.id, name: product.name, price, image_url: product.images[0] ?? null }, qty); setAdded(true) }}
                     className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition">
-                    <ShoppingBag className="w-5 h-5" /> Savatga qo'shish
+                    <ShoppingBag className="w-5 h-5" /> {t('product.addToCart')}
                   </button>
                 </div>
               )}
               {!soldOut && (
                 <a href={`${TELEGRAM}?text=${orderText}`} target="_blank" rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 bg-white text-ink font-semibold py-3.5 rounded-full shadow-card active:scale-95 transition">
-                  <Send className="w-5 h-5 text-rose" /> Telegram orqali buyurtma
+                  <Send className="w-5 h-5 text-rose" /> {t('product.orderTelegram')}
                 </a>
               )}
               {product.link && (
                 <a href={product.link} target="_blank" rel="noreferrer"
                   className="w-full flex items-center justify-center gap-2 bg-white text-ink font-semibold py-3.5 rounded-full shadow-card active:scale-95 transition">
-                  <Play className="w-4 h-4 text-rose" /> Videoni ko'rish
+                  <Play className="w-4 h-4 text-rose" /> {t('product.watchVideo')}
                 </a>
               )}
             </div>
 
             <div className="mt-6 text-sm text-muted space-y-1">
-              <p>🇰🇷 Koreyadan original</p>
-              <p>🚚 O'zbekiston bo'ylab yetkazib berish</p>
+              <p>🇰🇷 {t('product.info1')}</p>
+              <p>🚚 {t('home.trust2')}</p>
               {soldOut
-                ? <p>⛔ Hozircha tugagan — tez orada qayta keladi</p>
-                : <p>⚠️ Mahsulot soni cheklangan</p>}
+                ? <p>⛔ {t('product.infoSoldOut')}</p>
+                : <p>⚠️ {t('product.infoLimited')}</p>}
             </div>
           </div>
         </main>
