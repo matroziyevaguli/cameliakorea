@@ -7,11 +7,19 @@ import { createPublicClient, createServiceClient } from '@/lib/supabase/api'
 import HeaderCart from '@/components/HeaderCart'
 import TelegramLogin from '@/components/TelegramLogin'
 import { useCart } from '@/lib/cart'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
+
+// Render a string where *word* segments are highlighted in rose (for hero-style titles).
+function Highlighted({ text }: { text: string }) {
+  return <>{text.split('*').map((seg, i) => i % 2 === 1 ? <span key={i} className="text-rose">{seg}</span> : seg)}</>
+}
 import { formatUZS } from '@/lib/format'
-import { stateOf, isBuyable, STATE_LABEL, STATE_STYLE } from '@/lib/availability'
+import { stateOf, isBuyable, STATE_STYLE } from '@/lib/availability'
 import { Send, AtSign, Sparkles, ArrowRight, ShieldCheck, Truck, MessageCircle, Search, User, ShoppingBag, X, Clock, Bell, ClipboardList, LogOut, Check, ShieldCheck as Shield } from 'lucide-react'
 
 function LoginMenu() {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -34,8 +42,8 @@ function LoginMenu() {
       <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
       <div className="relative w-full max-w-xs bg-surface rounded-2xl shadow-card p-3 border border-black/5">
         <div className="flex items-center justify-between px-1 pb-2 mb-1">
-          <p className="text-sm font-bold text-ink">{loggedIn ? (customer!.full_name || 'Xaridor') : 'Kirish'}</p>
-          <button aria-label="Yopish" onClick={() => setOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+          <p className="text-sm font-bold text-ink">{loggedIn ? (customer!.full_name || t('account.buyerAs')) : t('account.login')}</p>
+          <button aria-label={t('common.close')} onClick={() => setOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
         </div>
 
         {loggedIn ? (
@@ -44,36 +52,36 @@ function LoginMenu() {
             <Link href="/buyurtmalarim" onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
               <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center"><ClipboardList className="w-4 h-4 text-rose" /></span>
-              <span className="text-sm font-semibold text-ink">Mening buyurtmalarim</span>
+              <span className="text-sm font-semibold text-ink">{t('account.myOrders')}</span>
             </Link>
             <button onClick={logout}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition text-left">
               <span className="w-9 h-9 rounded-full bg-gray-100 grid place-items-center"><LogOut className="w-4 h-4 text-muted" /></span>
-              <span className="text-sm font-semibold text-danger">Chiqish</span>
+              <span className="text-sm font-semibold text-danger">{t('account.logout')}</span>
             </button>
             <Link href="/login" onClick={() => setOpen(false)}
               className="block px-3 py-2 mt-1 pt-2 border-t border-black/5 text-xs text-muted hover:text-ink transition">
-              Admin / Sotuvchi sifatida kirish
+              {t('account.staffLogin')}
             </Link>
           </>
         ) : (
           // ── Not logged in: customer Telegram login + staff ──
           <>
             <div className="px-3 py-2.5">
-              <p className="text-sm font-semibold text-ink mb-0.5">Xaridor sifatida</p>
-              <p className="text-xs text-muted mb-2.5">Buyurtma berish uchun Telegram orqali kiring.</p>
+              <p className="text-sm font-semibold text-ink mb-0.5">{t('account.buyerAs')}</p>
+              <p className="text-xs text-muted mb-2.5">{t('account.buyerHint')}</p>
               {checked && <TelegramLogin onSuccess={loadMe} />}
             </div>
             <div className="mt-1 pt-2 border-t border-black/5">
               <Link href="/login?as=admin" onClick={() => setOpen(false)}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
                 <span className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center"><Shield className="w-4 h-4" /></span>
-                <span><span className="block text-sm font-semibold text-ink">Admin sifatida</span><span className="block text-xs text-muted">Boshqaruv paneli</span></span>
+                <span><span className="block text-sm font-semibold text-ink">{t('account.adminAs')}</span><span className="block text-xs text-muted">{t('account.adminSub')}</span></span>
               </Link>
               <Link href="/login?as=seller" onClick={() => setOpen(false)}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-cream transition">
                 <span className="w-9 h-9 rounded-full bg-gradient-to-br from-mint to-sky text-white grid place-items-center"><ShoppingBag className="w-4 h-4" /></span>
-                <span><span className="block text-sm font-semibold text-ink">Sotuvchi sifatida</span><span className="block text-xs text-muted">Mening mahsulotlarim</span></span>
+                <span><span className="block text-sm font-semibold text-ink">{t('account.sellerAs')}</span><span className="block text-xs text-muted">{t('account.sellerSub')}</span></span>
               </Link>
             </div>
           </>
@@ -92,7 +100,7 @@ function LoginMenu() {
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 bg-white text-ink text-sm font-semibold px-4 py-2 rounded-full shadow-card active:scale-95 transition">
         <User className="w-4 h-4 text-rose" />
-        {loggedIn ? <span className="max-w-[9rem] truncate">{customer!.full_name || 'Xaridor'}</span> : 'Kirish'}
+        {loggedIn ? <span className="max-w-[9rem] truncate">{customer!.full_name || t('account.buyerAs')}</span> : t('account.login')}
       </button>
       {menu}
     </div>
@@ -118,6 +126,7 @@ const CARD_COLORS = ['#F4628E', '#B9A7F0', '#6FD8C0', '#7CC4F2', '#FFB088', '#E1
 const TELEGRAM = 'https://t.me/cameliakorea'
 
 export default function Store({ products }: { products: ShopProduct[] }) {
+  const t = useT()
   const { add } = useCart()
   const [cat, setCat] = useState('')
   const [addedId, setAddedId] = useState<string | null>(null)
@@ -130,10 +139,10 @@ export default function Store({ products }: { products: ShopProduct[] }) {
   return (
     <>
       <Head>
-        <title>Camelia Korea — Koreyadan teri parvarishi katalogi</title>
-        <meta name="description" content="Camelia Korea — Koreyadan original teri parvarish mahsulotlari katalogi. Buyurtma uchun Telegram orqali bog'laning. O'zbekiston bo'ylab yetkazib berish." />
+        <title>{t('home.metaTitle')}</title>
+        <meta name="description" content={t('home.metaDesc')} />
         <meta property="og:title" content="Camelia Korea" />
-        <meta property="og:description" content="Koreyadan original teri parvarish mahsulotlari katalogi." />
+        <meta property="og:description" content={t('home.metaDesc')} />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* Public storefront: open to search engines and AI agents. */}
         <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -152,12 +161,13 @@ export default function Store({ products }: { products: ShopProduct[] }) {
               <Link href="/community"
                 className="flex items-center gap-1.5 text-ink font-semibold text-sm px-3 py-2 rounded-full hover:bg-black/5 transition">
                 <MessageCircle className="w-4 h-4 text-rose" />
-                <span className="hidden sm:inline">Savol-javob</span>
+                <span className="hidden sm:inline">{t('nav.qa')}</span>
               </Link>
               <a href={TELEGRAM} target="_blank" rel="noreferrer"
                 className="hidden sm:flex items-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold px-4 py-2 rounded-full shadow-rose active:scale-95 transition">
                 <Send className="w-4 h-4" /> Telegram
               </a>
+              <LangSwitcher />
               <LoginMenu />
             </div>
           </div>
@@ -169,31 +179,30 @@ export default function Store({ products }: { products: ShopProduct[] }) {
           <div className="absolute bottom-0 left-0 w-72 h-72 bg-gradient-to-br from-lavender/20 to-sky/20 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
           <div className="max-w-6xl mx-auto px-5 py-16 md:py-24 relative">
             <div className="inline-flex items-center gap-2 bg-white rounded-full px-4 py-1.5 shadow-card text-sm font-medium text-rose mb-6">
-              <Sparkles className="w-4 h-4" /> 🇰🇷 Koreyadan original mahsulotlar
+              <Sparkles className="w-4 h-4" /> 🇰🇷 {t('home.heroBadge')}
             </div>
             <h1 className="font-display font-bold text-4xl md:text-6xl leading-[1.05] max-w-3xl">
-              Teringiz uchun eng yaxshi <span className="text-rose">Koreya</span> parvarishi
+              <Highlighted text={t('home.heroTitle')} />
             </h1>
             <p className="text-muted text-lg mt-5 max-w-xl leading-relaxed">
-              Sinab ko'rilgan, original K-beauty mahsulotlari katalogi. Yoqqan mahsulotni tanlang —
-              buyurtma uchun Telegram yoki telefon orqali bog'laning.
+              {t('home.heroBody')}
             </p>
             <div className="flex flex-wrap gap-3 mt-8">
               <a href="/tavsiya"
                 className="flex items-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold px-6 py-3.5 rounded-full shadow-rose active:scale-95 transition">
-                <Sparkles className="w-5 h-5" /> Teringizga mos mahsulotni toping
+                <Sparkles className="w-5 h-5" /> {t('home.findMatch')}
               </a>
               <a href="#mahsulotlar"
                 className="flex items-center gap-2 bg-white text-ink font-semibold px-6 py-3.5 rounded-full shadow-card active:scale-95 transition">
-                Katalogni ko'rish <ArrowRight className="w-5 h-5" />
+                {t('home.viewCatalog')} <ArrowRight className="w-5 h-5" />
               </a>
             </div>
 
             {/* Trust badges */}
             <div className="flex flex-wrap gap-x-6 gap-y-3 mt-10 text-sm text-muted">
-              <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-success" /> Original & sinovdan o'tgan</span>
-              <span className="flex items-center gap-2"><Truck className="w-4 h-4 text-sky" /> O'zbekiston bo'ylab yetkazib berish</span>
-              <span className="flex items-center gap-2"><MessageCircle className="w-4 h-4 text-rose" /> Maslahat va yordam</span>
+              <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-success" /> {t('home.trust1')}</span>
+              <span className="flex items-center gap-2"><Truck className="w-4 h-4 text-sky" /> {t('home.trust2')}</span>
+              <span className="flex items-center gap-2"><MessageCircle className="w-4 h-4 text-rose" /> {t('home.trust3')}</span>
             </div>
           </div>
         </section>
@@ -202,9 +211,9 @@ export default function Store({ products }: { products: ShopProduct[] }) {
         <section className="max-w-6xl mx-auto px-5 pb-4">
           <div className="bg-surface rounded-3xl shadow-card p-6 md:p-8 grid gap-6 md:grid-cols-3">
             {[
-              { n: '1', t: 'Tanlang', d: 'Katalogdan yoqqan mahsulotni toping.' },
-              { n: '2', t: 'Yozing', d: 'Telegram yoki telefon orqali bog\'laning.' },
-              { n: '3', t: 'Qabul qiling', d: 'Mahsulotni qulay tarzda yetkazib beramiz.' },
+              { n: '1', t: t('home.step1t'), d: t('home.step1d') },
+              { n: '2', t: t('home.step2t'), d: t('home.step2d') },
+              { n: '3', t: t('home.step3t'), d: t('home.step3d') },
             ].map(s => (
               <div key={s.n} className="flex gap-4">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center font-display font-bold flex-shrink-0">{s.n}</div>
@@ -221,12 +230,12 @@ export default function Store({ products }: { products: ShopProduct[] }) {
         <section id="mahsulotlar" className="max-w-6xl mx-auto px-5 py-12">
           <div className="flex items-end justify-between mb-8 gap-4">
             <div>
-              <h2 className="font-display font-bold text-2xl md:text-3xl">Katalog</h2>
-              <p className="text-muted text-sm mt-1">Buyurtma uchun mahsulotni bosing.</p>
+              <h2 className="font-display font-bold text-2xl md:text-3xl">{t('home.catalog')}</h2>
+              <p className="text-muted text-sm mt-1">{t('home.catalogSub')}</p>
             </div>
             {products.length > 0 && (
               <span className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted bg-white px-3 py-1.5 rounded-full shadow-card">
-                <Search className="w-4 h-4" /> {products.length} ta mahsulot
+                <Search className="w-4 h-4" /> {t('home.count', { n: products.length })}
               </span>
             )}
           </div>
@@ -236,7 +245,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             <div className="flex flex-wrap gap-2 mb-6">
               <button onClick={() => setCat('')}
                 className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${cat === '' ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-white text-muted shadow-card hover:text-ink'}`}>
-                Hammasi
+                {t('home.all')}
               </button>
               {categories.map(c => (
                 <button key={c} onClick={() => setCat(c)}
@@ -249,7 +258,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
 
           {products.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-16 text-center">
-              <p className="text-muted">Katalog tez orada to'ldiriladi. Yangiliklar uchun Telegram'ga obuna bo'ling.</p>
+              <p className="text-muted">{t('home.emptyCatalog')}</p>
               <a href={TELEGRAM} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-2 mt-4 bg-gradient-to-br from-rose to-peach text-white font-semibold px-5 py-2.5 rounded-full shadow-rose">
                 <Send className="w-4 h-4" /> Telegram
@@ -279,19 +288,19 @@ export default function Store({ products }: { products: ShopProduct[] }) {
                       {/* The single state badge — "Tugadi" and "Tugadi — yo'lda" are
                           now visibly different, which was the whole point. */}
                       <span className={`absolute top-3 right-3 text-xs font-bold px-2.5 py-1 rounded-full ${STATE_STYLE[st]}`}>
-                        {STATE_LABEL[st]}
+                        {t(`state.${st}`)}
                       </span>
                       {p.discount_price != null && !soldOut && (
-                        <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">Chegirma</span>
+                        <span className="absolute top-3 left-3 bg-rose text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-rose">{t('home.discount')}</span>
                       )}
                       {p.just_arrived && !soldOut && (
-                        <span className="absolute bottom-3 left-3 bg-success text-white text-xs font-bold px-2.5 py-1 rounded-full">Keldi ✅</span>
+                        <span className="absolute bottom-3 left-3 bg-success text-white text-xs font-bold px-2.5 py-1 rounded-full">{t('home.justArrived')} ✅</span>
                       )}
                       {soldOut && (
                         <span className="absolute inset-x-0 bottom-0 bg-ink/80 text-white text-center text-xs font-semibold py-1.5">
                           {st === 'sold_out_incoming' || st === 'not_arrived'
-                            ? "Tez orada — kanalga obuna bo'ling"
-                            : 'Hozircha mavjud emas'}
+                            ? t('home.comingSoon')
+                            : t('home.unavailable')}
                         </span>
                       )}
                     </div>
@@ -309,7 +318,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
                       </div>
                       <div className="mt-3 flex items-center justify-between">
                         <span className={`inline-flex items-center gap-1 text-xs font-semibold transition-all ${soldOut ? 'text-muted' : 'text-rose group-hover:gap-2'}`}>
-                          Batafsil <ArrowRight className="w-3.5 h-3.5" />
+                          {t('home.more')} <ArrowRight className="w-3.5 h-3.5" />
                         </span>
                         {!soldOut && (
                           <button aria-label="Savatga qo'shish"
@@ -331,11 +340,11 @@ export default function Store({ products }: { products: ShopProduct[] }) {
         <section className="max-w-6xl mx-auto px-5 pb-12">
           <div className="rounded-3xl bg-gradient-to-br from-rose to-peach text-white p-8 md:p-12 text-center shadow-rose relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/3" />
-            <h2 className="font-display font-bold text-2xl md:text-3xl relative">Savolingiz bormi?</h2>
-            <p className="text-white/90 mt-2 relative">Maslahat va buyurtma uchun biz bilan bog'laning.</p>
+            <h2 className="font-display font-bold text-2xl md:text-3xl relative">{t('home.ctaTitle')}</h2>
+            <p className="text-white/90 mt-2 relative">{t('home.ctaBody')}</p>
             <a href={TELEGRAM} target="_blank" rel="noreferrer"
               className="inline-flex items-center gap-2 mt-6 bg-white text-rose font-display font-bold px-6 py-3.5 rounded-full active:scale-95 transition relative">
-              <Send className="w-5 h-5" /> Telegram orqali yozish
+              <Send className="w-5 h-5" /> {t('home.ctaBtn')}
             </a>
           </div>
         </section>
@@ -345,10 +354,10 @@ export default function Store({ products }: { products: ShopProduct[] }) {
           <div className="max-w-6xl mx-auto px-5 py-12 grid gap-8 md:grid-cols-3">
             <div>
               <p className="font-display font-bold text-white text-lg mb-2">Camelia Korea</p>
-              <p className="text-sm leading-relaxed">Koreyadan original teri parvarish mahsulotlari katalogi. Sifat kafolati bilan.</p>
+              <p className="text-sm leading-relaxed">{t('home.footerTagline')}</p>
             </div>
             <div>
-              <p className="font-semibold text-white mb-3">Buyurtma uchun</p>
+              <p className="font-semibold text-white mb-3">{t('home.orderFor')}</p>
               <div className="space-y-1.5 text-sm">
                 <p>🏙 Namangan: Gulshanoy +998 94 099 44 99</p>
                 <p>🏙 Andijon: Saida +998 93 858 27 27</p>
@@ -356,7 +365,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
               </div>
             </div>
             <div>
-              <p className="font-semibold text-white mb-3">Ijtimoiy tarmoqlar</p>
+              <p className="font-semibold text-white mb-3">{t('home.social')}</p>
               <div className="flex gap-3">
                 <a href={TELEGRAM} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-white/10 grid place-items-center hover:bg-white/20 transition"><Send className="w-5 h-5" /></a>
                 <a href="https://instagram.com/cameliakorea" target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-white/10 grid place-items-center hover:bg-white/20 transition"><AtSign className="w-5 h-5" /></a>
@@ -364,7 +373,7 @@ export default function Store({ products }: { products: ShopProduct[] }) {
             </div>
           </div>
           <div className="border-t border-white/10 py-5 text-center text-xs text-white/50">
-            © 2026 Camelia Korea · <Link href="/community" className="hover:text-white/80">Savol-javob</Link> · <Link href="/login" className="hover:text-white/80">Kirish</Link>
+            © 2026 Camelia Korea · <Link href="/community" className="hover:text-white/80">{t('nav.qa')}</Link> · <Link href="/login" className="hover:text-white/80">{t('account.login')}</Link>
           </div>
         </footer>
       </div>

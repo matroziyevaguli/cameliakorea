@@ -15,11 +15,10 @@ const nextConfig = {
     unoptimized: true,
   },
   i18n: {
-    locales: ['en', 'ko', 'uz'],
-    defaultLocale: 'en',
-    // OFF: with detection on, visiting "/" would auto-redirect customers to /ko or /uz
-    // based on their browser language, turning the public store URL into /ko etc.
-    // The portfolio's language switcher still works manually (it passes { locale }).
+    locales: ['uz', 'en', 'ru', 'ko'],
+    defaultLocale: 'uz',
+    // OFF: with detection on, visiting "/" would auto-redirect customers to /en or /ru
+    // based on their browser language. Default stays Uzbek; the switcher sets { locale }.
     localeDetection: false,
   },
   async headers() {
@@ -37,7 +36,7 @@ const nextConfig = {
     ]
     return privatePaths.flatMap((p) => [
       { source: p, headers: noindex },
-      { source: `/:locale(en|ko|uz)${p}`, headers: noindex },
+      { source: `/:locale(uz|en|ru|ko)${p}`, headers: noindex },
     ])
   },
 }
