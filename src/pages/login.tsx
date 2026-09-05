@@ -5,11 +5,13 @@ import { GetServerSideProps } from 'next'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { sellerEmail } from '@/lib/sellerEmail'
 import { User, Lock, Sparkles } from 'lucide-react'
-import { S } from '@/consts/strings'
 import { SELLER_CONFIG } from '@/consts/sellerConfig'
 import { MiniSpinner } from '@/components/Loader'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
 
 export default function Login() {
+  const t = useT()
   const router = useRouter()
   // ?as=admin hints an email login; sellers type their name. We never list names (privacy).
   const isAdmin = router.query.as === 'admin'
@@ -34,8 +36,8 @@ export default function Login() {
     if (authError) {
       // With a typed identity, a bad login can be a wrong name OR wrong password — say both.
       setError(/invalid login|credentials/i.test(authError.message)
-        ? "Ism yoki parol noto'g'ri. Qayta urinib ko'ring."
-        : S.loginNetworkError)
+        ? t('login.err')
+        : t('login.netErr'))
       setLoading(false)
       return
     }
@@ -55,14 +57,15 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose to-peach flex items-center justify-center p-5">
       <div className="w-full max-w-sm bg-surface rounded-3xl shadow-rose p-8">
+        <div className="flex justify-end mb-2"><LangSwitcher /></div>
 
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-rose to-peach mb-4 shadow-rose">
             <Sparkles className="w-8 h-8 text-white" />
           </div>
-          <h1 className="font-display text-2xl font-bold text-ink">{S.welcome}</h1>
-          <p className="text-muted text-sm mt-1">Camelia Boshqaruv</p>
+          <h1 className="font-display text-2xl font-bold text-ink">{t('login.welcome')}</h1>
+          <p className="text-muted text-sm mt-1">{t('login.subtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,7 +79,7 @@ export default function Login() {
               required
               autoComplete="username"
               autoCapitalize="none"
-              placeholder={isAdmin ? 'Email' : 'Ismingiz'}
+              placeholder={isAdmin ? t('login.email') : t('login.name')}
               className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-cream text-ink placeholder:text-muted font-sans text-base focus:outline-none focus:border-rose transition"
             />
           </div>
@@ -89,7 +92,7 @@ export default function Login() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              placeholder={S.passPlaceholder}
+              placeholder={t('login.password')}
               className="w-full pl-12 pr-4 py-4 rounded-xl border-2 border-transparent bg-cream text-ink placeholder:text-muted font-sans text-base focus:outline-none focus:border-rose transition"
             />
           </div>
@@ -106,13 +109,13 @@ export default function Login() {
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-60 mt-2"
           >
             {loading && <MiniSpinner />}
-            {loading ? S.loggingIn : S.loginBtn}
+            {loading ? t('login.loggingIn') : t('account.login')}
           </button>
 
           {/* One recovery path (G8) — there is no self-serve reset, so send her to the admin. */}
           <a href={SELLER_CONFIG.adminTelegramUrl} target="_blank" rel="noopener noreferrer"
             className="block text-center text-sm text-muted hover:text-rose transition pt-1">
-            {S.forgotPassword}
+            {t('login.forgot')}
           </a>
         </form>
       </div>

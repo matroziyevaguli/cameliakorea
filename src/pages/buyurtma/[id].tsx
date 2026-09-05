@@ -7,9 +7,10 @@ import { createServiceClient } from '@/lib/supabase/api'
 import { CUSTOMER_COOKIE } from '@/lib/customerAuth'
 import { compressImage } from '@/lib/image'
 import { formatUZS } from '@/lib/format'
-import { CITY_LABEL } from '@/consts/geo'
 import CardPreview from '@/components/CardPreview'
 import { cardDigits } from '@/lib/card'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
 import { ArrowLeft, Upload, Loader2, CheckCircle, Clock, Truck, XCircle, CreditCard, Copy } from 'lucide-react'
 
 type Item = { product_name: string; unit_price: number; qty: number }
@@ -19,18 +20,20 @@ type Order = {
   contact_name: string; contact_phone: string; rejection_reason: string | null; created_at: string
 }
 
-const STATUS: Record<string, { label: string; cls: string; icon: any; msg: string }> = {
-  pending_payment:        { label: "To'lov kutilmoqda", cls: 'bg-orange-100 text-warning', icon: Clock,      msg: "Kartaga o'tkazing va chek rasmini yuklang." },
-  awaiting_payment_retry: { label: 'Chek qayta kerak',  cls: 'bg-orange-100 text-warning', icon: Clock,      msg: 'Chek qabul qilinmadi — qaytadan yuklang.' },
-  rejected:               { label: 'Chek rad etildi',   cls: 'bg-red-100 text-danger',     icon: XCircle,    msg: 'Chek qabul qilinmadi — qaytadan yuklang.' },
-  awaiting_confirmation:  { label: 'Tekshirilmoqda',    cls: 'bg-sky/20 text-sky',         icon: Clock,      msg: 'Chek yuborildi. Admin tasdiqlashini kuting.' },
-  confirmed:              { label: 'Tasdiqlandi',       cls: 'bg-green-100 text-success',  icon: CheckCircle, msg: "To'lov qabul qilindi. Buyurtma tayyorlanmoqda." },
-  delivering:             { label: 'Yetkazilmoqda',     cls: 'bg-lavender/20 text-lavender', icon: Truck,    msg: "Buyurtmangiz yo'lda." },
-  delivered:              { label: 'Yetkazildi',        cls: 'bg-green-100 text-success',  icon: CheckCircle, msg: 'Rahmat! Buyurtma yetkazildi.' },
-  cancelled:              { label: 'Bekor qilindi',     cls: 'bg-gray-100 text-muted',     icon: XCircle,    msg: 'Buyurtma bekor qilindi.' },
+// Icon + colour per status; label/msg come from the dictionary (order.st.*).
+const STATUS: Record<string, { cls: string; icon: any }> = {
+  pending_payment:        { cls: 'bg-orange-100 text-warning',   icon: Clock },
+  awaiting_payment_retry: { cls: 'bg-orange-100 text-warning',   icon: Clock },
+  rejected:               { cls: 'bg-red-100 text-danger',       icon: XCircle },
+  awaiting_confirmation:  { cls: 'bg-sky/20 text-sky',           icon: Clock },
+  confirmed:              { cls: 'bg-green-100 text-success',    icon: CheckCircle },
+  delivering:             { cls: 'bg-lavender/20 text-lavender', icon: Truck },
+  delivered:              { cls: 'bg-green-100 text-success',    icon: CheckCircle },
+  cancelled:              { cls: 'bg-gray-100 text-muted',       icon: XCircle },
 }
 
 export default function OrderStatus({ order, items, seller }: { order: Order; items: Item[]; seller: Seller }) {
+  const t = useT()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -62,17 +65,18 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
       const j = await res.json().catch(() => ({}))
       if (!res.ok) { setError(j.error ?? 'Xatolik'); setBusy(false); return }
       router.replace(router.asPath)   // refresh SSR
-    } catch { setError('Rasmni yuklab bo\'lmadi'); setBusy(false) }
+    } catch { setError(t('order.uploadErr')); setBusy(false) }
   }
 
   return (
     <>
-      <Head><title>Buyurtma — Camelia Korea</title></Head>
+      <Head><title>{t('order.title')} — Camelia Korea</title></Head>
       <div className="min-h-screen bg-cream">
         <header className="sticky top-0 z-20 bg-cream/80 backdrop-blur border-b border-black/5">
           <div className="max-w-2xl mx-auto px-5 h-16 flex items-center gap-3">
             <Link href="/" className="text-muted hover:text-ink transition"><ArrowLeft className="w-5 h-5" /></Link>
-            <h1 className="font-display font-bold text-ink text-lg">Buyurtma</h1>
+            <h1 className="font-display font-bold text-ink text-lg">{t('order.title')}</h1>
+            <div className="ml-auto"><LangSwitcher /></div>
           </div>
         </header>
 
@@ -80,33 +84,33 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
           {/* Status */}
           <div className="bg-surface rounded-2xl shadow-card p-6">
             <span className={`inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1 rounded-full ${meta.cls}`}>
-              <Icon className="w-4 h-4" /> {meta.label}
+              <Icon className="w-4 h-4" /> {t(`order.st.${order.status}.label`)}
             </span>
-            <p className="text-muted mt-3">{meta.msg}</p>
+            <p className="text-muted mt-3">{t(`order.st.${order.status}.msg`)}</p>
             {order.rejection_reason && (order.status === 'rejected' || order.status === 'awaiting_payment_retry') && (
-              <p className="text-sm text-danger mt-2">Sabab: {order.rejection_reason}</p>
+              <p className="text-sm text-danger mt-2">{t('order.rejReason', { reason: order.rejection_reason })}</p>
             )}
           </div>
 
           {/* Payment */}
           {canUpload && (
             <div className="bg-surface rounded-2xl shadow-card p-6">
-              <h2 className="font-display font-bold text-ink mb-3 flex items-center gap-2"><CreditCard className="w-5 h-5 text-rose" /> To'lov</h2>
+              <h2 className="font-display font-bold text-ink mb-3 flex items-center gap-2"><CreditCard className="w-5 h-5 text-rose" /> {t('order.payment')}</h2>
               {seller?.card_number ? (
                 <div className="mb-4">
-                  <p className="text-xs text-muted mb-2">Ushbu kartaga o'tkazing:</p>
+                  <p className="text-xs text-muted mb-2">{t('order.transferTo')}</p>
                   <CardPreview number={seller.card_number} holder={seller.card_holder} />
                   <button onClick={copyCard}
                     className="w-full mt-2 flex items-center justify-center gap-2 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">
-                    {copied ? <><CheckCircle className="w-4 h-4 text-success" /> Nusxalandi</> : <><Copy className="w-4 h-4" /> Karta raqamini nusxalash</>}
+                    {copied ? <><CheckCircle className="w-4 h-4 text-success" /> {t('order.copied')}</> : <><Copy className="w-4 h-4" /> {t('order.copyCard')}</>}
                   </button>
-                  <p className="text-sm mt-3 text-center">Summa: <b className="text-ink text-base">{formatUZS(order.subtotal)}</b></p>
+                  <p className="text-sm mt-3 text-center">{t('order.amount')}: <b className="text-ink text-base">{formatUZS(order.subtotal)}</b></p>
                 </div>
               ) : (
-                <p className="text-sm text-warning bg-orange-50 rounded-xl px-4 py-3 mb-4">Karta hali sozlanmagan — iltimos Telegram orqali bog'laning.</p>
+                <p className="text-sm text-warning bg-orange-50 rounded-xl px-4 py-3 mb-4">{t('order.noCard')}</p>
               )}
               <label className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-sky to-lavender text-white font-semibold py-3.5 rounded-full active:scale-95 transition cursor-pointer">
-                {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> Yuklanmoqda…</> : <><Upload className="w-5 h-5" /> {order.status === 'awaiting_confirmation' ? 'Chekni qayta yuklash' : 'Chek rasmini yuklash'}</>}
+                {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> {t('common.loading')}</> : <><Upload className="w-5 h-5" /> {order.status === 'awaiting_confirmation' ? t('order.reupload') : t('order.uploadReceipt')}</>}
                 <input type="file" accept="image/*" onChange={upload} disabled={busy} className="hidden" />
               </label>
               {error && <p className="text-danger text-sm mt-2">{error}</p>}
@@ -115,7 +119,7 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
 
           {/* Items */}
           <div className="bg-surface rounded-2xl shadow-card p-6">
-            <h2 className="font-display font-bold text-ink mb-3">Mahsulotlar</h2>
+            <h2 className="font-display font-bold text-ink mb-3">{t('order.items')}</h2>
             <div className="divide-y divide-black/5">
               {items.map((i, k) => (
                 <div key={k} className="flex justify-between py-2.5 text-sm">
@@ -124,12 +128,12 @@ export default function OrderStatus({ order, items, seller }: { order: Order; it
                 </div>
               ))}
               <div className="flex justify-between pt-3 font-display font-bold text-ink">
-                <span>Jami</span><span>{formatUZS(order.subtotal)}</span>
+                <span>{t('cart.total')}</span><span>{formatUZS(order.subtotal)}</span>
               </div>
             </div>
             <div className="text-sm text-muted mt-4 space-y-0.5">
               <p>{order.contact_name} · {order.contact_phone}</p>
-              <p>{CITY_LABEL[order.city] ?? order.city}, {order.address}</p>
+              <p>{t(`region.${order.city}`)}, {order.address}</p>
             </div>
           </div>
         </main>

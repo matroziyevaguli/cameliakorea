@@ -5,79 +5,82 @@ import { useState } from 'react'
 import { createServiceClient } from '@/lib/supabase/api'
 import { CUSTOMER_COOKIE } from '@/lib/customerAuth'
 import { formatUZS, formatDate } from '@/lib/format'
+import { useT } from '@/i18n'
+import LangSwitcher from '@/components/LangSwitcher'
 import { ArrowLeft, ChevronRight, ShoppingBag } from 'lucide-react'
 
 type OrderRow = { id: string; status: string; subtotal: number; created_at: string; summary: string }
 
-const LABEL: Record<string, { t: string; cls: string }> = {
-  pending_payment:        { t: "To'lov kutilmoqda", cls: 'bg-orange-100 text-warning' },
-  awaiting_payment_retry: { t: 'Chek qayta kerak',  cls: 'bg-orange-100 text-warning' },
-  rejected:               { t: 'Chek rad etildi',   cls: 'bg-red-100 text-danger' },
-  awaiting_confirmation:  { t: 'Tekshirilmoqda',    cls: 'bg-sky/20 text-sky' },
-  confirmed:              { t: 'Tasdiqlandi',       cls: 'bg-green-100 text-success' },
-  delivering:             { t: 'Yetkazilmoqda',     cls: 'bg-lavender/20 text-lavender' },
-  delivered:              { t: 'Yetkazildi',        cls: 'bg-green-100 text-success' },
-  cancelled:              { t: 'Bekor qilindi',     cls: 'bg-gray-100 text-muted' },
+// Colour per status; the label comes from the dictionary (order.st.*).
+const CLS: Record<string, string> = {
+  pending_payment:        'bg-orange-100 text-warning',
+  awaiting_payment_retry: 'bg-orange-100 text-warning',
+  rejected:               'bg-red-100 text-danger',
+  awaiting_confirmation:  'bg-sky/20 text-sky',
+  confirmed:              'bg-green-100 text-success',
+  delivering:             'bg-lavender/20 text-lavender',
+  delivered:              'bg-green-100 text-success',
+  cancelled:              'bg-gray-100 text-muted',
 }
 
 const DONE = ['delivered', 'cancelled']
 const TABS = [
-  { key: 'active', label: 'Faol' },
-  { key: 'done',   label: 'Yakunlangan' },
-  { key: 'all',    label: 'Hammasi' },
+  { key: 'active', labelKey: 'myorders.tabActive' },
+  { key: 'done',   labelKey: 'myorders.tabDone' },
+  { key: 'all',    labelKey: 'myorders.tabAll' },
 ]
 
 export default function MyOrders({ loggedIn, orders }: { loggedIn: boolean; orders: OrderRow[] }) {
+  const t = useT()
   const [tab, setTab] = useState('active')
   const shown = orders.filter(o => tab === 'all' ? true : tab === 'done' ? DONE.includes(o.status) : !DONE.includes(o.status))
   return (
     <>
-      <Head><title>Mening buyurtmalarim — Camelia Korea</title></Head>
+      <Head><title>{t('myorders.title')} — Camelia Korea</title></Head>
       <div className="min-h-screen bg-cream">
         <header className="sticky top-0 z-20 bg-cream/80 backdrop-blur border-b border-black/5">
           <div className="max-w-2xl mx-auto px-5 h-16 flex items-center gap-3">
             <Link href="/" className="text-muted hover:text-ink transition"><ArrowLeft className="w-5 h-5" /></Link>
-            <h1 className="font-display font-bold text-ink text-lg">Mening buyurtmalarim</h1>
+            <h1 className="font-display font-bold text-ink text-lg">{t('myorders.title')}</h1>
+            <div className="ml-auto"><LangSwitcher /></div>
           </div>
         </header>
 
         <main className="max-w-2xl mx-auto px-5 py-8">
           {!loggedIn ? (
             <div className="bg-surface rounded-2xl shadow-card p-8 text-center">
-              <p className="text-muted">Buyurtmalarni ko'rish uchun avval kiring.</p>
-              <Link href="/" className="inline-flex items-center gap-2 mt-4 text-rose font-semibold">Bosh sahifaga qaytish</Link>
+              <p className="text-muted">{t('myorders.loginFirst')}</p>
+              <Link href="/" className="inline-flex items-center gap-2 mt-4 text-rose font-semibold">{t('myorders.backHome')}</Link>
             </div>
           ) : orders.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-8 text-center">
               <ShoppingBag className="w-8 h-8 text-muted mx-auto mb-2" />
-              <p className="text-muted">Hali buyurtma yo'q.</p>
-              <Link href="/#mahsulotlar" className="inline-flex items-center gap-2 mt-4 text-rose font-semibold">Katalogni ko'rish</Link>
+              <p className="text-muted">{t('myorders.none')}</p>
+              <Link href="/#mahsulotlar" className="inline-flex items-center gap-2 mt-4 text-rose font-semibold">{t('home.viewCatalog')}</Link>
             </div>
           ) : (
             <>
               <div className="flex gap-2 mb-4">
-                {TABS.map(t => {
-                  const n = orders.filter(o => t.key === 'all' ? true : t.key === 'done' ? DONE.includes(o.status) : !DONE.includes(o.status)).length
+                {TABS.map(tb => {
+                  const n = orders.filter(o => tb.key === 'all' ? true : tb.key === 'done' ? DONE.includes(o.status) : !DONE.includes(o.status)).length
                   return (
-                    <button key={t.key} onClick={() => setTab(t.key)}
-                      className={`px-4 py-2 rounded-full text-sm font-semibold transition ${tab === t.key ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted hover:text-ink'}`}>
-                      {t.label}{n > 0 && <span className="ml-1.5 opacity-80">{n}</span>}
+                    <button key={tb.key} onClick={() => setTab(tb.key)}
+                      className={`px-4 py-2 rounded-full text-sm font-semibold transition ${tab === tb.key ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted hover:text-ink'}`}>
+                      {t(tb.labelKey)}{n > 0 && <span className="ml-1.5 opacity-80">{n}</span>}
                     </button>
                   )
                 })}
               </div>
               {shown.length === 0 ? (
-                <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted">Bu bo'limda buyurtma yo'q.</div>
+                <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted">{t('myorders.noneTab')}</div>
               ) : (
               <div className="space-y-3">
-              {shown.map(o => {
-                const l = LABEL[o.status] ?? LABEL.pending_payment
-                return (
+              {shown.map(o => (
                   <Link key={o.id} href={`/buyurtma/${o.id}`}
                     className="flex items-center gap-3 bg-surface rounded-2xl shadow-card p-4 hover:shadow-rose transition">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${l.cls}`}>{l.t}</span>
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${CLS[o.status] ?? CLS.pending_payment}`}>{t(`order.st.${o.status}.label`)}</span>
                         <span className="text-xs text-muted">{formatDate(o.created_at)}</span>
                       </div>
                       <p className="text-sm text-ink truncate">{o.summary}</p>
@@ -85,8 +88,7 @@ export default function MyOrders({ loggedIn, orders }: { loggedIn: boolean; orde
                     </div>
                     <ChevronRight className="w-5 h-5 text-muted flex-shrink-0" />
                   </Link>
-                )
-              })}
+              ))}
               </div>
               )}
             </>
