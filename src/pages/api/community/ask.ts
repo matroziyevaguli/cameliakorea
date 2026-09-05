@@ -27,22 +27,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const supabase = createServiceClient()
   const hash = ipHash(req)
 
-  // Rate limit: count this IP's questions in the window.
+  // Rate limit: count this IP's questions in the window. Best-effort — if the ip_hash column
+  // isn't present yet, skip the limit rather than block asking.
   const since = new Date(Date.now() - WINDOW_MS).toISOString()
-  const { count } = await supabase.from('community_questions')
+  const { count, error: countErr } = await supabase.from('community_questions')
     .select('id', { count: 'exact', head: true })
     .eq('ip_hash', hash).gte('created_at', since)
-  if ((count ?? 0) >= MAX_PER_WINDOW) {
+  if (!countErr && (count ?? 0) >= MAX_PER_WINDOW) {
     return res.status(429).json({ error: 'Juda ko\'p savol yubordingiz. Birozdan so\'ng qayta urinib ko\'ring.' })
   }
 
-  const { error } = await supabase.from('community_questions').insert({
+  const base = {
     name: (name ?? '').trim() || null,
     question: q,
     topic: TOPIC_LABEL[topic] ? topic : null,   // only accept known slugs
-    status: 'pending',
-    ip_hash: hash,
-  })
+    status: 'pending' as const,
+  }
+  // Insert with ip_hash; if that column doesn't exist yet, retry without it so asking still works.
+  let { error } = await supabase.from('community_questions').insert({ ...base, ip_hash: hash })
+  if (error && /ip_hash/i.test(error.message)) {
+    ;({ error } = await supabase.from('community_questions').insert(base))
+  }
   if (error) return res.status(500).json({ error: error.message })
 
   notifyOwner(`❓ Yangi savol (Savol-javob):\n${q.slice(0, 300)}\n\n→ /admin/community`)
