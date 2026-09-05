@@ -5,9 +5,17 @@ import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { TOPICS, TOPIC_LABEL } from '@/consts/community'
-import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, CheckCircle } from 'lucide-react'
+import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2 } from 'lucide-react'
 
 type QA = { id: string; name: string | null; question: string; answer: string; topic: string | null; answered_at: string | null }
+
+// One-tap starters so the blank page never feels intimidating.
+const EXAMPLES = [
+  { chip: '🌱 Koreys tili', q: "Koreys tilini qayerdan boshlasam bo'ladi?", topic: 'koreys_tili' },
+  { chip: '✈️ Koreyada hayot', q: "Koreyada hayot va o'qish qanday?", topic: 'koreya' },
+  { chip: '💻 Dasturchilik', q: "Dasturchilikni noldan qanday o'rgandingiz?", topic: 'dasturchilik' },
+  { chip: '🎥 Kontent', q: 'Mana bunday video qilsangiz: ', topic: 'boshqa' },
+]
 
 export default function Community({ items }: { items: QA[] }) {
   const router = useRouter()
@@ -113,43 +121,73 @@ export default function Community({ items }: { items: QA[] }) {
         {ask && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={closeAsk} />
-            <div className="relative bg-surface rounded-2xl shadow-card w-full max-w-md p-6">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-display font-bold text-ink text-xl">Savol berish</h3>
-                <button aria-label="Yopish" onClick={closeAsk} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+            <div className="relative bg-surface rounded-3xl shadow-card w-full max-w-md overflow-hidden max-h-[92vh] overflow-y-auto">
+              {/* Cute gradient header */}
+              <div className="relative bg-gradient-to-br from-rose via-peach to-lavender text-white px-6 pt-7 pb-10 text-center">
+                <div className="absolute -top-6 -right-6 w-28 h-28 bg-white/15 rounded-full" />
+                <div className="absolute -bottom-8 -left-4 w-24 h-24 bg-white/10 rounded-full" />
+                <button aria-label="Yopish" onClick={closeAsk} className="absolute top-4 right-4 text-white/80 hover:text-white transition z-10"><X className="w-5 h-5" /></button>
+                <div className="text-5xl mb-1 relative">💌</div>
+                <h3 className="font-display font-bold text-2xl relative">Menga yozing</h3>
+                <p className="text-white/90 text-sm mt-1 max-w-xs mx-auto relative">Savolingiz ham, orzu qilgan kontentingiz ham — hammasi shu yerga 🌸</p>
               </div>
-              {sent ? (
-                <div className="text-center py-6">
-                  <CheckCircle className="w-10 h-10 text-success mx-auto mb-3" />
-                  <p className="font-semibold text-ink">Rahmat! Savolingiz ko'rib chiqiladi.</p>
-                  <p className="text-sm text-muted mt-1">Javob berilgach, shu sahifada paydo bo'ladi.</p>
-                  <button onClick={closeAsk} className="mt-5 bg-cream text-ink font-semibold px-6 py-2.5 rounded-full active:scale-95 transition">Yopish</button>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm text-muted mb-4">Nima so'ramoqchisiz yoki qanday kontent xohlaysiz?</p>
-                  <div className="space-y-3">
-                    <textarea value={form.question} onChange={e => setForm(f => ({ ...f, question: e.target.value }))} rows={4}
-                      placeholder="Savolingiz…" autoFocus
-                      className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition resize-none" />
-                    <div className="grid grid-cols-2 gap-3">
-                      <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                        placeholder="Ismingiz (ixtiyoriy)"
-                        className="bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
-                      <select value={form.topic} onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
-                        className="bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
-                        <option value="">Mavzu (ixtiyoriy)</option>
-                        {TOPICS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                      </select>
-                    </div>
-                    {error && <p className="text-danger text-sm">{error}</p>}
-                    <button onClick={submit} disabled={busy}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3.5 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
-                      {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> Yuborilmoqda…</> : <><Send className="w-5 h-5" /> Yuborish</>}
-                    </button>
+
+              <div className="px-6 py-5 -mt-5 bg-surface rounded-t-3xl relative">
+                {sent ? (
+                  <div className="text-center py-6">
+                    <div className="text-5xl mb-3">🌷</div>
+                    <p className="font-display font-bold text-ink text-lg">Rahmat! Yozganingiz men uchun qadrli 💛</p>
+                    <p className="text-sm text-muted mt-1">Javob berilgach, shu sahifada paydo bo'ladi.</p>
+                    <button onClick={closeAsk} className="mt-5 bg-cream text-ink font-semibold px-6 py-2.5 rounded-full active:scale-95 transition">Yopish</button>
                   </div>
-                </>
-              )}
+                ) : (
+                  <>
+                    {/* What you can write */}
+                    <div className="bg-cream/70 rounded-2xl p-4 mb-4">
+                      <p className="text-sm font-semibold text-ink mb-1">Nima yozsam bo'ladi? 🤍</p>
+                      <p className="text-xs text-muted leading-relaxed">
+                        Koreya hayoti, koreys yoki ingliz tili, dasturchilik, Koreyada o'qish/ishlash,
+                        shaxsiy maslahat — yoki mendan qanday video ko'rmoqchisiz. Uyalmang, bemalol yozing! 😊
+                      </p>
+                    </div>
+
+                    {/* One-tap starters */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {EXAMPLES.map((ex, i) => (
+                        <button key={i} type="button" onClick={() => setForm(f => ({ ...f, question: ex.q, topic: ex.topic }))}
+                          className="text-xs font-medium bg-white text-rose border border-rose/20 rounded-full px-3 py-1.5 hover:bg-rose/5 active:scale-95 transition">
+                          {ex.chip}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <textarea value={form.question} onChange={e => setForm(f => ({ ...f, question: e.target.value.slice(0, 1000) }))} rows={4}
+                          placeholder="Masalan: Koreys tilini qanday boshlasam bo'ladi? 🌱" autoFocus
+                          className="w-full bg-cream text-ink rounded-2xl px-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition resize-none" />
+                        <p className="text-[11px] text-muted text-right mt-1">{form.question.length}/1000</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                          placeholder="Ismingiz 😊"
+                          className="bg-cream text-ink rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
+                        <select value={form.topic} onChange={e => setForm(f => ({ ...f, topic: e.target.value }))}
+                          className="bg-cream text-ink rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
+                          <option value="">Mavzu (ixtiyoriy)</option>
+                          {TOPICS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                      </div>
+                      {error && <p className="text-danger text-sm">{error}</p>}
+                      <button onClick={submit} disabled={busy}
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3.5 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
+                        {busy ? <><Loader2 className="w-5 h-5 animate-spin" /> Yuborilmoqda…</> : <><Send className="w-5 h-5" /> Yuborish ✨</>}
+                      </button>
+                      <p className="text-[11px] text-muted text-center">Ismingiz shart emas — anonim yozsangiz ham bo'ladi 🌷</p>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
