@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Minus, Plus, Check, Clock, Gift } from 'lucide-react'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
 import { addPending } from '@/lib/pendingSales'
 
 type Product = {
@@ -39,6 +39,7 @@ function friendlyError(msg?: string) {
 }
 
 export default function Sell({ products, sellerId, preselectedId }: Props) {
+  const S = useS()
   const router = useRouter()
   const inStock = products.filter(p => p.remaining > 0)
   const preOk = preselectedId ? inStock.some(p => p.product_id === preselectedId) : false

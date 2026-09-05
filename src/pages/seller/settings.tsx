@@ -9,7 +9,7 @@ import { Lock, CheckCircle, LogOut, ClipboardList, HelpCircle, Type, CreditCard 
 import { MiniSpinner } from '@/components/Loader'
 import HelpSheet from '@/components/HelpSheet'
 import SellerNav from '@/components/SellerNav'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
 import { CITIES } from '@/consts/geo'
 import CardNumberInput from '@/components/CardNumberInput'
 import CardPreview from '@/components/CardPreview'
@@ -18,6 +18,7 @@ import { cardDigits, isValidCard } from '@/lib/card'
 type CardInfo = { card_number: string | null; card_holder: string | null; city: string | null }
 
 export default function SellerSettings({ sellerName, card }: { sellerName: string; card: CardInfo }) {
+  const S = useS()
   const router = useRouter()
 
   // Payout card — shown to customers who order for this seller's city.

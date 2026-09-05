@@ -1,10 +1,11 @@
 import { X, Send, Phone, PlayCircle } from 'lucide-react'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
 import { SELLER_CONFIG } from '@/consts/sellerConfig'
 
 // A bottom sheet giving the seller a calm way to reach the admin. Contacts are
 // config-driven (src/consts/sellerConfig.ts), never hardcoded here.
 export default function HelpSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const S = useS()
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">

@@ -6,7 +6,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, X, ChevronDown } from 'lucide-react'
 import SellerNav from '@/components/SellerNav'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
 
 const GRADIENTS = ['from-rose to-peach', 'from-lavender to-sky', 'from-mint to-sky', 'from-peach to-rose']
 function Thumb({ name, url, i, className = '' }: { name: string; url?: string | null; i: number; className?: string }) {
@@ -50,6 +50,7 @@ type Props = {
 }
 
 export default function MySales({ sales: initialSales, pricePending, productBySale, imageByProduct, sellerId, canCancel }: Props) {
+  const S = useS()
   // G2 — one refresh model: every write updates local state immediately, then
   // reconciles against the view in the background. No SSR round-trip on a tap.
   const [sales, setSales] = useState<Sale[]>(initialSales)

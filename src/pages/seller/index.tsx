@@ -11,7 +11,7 @@ import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Penc
 import HelpSheet from '@/components/HelpSheet'
 import NotificationBell from '@/components/NotificationBell'
 import { getPending, flushPending } from '@/lib/pendingSales'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
 import { stateOf, STATE_STYLE, sellerLabel } from '@/lib/availability'
@@ -57,6 +57,7 @@ function StockBadge({ p }: { p: Product }) {
 // bigger ones fall back to a single bar. Unsold slots keep a dashed outline so an
 // empty bar still reads as "0 sotildi — hammasi turibdi", not as a missing element.
 function SoldProgress({ had, sold, remaining }: { had: number; sold: number; remaining: number }) {
+  const S = useS()
   if (had <= 0) return null
   const pct   = Math.min(100, Math.round((sold / had) * 100))
   const done  = remaining === 0
@@ -157,6 +158,7 @@ function buildCaption(p: Product) {
 }
 
 export default function SellerHome({ sellerName, summary, monthly, products: initialProducts, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
+  const S = useS()
   const router = useRouter()
 
   const [search, setSearch] = useState('')

@@ -5,7 +5,7 @@ import { formatUZS, formatDate } from '@/lib/format'
 import SellerNav from '@/components/SellerNav'
 import { useState } from 'react'
 import { History, Sparkles, CircleDollarSign, CheckCircle2, ChevronDown, CalendarDays } from 'lucide-react'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
 
 const UZ_MONTH = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
 const monthLabel = (ym: string) => { const [y, m] = ym.split('-'); return `${UZ_MONTH[parseInt(m, 10)] ?? m} ${y}` }
@@ -24,6 +24,7 @@ type Monthly = { month: string; units_sold: number; revenue: number; your_profit
 type Props = { summary: Summary | null; payments: Payment[]; monthly: Monthly[]; commissionPct: number }
 
 export default function MyBalance({ summary, payments, monthly, commissionPct }: Props) {
+  const S = useS()
   const [showBreakdown, setShowBreakdown] = useState(false)
 
   if (!summary) return (
