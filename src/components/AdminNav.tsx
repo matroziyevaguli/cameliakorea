@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
 import { LayoutDashboard, Package, Users, CreditCard, Inbox, ShoppingBag, MessageCircleQuestion, LogOut, Menu, X } from 'lucide-react'
+import LangSwitcher from '@/components/LangSwitcher'
 
 // Five areas, grouped by the decision each one serves (redesign.md §5.0) — not nine
 // flat links. Batches + Distribute live under Mahsulotlar; Giveaways under Pul; Stats
@@ -81,7 +82,8 @@ export default function AdminNav() {
               </Link>
             )
           })}
-          <button onClick={signOut} className="flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm text-muted hover:text-danger transition ml-2">
+          <div className="ml-2"><LangSwitcher /></div>
+          <button onClick={signOut} className="flex items-center gap-1.5 px-3 py-2 my-2 rounded-xl text-sm text-muted hover:text-danger transition">
             <LogOut className="w-4 h-4" /> Chiqish
           </button>
         </nav>
