@@ -3,18 +3,20 @@ import { useRouter } from 'next/router'
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/browser'
 import { House, Receipt, Wallet, RotateCcw } from 'lucide-react'
+import { useT } from '@/i18n'
 
 // Four tabs (redesign.md §4.0). Settings lives behind the ⚙ in the page header and
 // Requests behind 🔔 — neither competes for a tab slot, so the four that remain get
 // big, thumb-friendly targets.
 const items = [
-  { href: '/seller',           label: 'Sotish',     icon: House },
-  { href: '/seller/sales',     label: 'Sotuvlarim', icon: Receipt },
-  { href: '/seller/balance',   label: 'Hisobim',    icon: Wallet },
-  { href: '/seller/transfers', label: 'Qaytarish',  icon: RotateCcw },
+  { href: '/seller',           labelKey: 'snav.sell',    icon: House },
+  { href: '/seller/sales',     labelKey: 'snav.sales',   icon: Receipt },
+  { href: '/seller/balance',   labelKey: 'snav.balance', icon: Wallet },
+  { href: '/seller/transfers', labelKey: 'snav.returns', icon: RotateCcw },
 ]
 
 export default function SellerNav() {
+  const t = useT()
   const router = useRouter()
   const [incoming, setIncoming] = useState(0)
 
@@ -41,7 +43,7 @@ export default function SellerNav() {
             {it.href === '/seller/transfers' && incoming > 0 && (
               <span className="absolute top-2 right-[24%] min-w-[16px] h-4 px-1 grid place-items-center rounded-full bg-danger text-white text-[9px] font-bold">{incoming}</span>
             )}
-            <span className="text-[11px] font-medium leading-none">{it.label}</span>
+            <span className="text-[11px] font-medium leading-none">{t(it.labelKey)}</span>
           </Link>
         )
       })}

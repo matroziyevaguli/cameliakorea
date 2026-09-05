@@ -52,6 +52,25 @@ export const dict: Record<string, Record<Locale, string>> = {
   'region.sirdaryo':          { uz: 'Sirdaryo', en: 'Syrdarya', ru: 'Сырдарья', ko: '시르다리야' },
   'region.surxondaryo':       { uz: 'Surxondaryo', en: 'Surkhandarya', ru: 'Сурхандарья', ko: '수르한다리야' },
 
+  // ── Seller nav ──
+  'snav.sell':    { uz: 'Sotish', en: 'Sell', ru: 'Продажа', ko: '판매' },
+  'snav.sales':   { uz: 'Sotuvlarim', en: 'My sales', ru: 'Мои продажи', ko: '내 판매' },
+  'snav.balance': { uz: 'Hisobim', en: 'My account', ru: 'Мой счёт', ko: '내 계정' },
+  'snav.returns': { uz: 'Qaytarish', en: 'Returns', ru: 'Возвраты', ko: '반품' },
+
+  // ── Admin nav ──
+  'anav.dashboard':{ uz: 'Boshqaruv', en: 'Dashboard', ru: 'Панель', ko: '대시보드' },
+  'anav.products': { uz: 'Mahsulotlar', en: 'Products', ru: 'Товары', ko: '상품' },
+  'anav.sellers':  { uz: 'Sotuvchilar', en: 'Sellers', ru: 'Продавцы', ko: '판매자' },
+  'anav.money':    { uz: 'Pul', en: 'Money', ru: 'Деньги', ko: '자금' },
+  'anav.requests': { uz: "So'rovlar", en: 'Requests', ru: 'Запросы', ko: '요청' },
+  'anav.orders':   { uz: 'Buyurtmalar', en: 'Orders', ru: 'Заказы', ko: '주문' },
+  'anav.list':     { uz: "Ro'yxat", en: 'List', ru: 'Список', ko: '목록' },
+  'anav.batches':  { uz: 'Partiyalar', en: 'Batches', ru: 'Партии', ko: '배치' },
+  'anav.distribute':{ uz: 'Taqsimlash', en: 'Distribute', ru: 'Распределение', ko: '분배' },
+  'anav.payments': { uz: "To'lovlar", en: 'Payments', ru: 'Платежи', ko: '결제' },
+  'anav.giveaways':{ uz: "Sovg'alar", en: 'Giveaways', ru: 'Подарки', ko: '증정' },
+
   // ── Common ──
   'common.loading':  { uz: 'Yuklanmoqda…', en: 'Loading…', ru: 'Загрузка…', ko: '불러오는 중…' },
   'common.close':    { uz: 'Yopish', en: 'Close', ru: 'Закрыть', ko: '닫기' },
