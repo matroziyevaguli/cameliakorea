@@ -5,7 +5,7 @@ import { formatUZS } from '@/lib/format'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Minus, Plus, Check, Clock } from 'lucide-react'
+import { ChevronLeft, Minus, Plus, Check, Clock, Gift } from 'lucide-react'
 import { S } from '@/consts/strings'
 import { addPending } from '@/lib/pendingSales'
 
@@ -49,23 +49,30 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
   const [productId, setProductId] = useState(preOk ? preselectedId! : '')
   const [qty, setQty] = useState(1)
   // Default to the discount price when the product has one (pickProduct used to do this).
-  const [priceMode, setPriceMode] = useState<'retail' | 'discount' | 'other'>(
+  const [priceMode, setPriceMode] = useState<'retail' | 'discount' | 'other' | 'gift'>(
     preOk && products.find(p => p.product_id === preselectedId)?.discount_price != null ? 'discount' : 'retail'
   )
   const [customPrice, setCustomPrice] = useState('')
+  // Gift ("Sovg'a") recipient — both required when priceMode === 'gift'.
+  const [giftName, setGiftName] = useState('')
+  const [giftPhone, setGiftPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   // Result screen: online (with profit + undo) or offline (queued)
-  const [result, setResult] = useState<{ profit: number | null; amount: number; saleId: string | null; offline: boolean } | null>(null)
+  const [result, setResult] = useState<{ profit: number | null; amount: number; saleId: string | null; offline: boolean; gift?: string } | null>(null)
   const [undoSecs, setUndoSecs] = useState(10)
 
   const selected = products.find(p => p.product_id === productId)
   const idx = Math.max(0, inStock.findIndex(p => p.product_id === productId))
+  const isGift = priceMode === 'gift'
   const price =
     priceMode === 'retail'   ? selected?.retail_price ?? 0 :
     priceMode === 'discount' ? selected?.discount_price ?? selected?.retail_price ?? 0 :
+    priceMode === 'gift'     ? 0 :
                                Number(customPrice) || 0
+  // Can we advance from step 2? Gift needs both recipient fields; a sale needs a positive price.
+  const canContinue = isGift ? (!!giftName.trim() && !!giftPhone.trim()) : price > 0
 
   // Count the undo window down, but DO NOT navigate when it ends (redesign.md §4.2):
   // the screen waits for her choice, so the undo is reachable for its full life and
@@ -77,8 +84,27 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
   }, [result, undoSecs]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit() {
-    if (!selected || price <= 0) return
+    if (!selected) return
     if (qty > selected.remaining) { setError(S.tooMany(selected.remaining)); return }
+
+    // ── Gift ("Sovg'a") — record a stock adjustment, not a sale. Free; seller owes nothing. ──
+    if (isGift) {
+      if (!giftName.trim() || !giftPhone.trim()) { setError('Kimga va telefon raqamini kiriting'); return }
+      setLoading(true); setError('')
+      try {
+        const res = await fetch('/api/seller/gift', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_id: productId, qty, name: giftName.trim(), phone: giftPhone.trim() }),
+        })
+        const j = await res.json().catch(() => ({}))
+        setLoading(false)
+        if (!res.ok) { setError(friendlyError(j.error)); return }
+        setResult({ profit: null, amount: 0, saleId: null, offline: false, gift: giftName.trim() })
+      } catch { setError("Internet bilan muammo — qayta urinib ko'ring"); setLoading(false) }
+      return
+    }
+
+    if (price <= 0) return
     setLoading(true); setError('')
     const amount = price * qty
     const payload = { seller_id: sellerId, product_id: productId, qty, unit_price: price, note: null as string | null }
@@ -130,7 +156,14 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
     return (
       <div className="min-h-screen bg-cream flex flex-col">
         <div className="flex-1 flex flex-col items-center justify-center text-center px-8 gap-4">
-          {result.offline ? (
+          {result.gift ? (
+            <>
+              <div className="w-24 h-24 rounded-full bg-lavender/20 grid place-items-center"><Gift className="w-12 h-12 text-lavender" /></div>
+              <p className="font-display text-2xl font-bold text-ink">Sovg'a berildi 🎁</p>
+              <p className="text-sm text-muted">Kimga: <b className="text-ink">{result.gift}</b></p>
+              <p className="text-xs text-muted max-w-xs">Ombordan {qty} ta ayirildi. Bu bepul — hisobingizga yozilmaydi.</p>
+            </>
+          ) : result.offline ? (
             <>
               <div className="w-24 h-24 rounded-full bg-orange-100 grid place-items-center"><Clock className="w-12 h-12 text-warning" /></div>
               <p className="font-display text-2xl font-bold text-ink">{S.offlineSaved}</p>
@@ -243,10 +276,27 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
                   placeholder={S.pricePlaceholder} autoFocus
                   className="w-full bg-surface text-ink text-center font-display font-bold text-xl rounded-2xl px-4 py-4 shadow-card focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
               )}
+
+              {/* Sovg'a (gift) — free; ask who received it */}
+              <button onClick={() => setPriceMode('gift')}
+                className={`w-full flex items-center justify-center gap-2 px-5 py-4 rounded-2xl font-display font-semibold transition active:scale-[0.98] ${isGift ? 'bg-gradient-to-br from-lavender to-sky text-white shadow-card' : 'bg-surface text-muted shadow-card'}`}>
+                <Gift className="w-5 h-5" /> Sovg'a
+              </button>
+              {isGift && (
+                <div className="space-y-2.5 pt-1">
+                  <input value={giftName} onChange={e => setGiftName(e.target.value)}
+                    placeholder="Kimga? (ism)" autoFocus
+                    className="w-full bg-surface text-ink rounded-2xl px-4 py-4 shadow-card focus:outline-none focus:ring-2 focus:ring-lavender border-2 border-transparent" />
+                  <input type="tel" inputMode="tel" value={giftPhone} onChange={e => setGiftPhone(e.target.value)}
+                    placeholder="Telefon raqami"
+                    className="w-full bg-surface text-ink rounded-2xl px-4 py-4 shadow-card focus:outline-none focus:ring-2 focus:ring-lavender border-2 border-transparent" />
+                  <p className="text-xs text-muted text-center">Sovg'a bepul — hisobingizga yozilmaydi, ombordan ayiriladi.</p>
+                </div>
+              )}
             </div>
 
-            {/* Live total */}
-            {price > 0 && (
+            {/* Live total (sales only) */}
+            {!isGift && price > 0 && (
               <div className="bg-surface rounded-2xl shadow-card p-5 text-center">
                 <p className="text-xs font-semibold text-muted">{S.total}</p>
                 <p className="font-display text-3xl font-bold text-rose mt-1">{formatUZS(price * qty)}</p>
@@ -255,7 +305,7 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
             {error && <p className="text-danger text-sm text-center bg-red-50 rounded-xl py-3">{error}</p>}
           </main>
           <div className="p-5">
-            <button onClick={() => { setError(''); setStep(3) }} disabled={price <= 0}
+            <button onClick={() => { setError(''); setStep(3) }} disabled={!canContinue}
               className="w-full bg-gradient-to-br from-rose to-peach text-white font-display font-bold text-lg py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
               {S.continueBtn}
             </button>
@@ -269,9 +319,16 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
           <main className="flex-1 overflow-y-auto px-5 py-4 flex items-center justify-center">
             <div className="bg-surface rounded-3xl shadow-card p-6 w-full max-w-xs flex flex-col items-center text-center gap-4">
               <Thumb p={selected} i={idx} className="w-32 h-32 rounded-2xl" />
-              <p className="text-base text-ink leading-relaxed">
-                {S.reviewLine(qty, selected.product_name, formatUZS(price * qty))}
-              </p>
+              {isGift ? (
+                <p className="text-base text-ink leading-relaxed">
+                  <b>{qty} ta {selected.product_name}</b> — sovg'a<br />
+                  <span className="text-muted text-sm">Kimga: {giftName} · {giftPhone}</span>
+                </p>
+              ) : (
+                <p className="text-base text-ink leading-relaxed">
+                  {S.reviewLine(qty, selected.product_name, formatUZS(price * qty))}
+                </p>
+              )}
             </div>
           </main>
           {error && <p className="text-danger text-sm text-center bg-red-50 mx-5 rounded-xl py-3 mb-2">{error}</p>}

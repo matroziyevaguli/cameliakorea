@@ -186,3 +186,19 @@ Kept asking anonymous (no login) + added a DB-backed per-IP rate limit on `/api/
 max 5 questions / 10 min. Stores a salted **hash** of the IP (`ip_hash`, never the raw IP) —
 column + index folded into `docs/community-setup.md`. Over-limit → HTTP 429 with an Uzbek message.
 tsc + build ok.
+
+---
+
+## Seller "Sovg'a" (gift) on the sell screen  2026-09-05
+
+New price option on `/seller/sell` next to To'liq / Chegirma / Boshqa. A gift is recorded as a
+`stock_adjustments` row (reason `gift`) — free, reduces the seller's stock, seller owes nothing
+(matches the existing giveaway model). No DB change (table/columns/constraint already live —
+verified reason `gift` + winner/note accepted).
+- `/api/seller/gift` (service role; sellers can't write stock_adjustments): verifies seller,
+  checks qty ≤ remaining (allocated − sold − adjustments), inserts {reason:'gift', winner:name,
+  note:phone}.
+- `sell.tsx`: "Sovg'a" button → two required fields **Kimga (ism)** + **Telefon raqami**; total
+  hidden; review + success screens show a gift variant ("Sovg'a berildi 🎁").
+
+tsc clean · yarn build ok.
