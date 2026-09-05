@@ -149,6 +149,11 @@ export default function Store({ products }: { products: ShopProduct[] }) {
               Camelia <span className="text-rose">Korea</span>
             </Link>
             <div className="flex items-center gap-2">
+              <Link href="/community"
+                className="flex items-center gap-1.5 text-ink font-semibold text-sm px-3 py-2 rounded-full hover:bg-black/5 transition">
+                <MessageCircle className="w-4 h-4 text-rose" />
+                <span className="hidden sm:inline">Savol-javob</span>
+              </Link>
               <a href={TELEGRAM} target="_blank" rel="noreferrer"
                 className="hidden sm:flex items-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold px-4 py-2 rounded-full shadow-rose active:scale-95 transition">
                 <Send className="w-4 h-4" /> Telegram
