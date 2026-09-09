@@ -5,11 +5,12 @@ import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { TOPICS } from '@/consts/community'
+import { formatDate } from '@/lib/format'
 import { useT, type TFunc } from '@/i18n'
 import LangSwitcher from '@/components/LangSwitcher'
 import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check, Tag, User } from 'lucide-react'
 
-type QA = { id: string; name: string | null; question: string; answer: string; topic: string | null; answered_at: string | null }
+type QA = { id: string; name: string | null; question: string; answer: string; topic: string | null; created_at: string | null; answered_at: string | null }
 
 // One-tap starters (chip/question come from the dictionary) so the blank page never intimidates.
 const EXAMPLES = [
@@ -22,6 +23,9 @@ const EXAMPLES = [
 // Each topic gets its own colour so the filter list reads as a playful, varied set
 // rather than one flat colour. Assigned by the topic's position in TOPICS, so a given
 // category always keeps the same colour (stable, not flickering on every render).
+// How many answered questions to show per page.
+const PAGE_SIZE = 8
+
 const TOPIC_STYLES = [
   { badge: 'bg-rose/15 text-rose',          chip: 'bg-rose/10 text-rose',          active: 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' },
   { badge: 'bg-lavender/20 text-lavender',  chip: 'bg-lavender/15 text-lavender',  active: 'bg-lavender text-white shadow-card' },
@@ -65,6 +69,13 @@ function QACard({ qa, t }: { qa: QA; t: TFunc }) {
           </button>
         )}
       </div>
+      {/* Dates — bottom-right: when the question was asked, when it was answered. */}
+      {(qa.created_at || qa.answered_at) && (
+        <div className="mt-3 flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-[11px] text-muted">
+          {qa.created_at && <span>{t('comm.askedLabel')}: {formatDate(qa.created_at)}</span>}
+          {qa.answered_at && <span>{t('comm.answeredLabel')}: {formatDate(qa.answered_at)}</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -109,6 +120,18 @@ export default function Community({ items }: { items: QA[] }) {
     [items, filterTopic]
   )
   const usedTopics = TOPICS.filter(tp => items.some(i => i.topic === tp.value))
+
+  // Pagination — the list can grow long, so show a page at a time.
+  const [page, setPage] = useState(1)
+  const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  // Switching filter (or the page count shrinking) must never leave us on a dead page.
+  useEffect(() => { setPage(1) }, [filterTopic])
+  const curPage = Math.min(page, totalPages)
+  const paged = shown.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE)
+  function goto(p: number) {
+    setPage(Math.min(totalPages, Math.max(1, p)))
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   return (
     <>
@@ -158,9 +181,26 @@ export default function Community({ items }: { items: QA[] }) {
               <p className="text-muted">{t('comm.empty')}</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {shown.map(qa => <QACard key={qa.id} qa={qa} t={t} />)}
-            </div>
+            <>
+              <div className="space-y-4">
+                {paged.map(qa => <QACard key={qa.id} qa={qa} t={t} />)}
+              </div>
+
+              {/* Pagination — only when there's more than one page */}
+              {totalPages > 1 && (
+                <div className="mt-6 flex items-center justify-center gap-2">
+                  <button onClick={() => goto(curPage - 1)} disabled={curPage <= 1}
+                    className="px-4 py-2 rounded-full text-sm font-semibold bg-surface text-ink shadow-card disabled:opacity-40 active:scale-95 transition">
+                    {t('comm.prev')}
+                  </button>
+                  <span className="px-3 text-sm font-semibold text-muted tabular-nums">{t('comm.pageOf', { page: curPage, total: totalPages })}</span>
+                  <button onClick={() => goto(curPage + 1)} disabled={curPage >= totalPages}
+                    className="px-4 py-2 rounded-full text-sm font-semibold bg-surface text-ink shadow-card disabled:opacity-40 active:scale-95 transition">
+                    {t('comm.next')}
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </main>
 
@@ -252,7 +292,7 @@ export const getServerSideProps: GetServerSideProps = async () => {
   try {
     const pub = createPublicClient()
     const { data } = await pub.from('community_questions')
-      .select('id, name, question, answer, topic, answered_at')
+      .select('id, name, question, answer, topic, created_at, answered_at')
       .eq('status', 'answered')
       .order('answered_at', { ascending: false })
     items = (data as QA[]) ?? []
