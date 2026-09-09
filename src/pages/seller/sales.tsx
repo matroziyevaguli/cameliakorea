@@ -7,6 +7,7 @@ import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { Trash2, Package, Search, TrendingUp, Pencil, Plus, Minus, X, ChevronDown } from 'lucide-react'
 import SellerNav from '@/components/SellerNav'
 import { useS } from '@/consts/strings'
+import { useT, useLocale } from '@/i18n'
 
 const GRADIENTS = ['from-rose to-peach', 'from-lavender to-sky', 'from-mint to-sky', 'from-peach to-rose']
 function Thumb({ name, url, i, className = '' }: { name: string; url?: string | null; i: number; className?: string }) {
@@ -19,10 +20,6 @@ function Thumb({ name, url, i, className = '' }: { name: string; url?: string | 
 }
 
 const UZ_MONTH = ['', 'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr']
-function monthLabel(ym: string) {
-  const [y, m] = ym.split('-')
-  return `${UZ_MONTH[parseInt(m, 10)] ?? m} ${y}`
-}
 
 // v_my_sales columns: id, product_name, qty, unit_price, amount, your_profit, sold_at
 type Sale = {
@@ -38,7 +35,12 @@ type Sale = {
 }
 
 // Why she cancelled — two chips cover almost everything (redesign.md §4.3).
-const CANCEL_REASONS = ['Mijoz qaytardi', "Xato yozdim"]
+// The stored value stays the Uzbek canonical (so the DB is consistent across sellers);
+// only the button label is localized.
+const CANCEL_REASONS: { value: string; key: string }[] = [
+  { value: 'Mijoz qaytardi', key: 'ssales.reasonReturned' },
+  { value: 'Xato yozdim', key: 'ssales.reasonMistake' },
+]
 
 type Props = {
   sales: Sale[]
@@ -51,6 +53,14 @@ type Props = {
 
 export default function MySales({ sales: initialSales, pricePending, productBySale, imageByProduct, sellerId, canCancel }: Props) {
   const S = useS()
+  const t = useT()
+  const locale = useLocale()
+  function monthLabel(ym: string) {
+    const [y, m] = ym.split('-')
+    const n = parseInt(m, 10)
+    const name = locale === 'uz' ? (UZ_MONTH[n] ?? m) : new Date(2000, n - 1, 1).toLocaleString(locale, { month: 'long' })
+    return `${name} ${y}`
+  }
   // G2 — one refresh model: every write updates local state immediately, then
   // reconciles against the view in the background. No SSR round-trip on a tap.
   const [sales, setSales] = useState<Sale[]>(initialSales)
@@ -91,7 +101,7 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
   // Cancel instead of delete (G4). The row survives, greyed, and every aggregate view
   // filters it out — so revenue, profit, debt and stock all correct themselves.
   const [cancelId, setCancelId] = useState<string | null>(null)
-  const [cancelReason, setCancelReason] = useState(CANCEL_REASONS[0])
+  const [cancelReason, setCancelReason] = useState(CANCEL_REASONS[0].value)
 
   async function doCancel(sale: Sale) {
     setBusy(sale.id)
@@ -138,7 +148,7 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
     setPriceOpen(false); setPriceValue(String(sale.unit_price)); setPriceReason(''); setPriceErr(''); setPriceDone(false)
   }
   async function saveEdit(sale: Sale) {
-    if (editQty < 1) { setEditError('Kamida 1 ta'); return }
+    if (editQty < 1) { setEditError(t('ssales.atLeastOne')); return }
     setBusy(sale.id); setEditError('')
     const supabase = createBrowser()
     const { error } = await supabase.from('sales').update({ qty: editQty }).eq('id', sale.id)
@@ -159,7 +169,7 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
   const [priceSaving, setPriceSaving] = useState(false)
   async function savePriceDirect(sale: Sale) {
     const price = Number(priceValue)
-    if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr("Narx noto'g'ri"); return }
+    if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr(t('ssales.priceInvalid')); return }
     setPriceSaving(true); setPriceErr('')
     const supabase = createBrowser()
     const { error } = await supabase.from('sales').update({ unit_price: price }).eq('id', sale.id)
@@ -174,7 +184,7 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
 
   async function submitPriceRequest(sale: Sale) {
     const price = Number(priceValue)
-    if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr("Narx noto'g'ri"); return }
+    if (priceValue === '' || Number.isNaN(price) || price < 0) { setPriceErr(t('ssales.priceInvalid')); return }
     setPriceBusy(true); setPriceErr('')
     const res = await fetch('/api/sale-price-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -182,7 +192,7 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
     })
     const json = await res.json().catch(() => ({}))
     setPriceBusy(false)
-    if (!res.ok) { setPriceErr(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setPriceErr(json.error ?? t('common.error')); return }
     setPriceDone(true)
     setPending(p => [...p, sale.id])   // show "so'rov yuborildi" straight away
     reconcile()
@@ -280,11 +290,11 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
             {/* Summary */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-surface rounded-2xl shadow-card p-4">
-                <p className="text-xs text-muted mb-1">Sotilgan ({totals.units} ta)</p>
+                <p className="text-xs text-muted mb-1">{t('ssales.soldCount', { n: totals.units })}</p>
                 <p className="font-display text-xl font-bold text-ink">{formatUZS(totals.revenue)}</p>
               </div>
               <div className="bg-gradient-to-br from-success to-mint text-white rounded-2xl shadow-card p-4">
-                <p className="text-xs opacity-90 mb-1 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> Foyda</p>
+                <p className="text-xs opacity-90 mb-1 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> {t('ssales.profit')}</p>
                 <p className="font-display text-xl font-bold">{formatUZS(totals.profit)}</p>
               </div>
             </div>
@@ -293,12 +303,12 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Mahsulot qidirish…"
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('ssales.searchProduct')}
                   className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface text-ink text-sm shadow-card border-2 border-transparent focus:outline-none focus:border-rose transition" />
               </div>
               <select value={month} onChange={e => setMonth(e.target.value)}
                 className="px-3 py-2.5 rounded-xl bg-surface text-ink text-sm shadow-card border-2 border-transparent focus:outline-none focus:border-rose transition">
-                <option value="all">Barcha oylar</option>
+                <option value="all">{t('ssales.allMonths')}</option>
                 {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
               </select>
             </div>
@@ -306,7 +316,7 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
             {/* ── One card per product: header = the summary, inside = the sales ── */}
             {groups.length === 0 ? (
               <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">
-                Bu filtr bo'yicha sotuv yo'q
+                {t('ssales.noSalesFilter')}
               </div>
             ) : (
               <div className="space-y-3">
@@ -322,13 +332,13 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
                           <p className="font-display font-semibold text-ink text-sm leading-snug line-clamp-2">{g.name}</p>
                           {/* The number she is checking, right beside the photo */}
                           <p className="font-display font-bold text-ink text-lg leading-tight mt-0.5">
-                            {g.qty} ta <span className="text-muted font-sans font-medium text-xs">sotildi</span>
+                            {t('ssales.pcs', { n: g.qty })} <span className="text-muted font-sans font-medium text-xs">{t('ssales.soldSuffix')}</span>
                           </p>
                           <p className="text-xs text-muted mt-0.5">
-                            {formatUZS(g.revenue)} · <span className="text-success font-semibold">Foyda {formatUZS(g.profit)}</span>
+                            {formatUZS(g.revenue)} · <span className="text-success font-semibold">{t('ssales.profit')} {formatUZS(g.profit)}</span>
                           </p>
                           {g.cancelledCount > 0 && (
-                            <p className="text-[11px] text-muted/70 mt-0.5">{g.cancelledCount} ta bekor qilingan</p>
+                            <p className="text-[11px] text-muted/70 mt-0.5">{t('ssales.cancelledCount', { n: g.cancelledCount })}</p>
                           )}
                         </div>
                         <ChevronDown className={`w-5 h-5 text-muted flex-shrink-0 transition ${open ? 'rotate-180' : ''}`} />
@@ -347,52 +357,52 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
                                   <div className="space-y-3">
                                     {/* Quantity stepper */}
                                     <div className="flex items-center gap-3">
-                                      <span className="text-sm text-muted flex-1">Nechta sotildi?</span>
-                                      <button aria-label="Kamaytirish" onClick={() => setEditQty(q => Math.max(1, q - 1))}
+                                      <span className="text-sm text-muted flex-1">{t('ssales.howManySold')}</span>
+                                      <button aria-label={t('common.decrease')} onClick={() => setEditQty(q => Math.max(1, q - 1))}
                                         className="w-9 h-9 rounded-full bg-cream text-ink grid place-items-center active:scale-95 transition"><Minus className="w-4 h-4" /></button>
                                       <span className="font-display font-bold text-xl w-8 text-center">{editQty}</span>
-                                      <button aria-label="Ko'paytirish" onClick={() => setEditQty(q => q + 1)}
+                                      <button aria-label={t('common.increase')} onClick={() => setEditQty(q => q + 1)}
                                         className="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-95 transition shadow-rose"><Plus className="w-4 h-4" /></button>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                      <span className="text-sm text-muted">Jami ({formatUZS(sale.unit_price)} × {editQty})</span>
+                                      <span className="text-sm text-muted">{t('ssales.total')} ({formatUZS(sale.unit_price)} × {editQty})</span>
                                       <span className="font-display font-bold text-ink">{formatUZS(editQty * sale.unit_price)}</span>
                                     </div>
                                     {editError && <p className="text-danger text-xs">{editError}</p>}
                                     <div className="flex gap-2">
                                       <button onClick={() => saveEdit(sale)} disabled={busy === sale.id}
                                         className="flex-1 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
-                                        {busy === sale.id ? 'Saqlanmoqda…' : 'Saqlash'}
+                                        {busy === sale.id ? t('common.saving') : t('common.save')}
                                       </button>
-                                      <button onClick={() => setEditId(null)} className="px-5 text-muted text-sm">Bekor</button>
+                                      <button onClick={() => setEditId(null)} className="px-5 text-muted text-sm">{t('ssales.dismiss')}</button>
                                     </div>
 
                                     {/* Price correction — direct, audited */}
                                     <div className="pt-3 border-t border-black/5">
                                       {pricePendingSet.has(sale.id) ? (
-                                        <p className="text-xs font-semibold text-warning">💵 Narx so'rovi yuborildi — admin javobini kuting</p>
+                                        <p className="text-xs font-semibold text-warning">{t('ssales.priceReqSent')}</p>
                                       ) : priceOpen ? (
                                         <div className="space-y-2">
-                                          <p className="text-xs font-semibold text-ink">To'g'ri dona narxini yozing:</p>
+                                          <p className="text-xs font-semibold text-ink">{t('ssales.enterCorrectPrice')}</p>
                                           <div className="flex items-center gap-2">
                                             <input type="number" min={0} value={priceValue} onChange={e => setPriceValue(e.target.value)}
                                               className="w-28 bg-cream text-ink text-right rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                                            <input value={priceReason} onChange={e => setPriceReason(e.target.value)} placeholder="Sabab (ixtiyoriy)…"
+                                            <input value={priceReason} onChange={e => setPriceReason(e.target.value)} placeholder={t('ssales.reasonOptional')}
                                               className="flex-1 bg-cream text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                                           </div>
                                           {priceErr && <p className="text-danger text-xs">{priceErr}</p>}
                                           <div className="flex gap-2">
                                             <button disabled={priceSaving} onClick={() => savePriceDirect(sale)}
                                               className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
-                                              {priceSaving ? 'Saqlanmoqda…' : 'Narxni saqlash'}
+                                              {priceSaving ? t('common.saving') : t('ssales.savePrice')}
                                             </button>
-                                            <button aria-label="Yopish" onClick={() => setPriceOpen(false)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                                            <button aria-label={t('common.close')} onClick={() => setPriceOpen(false)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
                                           </div>
-                                          <p className="text-[11px] text-muted leading-snug">O'zgarish darhol saqlanadi va admin ko'radi.</p>
+                                          <p className="text-[11px] text-muted leading-snug">{t('ssales.changeSavedNote')}</p>
                                         </div>
                                       ) : (
                                         <button onClick={() => setPriceOpen(true)}
-                                          className="text-xs font-semibold text-rose">💵 Narx noto'g'rimi? Tuzatish</button>
+                                          className="text-xs font-semibold text-rose">{t('ssales.priceWrong')}</button>
                                       )}
                                     </div>
                                   </div>
@@ -401,12 +411,12 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
                                     <div className="flex items-center gap-3">
                                       <div className="flex-1 min-w-0">
                                         <p className={`text-sm ${isCancelled ? 'text-muted line-through' : 'text-ink'}`}>
-                                          {Math.abs(sale.qty)} ta × {formatUZS(sale.unit_price)}
+                                          {t('ssales.pcs', { n: Math.abs(sale.qty) })} × {formatUZS(sale.unit_price)}
                                         </p>
                                         <p className="text-xs text-muted/70 mt-0.5">{formatDate(sale.sold_at, true)}</p>
                                         {!isCancelled && (
                                           <p className={`text-xs font-semibold mt-0.5 ${isReturn ? 'text-danger' : 'text-rose'}`}>
-                                            Foyda: {formatUZS(sale.your_profit)}
+                                            {t('ssales.profit')}: {formatUZS(sale.your_profit)}
                                           </p>
                                         )}
                                       </div>
@@ -414,42 +424,42 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
                                         <p className={`font-display font-bold ${isCancelled ? 'text-muted line-through' : isReturn ? 'text-danger' : 'text-success'}`}>
                                           {formatUZS(sale.amount)}
                                         </p>
-                                        {isCancelled && <span className="text-[10px] font-bold bg-gray-200 text-muted px-2 py-0.5 rounded-full">Bekor qilingan</span>}
-                                        {isReturn && !isCancelled && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full">Qaytarilgan</span>}
+                                        {isCancelled && <span className="text-[10px] font-bold bg-gray-200 text-muted px-2 py-0.5 rounded-full">{t('ssales.cancelled')}</span>}
+                                        {isReturn && !isCancelled && <span className="text-[10px] font-bold bg-danger text-white px-2 py-0.5 rounded-full">{t('ssales.returned')}</span>}
                                       </div>
                                     </div>
 
                                     {isCancelled ? (
                                       <div className="flex items-center gap-2 mt-2">
                                         <span className="text-xs text-muted flex-1">
-                                          {sale.cancel_reason ? `Sabab: ${sale.cancel_reason}` : 'Bekor qilingan'}
+                                          {sale.cancel_reason ? t('ssales.reason', { r: sale.cancel_reason }) : t('ssales.cancelled')}
                                         </span>
                                         <button onClick={() => doRestore(sale)} disabled={busy === sale.id}
                                           className="text-xs font-semibold text-success bg-green-50 px-3 py-1.5 rounded-full disabled:opacity-50">
-                                          Qaytarish
+                                          {t('ssales.restore')}
                                         </button>
                                       </div>
                                     ) : cancelId === sale.id ? (
                                       <div className="mt-2">
-                                        <p className="text-sm text-ink mb-2 leading-snug">Nima uchun bekor qilinmoqda?</p>
+                                        <p className="text-sm text-ink mb-2 leading-snug">{t('ssales.whyCancel')}</p>
                                         <div className="flex gap-2 mb-3">
                                           {CANCEL_REASONS.map(r => (
-                                            <button key={r} onClick={() => setCancelReason(r)}
-                                              className={`flex-1 text-xs font-semibold py-2 rounded-full transition ${cancelReason === r ? 'bg-gradient-to-br from-rose to-peach text-white' : 'bg-cream text-ink'}`}>
-                                              {r}
+                                            <button key={r.value} onClick={() => setCancelReason(r.value)}
+                                              className={`flex-1 text-xs font-semibold py-2 rounded-full transition ${cancelReason === r.value ? 'bg-gradient-to-br from-rose to-peach text-white' : 'bg-cream text-ink'}`}>
+                                              {t(r.key)}
                                             </button>
                                           ))}
                                         </div>
                                         <div className="flex gap-2">
                                           <button onClick={() => setCancelId(null)}
-                                            className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">Yopish</button>
+                                            className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">{t('common.close')}</button>
                                           <button onClick={() => doCancel(sale)} disabled={busy === sale.id}
                                             className="flex-1 bg-danger text-white text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50">
-                                            {busy === sale.id ? '…' : 'Ha, bekor qilish'}
+                                            {busy === sale.id ? '…' : t('ssales.yesCancel')}
                                           </button>
                                         </div>
                                         <p className="text-[11px] text-muted mt-2 leading-snug">
-                                          Yozuv o'chmaydi — hisobdan chiqariladi, keyin qaytarish mumkin.
+                                          {t('ssales.cancelNote')}
                                         </p>
                                       </div>
                                     ) : confirmDeleteId === sale.id ? (
@@ -457,9 +467,9 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
                                         <p className="text-sm text-ink mb-2 leading-snug">{S.deleteConfirm}</p>
                                         <div className="flex gap-2">
                                           <button onClick={() => setConfirmDeleteId(null)}
-                                            className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">Bekor qilish</button>
+                                            className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition">{t('common.cancel')}</button>
                                           <button onClick={() => doDelete(sale.id)} disabled={busy === sale.id}
-                                            className="flex-1 bg-danger text-white text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50">Ha, o'chirish</button>
+                                            className="flex-1 bg-danger text-white text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50">{t('ssales.yesDelete')}</button>
                                         </div>
                                       </div>
                                     ) : (
@@ -467,17 +477,17 @@ export default function MySales({ sales: initialSales, pricePending, productBySa
                                         {!isReturn ? (
                                           <button onClick={() => openEdit(sale)} disabled={busy === sale.id}
                                             className="flex items-center gap-1.5 text-xs font-semibold text-rose bg-rose/10 hover:bg-rose/20 px-3 py-2 rounded-full transition disabled:opacity-30">
-                                            <Pencil className="w-3.5 h-3.5" /> Tahrirlash
+                                            <Pencil className="w-3.5 h-3.5" /> {t('ssales.edit')}
                                           </button>
-                                        ) : <span className="text-xs text-muted">Qaytarilgan yozuv</span>}
+                                        ) : <span className="text-xs text-muted">{t('ssales.returnedEntry')}</span>}
                                         {canCancel ? (
-                                          <button onClick={() => { setCancelId(sale.id); setCancelReason(CANCEL_REASONS[0]) }}
+                                          <button onClick={() => { setCancelId(sale.id); setCancelReason(CANCEL_REASONS[0].value) }}
                                             disabled={busy === sale.id}
                                             className="ml-auto text-xs font-semibold text-muted hover:text-danger transition disabled:opacity-30 px-3 py-2">
-                                            Bekor qilish
+                                            {t('common.cancel')}
                                           </button>
                                         ) : (
-                                          <button aria-label="Sotuvni o'chirish" onClick={() => setConfirmDeleteId(sale.id)} disabled={busy === sale.id}
+                                          <button aria-label={t('ssales.deleteSale')} onClick={() => setConfirmDeleteId(sale.id)} disabled={busy === sale.id}
                                             className="ml-auto text-danger/40 hover:text-danger transition disabled:opacity-30 p-2">
                                             <Trash2 className="w-4 h-4" />
                                           </button>

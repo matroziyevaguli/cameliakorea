@@ -6,6 +6,7 @@ import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import SellerNav from '@/components/SellerNav'
 import { RotateCcw, Plus, Minus, X, ArrowRight, ArrowDown, ArrowUp, ChevronDown } from 'lucide-react'
+import { useT, type TFunc } from '@/i18n'
 
 type MyTransfer = {
   id: string; qty: number; status: 'pending' | 'approved' | 'rejected'
@@ -21,10 +22,15 @@ type Props = {
   hasProductId: boolean
 }
 
-const BADGE: Record<MyTransfer['status'], { label: string; cls: string }> = {
-  pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
-  approved: { label: 'Tasdiqlandi', cls: 'bg-green-100 text-success' },
-  rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
+const BADGE_CLS: Record<MyTransfer['status'], string> = {
+  pending:  'bg-orange-100 text-warning',
+  approved: 'bg-green-100 text-success',
+  rejected: 'bg-red-100 text-danger',
+}
+const BADGE_STATUS_KEY: Record<MyTransfer['status'], string> = {
+  pending:  'strans.statusPending',
+  approved: 'strans.statusApproved',
+  rejected: 'strans.statusRejected',
 }
 
 const GRADIENTS = ['from-rose to-peach', 'from-lavender to-sky', 'from-mint to-sky', 'from-peach to-rose']
@@ -38,17 +44,18 @@ function Thumb({ name, url, i, className = '' }: { name: string; url?: string | 
 }
 
 // The whole point of the page: her stock now → her stock after this return moves.
-function BeforeAfter({ before, after, afterLabel }: { before: number; after: number; afterLabel: string }) {
+function BeforeAfter({ before, after, afterLabel, t }: { before: number; after: number; afterLabel: string; t: TFunc }) {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs">
-      <span className="text-muted">Sizda: <b className="text-ink">{before} ta</b></span>
+      <span className="text-muted">{t('strans.youHaveColon')} <b className="text-ink">{t('strans.pcs', { n: before })}</b></span>
       <ArrowRight className="w-3.5 h-3.5 text-muted" />
-      <span className="text-muted">{afterLabel}: <b className={after < before ? 'text-warning' : 'text-success'}>{after} ta</b></span>
+      <span className="text-muted">{afterLabel}: <b className={after < before ? 'text-warning' : 'text-success'}>{t('strans.pcs', { n: after })}</b></span>
     </span>
   )
 }
 
 export default function SellerTransfers({ transfers: initialTransfers, sendable, otherSellers, remainingByProduct, imageByProduct, hasProductId }: Props) {
+  const t = useT()
   // G2 — local state is the source of truth for the screen; reconcile in the background.
   const [transfers, setTransfers] = useState<MyTransfer[]>(initialTransfers)
   const incoming = transfers.filter(t => !t.is_outgoing && t.status === 'pending')
@@ -71,7 +78,7 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
     })
     const json = await res.json().catch(() => ({}))
     setTxBusy(null)
-    if (!res.ok) { setTxError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setTxError(json.error ?? t('common.error')); return }
     setTransfers(list => list.map(t => t.id === id
       ? { ...t, status: action === 'approve' ? 'approved' : 'rejected' } : t))
     window.dispatchEvent(new Event('camelia-transfers-changed'))
@@ -138,8 +145,8 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
     setShowForm(true); setProductId(''); setTo(mainSeller?.id ?? ''); setQty(1); setSendError(''); setSendDone(false)
   }
   async function submitSend() {
-    if (!productId) { setSendError('Mahsulotni tanlang'); return }
-    if (!to) { setSendError('Qabul qiluvchini tanlang'); return }
+    if (!productId) { setSendError(t('strans.pickProduct')); return }
+    if (!to) { setSendError(t('strans.pickRecipient')); return }
     setSendBusy(true); setSendError('')
     const res = await fetch('/api/transfer-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -147,7 +154,7 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
     })
     const json = await res.json().catch(() => ({}))
     setSendBusy(false)
-    if (!res.ok) { setSendError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setSendError(json.error ?? t('common.error')); return }
     setSendDone(true)
     setTimeout(() => { setShowForm(false); reconcile() }, 1200)
   }
@@ -160,9 +167,9 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/4" />
         <div className="relative flex items-center gap-2">
           <RotateCcw className="w-5 h-5" />
-          <h1 className="font-display text-xl font-bold">Qaytarishlar</h1>
+          <h1 className="font-display text-xl font-bold">{t('strans.title')}</h1>
         </div>
-        <p className="relative text-white/80 text-sm mt-1">Sotilmagan mahsulotni boshqa sotuvchiga qaytaring — pul o'zgarmaydi.</p>
+        <p className="relative text-white/80 text-sm mt-1">{t('strans.subtitle')}</p>
       </header>
 
       <main className="px-4 -mt-4 relative z-10 space-y-4">
@@ -173,23 +180,23 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
             {!showForm ? (
               <button onClick={openForm}
                 className="w-full flex items-center justify-center gap-2 text-rose font-display font-bold py-2 rounded-xl">
-                <Plus className="w-5 h-5" /> Yangi qaytarish
+                <Plus className="w-5 h-5" /> {t('strans.newReturn')}
               </button>
             ) : sendDone ? (
-              <div className="text-center py-3 rounded-xl bg-green-50 text-success font-semibold text-sm">✅ So'rov yuborildi — qabul qiluvchi tasdiqlaydi</div>
+              <div className="text-center py-3 rounded-xl bg-green-50 text-success font-semibold text-sm">{t('strans.requestSent')}</div>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="font-display font-bold text-ink text-sm">Yangi qaytarish</p>
-                  <button aria-label="Yopish" onClick={() => setShowForm(false)} className="text-muted"><X className="w-4 h-4" /></button>
+                  <p className="font-display font-bold text-ink text-sm">{t('strans.newReturn')}</p>
+                  <button aria-label={t('common.close')} onClick={() => setShowForm(false)} className="text-muted"><X className="w-4 h-4" /></button>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1">Mahsulot</label>
+                  <label className="block text-xs font-semibold text-muted mb-1">{t('strans.product')}</label>
                   <select value={productId} onChange={e => { setProductId(e.target.value); setQty(1) }}
                     className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
-                    <option value="">Tanlang…</option>
-                    {sendable.map(p => <option key={p.product_id} value={p.product_id}>{p.product_name} ({p.remaining} ta)</option>)}
+                    <option value="">{t('strans.selectDots')}</option>
+                    {sendable.map(p => <option key={p.product_id} value={p.product_id}>{p.product_name} ({t('strans.pcs', { n: p.remaining })})</option>)}
                   </select>
                 </div>
 
@@ -199,13 +206,13 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                     <Thumb name={selected.product_name} url={imageByProduct[selected.product_id]} i={0} className="w-14 h-14 rounded-xl flex-shrink-0" />
                     <div className="min-w-0">
                       <p className="font-semibold text-ink text-sm truncate">{selected.product_name}</p>
-                      <div className="mt-1"><BeforeAfter before={selected.remaining} after={selected.remaining - qty} afterLabel="qaytargach" /></div>
+                      <div className="mt-1"><BeforeAfter before={selected.remaining} after={selected.remaining - qty} afterLabel={t('strans.afterReturn')} t={t} /></div>
                     </div>
                   </div>
                 )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-1">Kimga</label>
+                  <label className="block text-xs font-semibold text-muted mb-1">{t('strans.toWhom')}</label>
                   <select value={to} onChange={e => setTo(e.target.value)}
                     className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
                     {otherSellers.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
@@ -213,12 +220,12 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-muted mb-2">Nechta?{selected ? ` (mavjud: ${maxQty})` : ''}</label>
+                  <label className="block text-xs font-semibold text-muted mb-2">{t('strans.howMany')}{selected ? ` ${t('strans.availableParen', { n: maxQty })}` : ''}</label>
                   <div className="flex items-center justify-center gap-6">
-                    <button aria-label="Kamaytirish" onClick={() => setQty(q => Math.max(1, q - 1))}
+                    <button aria-label={t('common.decrease')} onClick={() => setQty(q => Math.max(1, q - 1))}
                       className="w-11 h-11 rounded-full bg-cream text-ink grid place-items-center active:scale-90 transition"><Minus className="w-5 h-5" /></button>
                     <span className="font-display text-2xl font-bold text-ink w-10 text-center">{qty}</span>
-                    <button aria-label="Ko'paytirish" onClick={() => setQty(q => Math.min(maxQty, q + 1))}
+                    <button aria-label={t('common.increase')} onClick={() => setQty(q => Math.min(maxQty, q + 1))}
                       className="w-11 h-11 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition shadow-rose"><Plus className="w-5 h-5" /></button>
                   </div>
                 </div>
@@ -226,7 +233,7 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                 {sendError && <p className="text-danger text-xs text-center">{sendError}</p>}
                 <button onClick={submitSend} disabled={sendBusy || !productId}
                   className="w-full bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
-                  {sendBusy ? 'Yuborilmoqda…' : 'Yuborish'}
+                  {sendBusy ? t('common.sending') : t('strans.send')}
                 </button>
               </div>
             )}
@@ -236,29 +243,29 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
         {/* Incoming — needs my confirmation, with my before→after */}
         {incoming.length > 0 && (
           <div>
-            <h2 className="font-display font-bold text-ink text-base mb-2 px-1">Sizga qaytarilmoqda</h2>
+            <h2 className="font-display font-bold text-ink text-base mb-2 px-1">{t('strans.incomingTitle')}</h2>
             <div className="space-y-2">
-              {incoming.map((t, i) => {
-                const have = (hasProductId && t.product_id) ? (remainingByProduct[t.product_id] ?? 0) : null
+              {incoming.map((tr, i) => {
+                const have = (hasProductId && tr.product_id) ? (remainingByProduct[tr.product_id] ?? 0) : null
                 return (
-                  <div key={t.id} className="bg-mint/10 border border-mint/30 rounded-2xl p-4">
+                  <div key={tr.id} className="bg-mint/10 border border-mint/30 rounded-2xl p-4">
                     <div className="flex items-start gap-3 mb-3">
-                      {hasProductId && t.product_id && (
-                        <Thumb name={t.product_name} url={imageByProduct[t.product_id]} i={i} className="w-14 h-14 rounded-xl flex-shrink-0" />
+                      {hasProductId && tr.product_id && (
+                        <Thumb name={tr.product_name} url={imageByProduct[tr.product_id]} i={i} className="w-14 h-14 rounded-xl flex-shrink-0" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-ink"><span className="text-success">{t.from_name}</span> sizga qaytarmoqchi</p>
-                        <p className="text-sm text-muted">{t.product_name} — <strong className="text-ink">{t.qty} ta</strong></p>
+                        <p className="text-sm font-semibold text-ink"><span className="text-success">{tr.from_name}</span> {t('strans.wantsReturnSuffix')}</p>
+                        <p className="text-sm text-muted">{tr.product_name} — <strong className="text-ink">{t('strans.pcs', { n: tr.qty })}</strong></p>
                         {have !== null && (
-                          <div className="mt-1"><BeforeAfter before={have} after={have + t.qty} afterLabel="qabul qilsangiz" /></div>
+                          <div className="mt-1"><BeforeAfter before={have} after={have + tr.qty} afterLabel={t('strans.afterAccept')} t={t} /></div>
                         )}
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => confirmTransfer(t.id, 'approve')} disabled={txBusy !== null}
-                        className="flex-1 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">Qabul qildim</button>
-                      <button onClick={() => confirmTransfer(t.id, 'reject')} disabled={txBusy !== null}
-                        className="flex-1 bg-red-50 text-danger font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">Rad etish</button>
+                      <button onClick={() => confirmTransfer(tr.id, 'approve')} disabled={txBusy !== null}
+                        className="flex-1 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50">{t('strans.accept')}</button>
+                      <button onClick={() => confirmTransfer(tr.id, 'reject')} disabled={txBusy !== null}
+                        className="flex-1 bg-red-50 text-danger font-display font-bold py-2.5 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">{t('strans.reject')}</button>
                     </div>
                   </div>
                 )
@@ -270,26 +277,26 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
 
         {/* Grouped-by-product overview table */}
         <div>
-          <h2 className="font-display font-bold text-ink text-base mb-1 px-1">Sizning qaytarishlaringiz</h2>
+          <h2 className="font-display font-bold text-ink text-base mb-1 px-1">{t('strans.yourReturns')}</h2>
           {groups.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
               <RotateCcw className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">Hali qaytarish yo'q</p>
+              <p className="text-sm">{t('strans.noReturns')}</p>
             </div>
           ) : (
             <>
               <p className="text-[11px] text-muted mb-2 px-1">
-                <b className="text-rose">Topshirildi</b> — qaytarganingiz · <b className="text-success">Kirdi</b> — sizga qaytarilgani · <b className="text-ink">Hozir</b> — hozirgi soningiz
+                <b className="text-rose">{t('strans.handedOver')}</b> {t('strans.handedOverDesc')} · <b className="text-success">{t('strans.cameIn')}</b> {t('strans.cameInDesc')} · <b className="text-ink">{t('strans.now')}</b> {t('strans.nowDesc')}
               </p>
 
               <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
                 {/* Column header */}
                 <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 text-[10px] font-semibold text-muted">
                   <span className="w-11 flex-shrink-0" />
-                  <span className="flex-1">Mahsulot</span>
-                  <span className="w-16 text-right leading-tight">Topshirildi</span>
-                  <span className="w-11 text-right">Kirdi</span>
-                  <span className="w-11 text-right">Hozir</span>
+                  <span className="flex-1">{t('strans.product')}</span>
+                  <span className="w-16 text-right leading-tight">{t('strans.handedOver')}</span>
+                  <span className="w-11 text-right">{t('strans.cameIn')}</span>
+                  <span className="w-11 text-right">{t('strans.now')}</span>
                   <span className="w-5 flex-shrink-0" />
                 </div>
 
@@ -304,7 +311,7 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-ink truncate">{g.name}</p>
                             {g.pending > 0 && (
-                              <span className="text-[10px] font-bold text-warning bg-orange-50 px-1.5 py-0.5 rounded-full">{g.pending} kutilmoqda</span>
+                              <span className="text-[10px] font-bold text-warning bg-orange-50 px-1.5 py-0.5 rounded-full">{t('strans.pendingCount', { n: g.pending })}</span>
                             )}
                           </div>
                           <span className="w-16 text-right text-sm">
@@ -324,13 +331,13 @@ export default function SellerTransfers({ transfers: initialTransfers, sendable,
                                 <RotateCcw className={`w-3.5 h-3.5 flex-shrink-0 ${l.is_outgoing ? 'text-rose' : 'text-success'}`} />
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs text-ink truncate">
-                                    {l.is_outgoing ? `Siz → ${l.counter}` : `${l.counter} → Siz`} · <strong>{l.qty} ta</strong>
+                                    {l.is_outgoing ? `${t('strans.you')} → ${l.counter}` : `${l.counter} → ${t('strans.you')}`} · <strong>{t('strans.pcs', { n: l.qty })}</strong>
                                   </p>
                                   <p className="text-[11px] text-muted">
-                                    {formatDate(l.last)}{l.count > 1 ? ` · ${l.count} marta` : ''}
+                                    {formatDate(l.last)}{l.count > 1 ? ` · ${t('strans.times', { n: l.count })}` : ''}
                                   </p>
                                 </div>
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${BADGE[l.status].cls}`}>{BADGE[l.status].label}</span>
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${BADGE_CLS[l.status]}`}>{t(BADGE_STATUS_KEY[l.status])}</span>
                               </div>
                             ))}
                           </div>

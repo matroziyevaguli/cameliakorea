@@ -7,6 +7,7 @@ import AdminNav from '@/components/AdminNav'
 import { formatUZS, formatDate } from '@/lib/format'
 import { CITY_LABEL } from '@/consts/geo'
 import { CheckCircle, XCircle, Truck, Clock, Loader2, ExternalLink } from 'lucide-react'
+import { useT } from '@/i18n'
 
 type Item = { product_name: string; unit_price: number; qty: number }
 type Seller = { id: string; full_name: string; card_number: string | null; city: string | null }
@@ -18,25 +19,26 @@ type Order = {
   items: Item[]; receipt_url: string | null
 }
 
-const STATUS: Record<string, { label: string; cls: string }> = {
-  pending_payment:        { label: "To'lov kutilmoqda", cls: 'bg-orange-100 text-warning' },
-  awaiting_payment_retry: { label: 'Chek qayta kerak',  cls: 'bg-orange-100 text-warning' },
-  rejected:               { label: 'Rad etildi',        cls: 'bg-red-100 text-danger' },
-  awaiting_confirmation:  { label: 'Tasdiqlash kerak',  cls: 'bg-sky/20 text-sky' },
-  confirmed:              { label: 'Tasdiqlangan',      cls: 'bg-green-100 text-success' },
-  delivering:             { label: 'Yetkazilmoqda',     cls: 'bg-lavender/20 text-lavender' },
-  delivered:              { label: 'Yetkazildi',        cls: 'bg-green-100 text-success' },
-  cancelled:              { label: 'Bekor qilindi',     cls: 'bg-gray-100 text-muted' },
+const STATUS: Record<string, { labelKey: string; cls: string }> = {
+  pending_payment:        { labelKey: 'aord.stPendingPayment',  cls: 'bg-orange-100 text-warning' },
+  awaiting_payment_retry: { labelKey: 'aord.stAwaitingRetry',   cls: 'bg-orange-100 text-warning' },
+  rejected:               { labelKey: 'aord.stRejected',        cls: 'bg-red-100 text-danger' },
+  awaiting_confirmation:  { labelKey: 'aord.stAwaitingConfirm', cls: 'bg-sky/20 text-sky' },
+  confirmed:              { labelKey: 'aord.stConfirmed',       cls: 'bg-green-100 text-success' },
+  delivering:             { labelKey: 'aord.stDelivering',      cls: 'bg-lavender/20 text-lavender' },
+  delivered:              { labelKey: 'aord.stDelivered',       cls: 'bg-green-100 text-success' },
+  cancelled:              { labelKey: 'aord.stCancelled',       cls: 'bg-gray-100 text-muted' },
 }
 
 const TABS = [
-  { key: 'review',  label: 'Tasdiqlash',      statuses: ['awaiting_confirmation'] },
-  { key: 'payment', label: "To'lov kutilyapti", statuses: ['pending_payment', 'awaiting_payment_retry', 'rejected'] },
-  { key: 'active',  label: 'Jarayonda',       statuses: ['confirmed', 'delivering'] },
-  { key: 'done',    label: 'Yakunlangan',     statuses: ['delivered', 'cancelled'] },
+  { key: 'review',  labelKey: 'aord.tabReview',  statuses: ['awaiting_confirmation'] },
+  { key: 'payment', labelKey: 'aord.tabPayment', statuses: ['pending_payment', 'awaiting_payment_retry', 'rejected'] },
+  { key: 'active',  labelKey: 'aord.tabActive',  statuses: ['confirmed', 'delivering'] },
+  { key: 'done',    labelKey: 'aord.tabDone',    statuses: ['delivered', 'cancelled'] },
 ]
 
 export default function AdminOrders({ orders, sellers }: { orders: Order[]; sellers: Seller[] }) {
+  const t = useT()
   const router = useRouter()
   const [tab, setTab] = useState('review')
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -44,7 +46,7 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
-  const active = TABS.find(t => t.key === tab)!
+  const active = TABS.find(tb => tb.key === tab)!
   const shown = orders.filter(o => active.statuses.includes(o.status))
 
   async function act(orderId: string, action: string, extra: any = {}) {
@@ -55,7 +57,7 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
     })
     const j = await res.json().catch(() => ({}))
     setBusyId(null); setRejectId(null); setReason('')
-    if (!res.ok) { setError(j.error ?? 'Xatolik'); return }
+    if (!res.ok) { setError(j.error ?? t('aord.errGeneric')); return }
     router.replace(router.asPath)   // refresh SSR
   }
 
@@ -63,15 +65,15 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
     <div className="min-h-screen bg-cream">
       <AdminNav />
       <main className="p-4 md:p-6 max-w-3xl mx-auto">
-        <h2 className="font-display font-bold text-ink text-2xl mb-5">Buyurtmalar</h2>
+        <h2 className="font-display font-bold text-ink text-2xl mb-5">{t('aord.title')}</h2>
 
         <div className="flex gap-2 mb-5 overflow-x-auto">
-          {TABS.map(t => {
-            const n = orders.filter(o => t.statuses.includes(o.status)).length
+          {TABS.map(tb => {
+            const n = orders.filter(o => tb.statuses.includes(o.status)).length
             return (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition ${tab === t.key ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted hover:text-ink'}`}>
-                {t.label}{n > 0 && <span className="ml-1.5 opacity-80">{n}</span>}
+              <button key={tb.key} onClick={() => setTab(tb.key)}
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold transition ${tab === tb.key ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted hover:text-ink'}`}>
+                {t(tb.labelKey)}{n > 0 && <span className="ml-1.5 opacity-80">{n}</span>}
               </button>
             )
           })}
@@ -80,7 +82,7 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
         {error && <p className="text-danger text-sm mb-4 bg-red-50 rounded-xl px-4 py-3">{error}</p>}
 
         {shown.length === 0 ? (
-          <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted">Bu bo'limda buyurtma yo'q.</div>
+          <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted">{t('aord.empty')}</div>
         ) : (
           <div className="space-y-4">
             {shown.map(o => {
@@ -90,7 +92,7 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
                 <div key={o.id} className="bg-surface rounded-2xl shadow-card p-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full ${meta.cls}`}>{meta.label}</span>
+                      <span className={`inline-block text-xs font-bold px-2.5 py-0.5 rounded-full ${meta.cls}`}>{t(meta.labelKey)}</span>
                       <p className="text-xs text-muted mt-1.5">{formatDate(o.created_at)}</p>
                     </div>
                     <span className="font-display font-bold text-ink text-lg">{formatUZS(o.subtotal)}</span>
@@ -100,7 +102,7 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
                   <div className="text-sm text-ink space-y-0.5 mb-3">
                     <p className="font-semibold">{o.contact_name} · {o.contact_phone}
                       {o.customer_tg && <span className="text-muted font-normal"> · TG {o.customer_tg}</span>}</p>
-                    <p className="text-muted">{CITY_LABEL[o.city] ?? o.city}, {o.address}</p>
+                    <p className="text-muted">{o.city ? t(`region.${o.city}`) : (CITY_LABEL[o.city] ?? o.city)}, {o.address}</p>
                   </div>
 
                   {/* Items */}
@@ -115,12 +117,12 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
 
                   {/* Seller assignment */}
                   <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs text-muted">Sotuvchi:</span>
+                    <span className="text-xs text-muted">{t('aord.seller')}</span>
                     <select value={o.assigned_seller_id ?? ''} disabled={busyId === o.id}
                       onChange={e => act(o.id, 'assign', { seller_id: e.target.value })}
                       className="flex-1 bg-cream text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
-                      <option value="">— tanlanmagan —</option>
-                      {sellers.map(s => <option key={s.id} value={s.id}>{s.full_name}{s.card_number ? '' : ' (karta yo\'q)'}</option>)}
+                      <option value="">{t('aord.unassigned')}</option>
+                      {sellers.map(s => <option key={s.id} value={s.id}>{s.full_name}{s.card_number ? '' : t('aord.noCard')}</option>)}
                     </select>
                   </div>
 
@@ -128,20 +130,20 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
                   {o.receipt_url && (
                     <a href={o.receipt_url} target="_blank" rel="noreferrer"
                       className="inline-flex items-center gap-2 mb-3 text-sm text-sky font-semibold">
-                      <img src={o.receipt_url} alt="chek" className="w-12 h-12 rounded-lg object-cover border border-black/5" />
-                      Chekni ochish <ExternalLink className="w-3.5 h-3.5" />
+                      <img src={o.receipt_url} alt={t('aord.receiptAlt')} className="w-12 h-12 rounded-lg object-cover border border-black/5" />
+                      {t('aord.openReceipt')} <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   )}
-                  {o.rejection_reason && <p className="text-xs text-danger mb-3">Rad sababi: {o.rejection_reason}</p>}
+                  {o.rejection_reason && <p className="text-xs text-danger mb-3">{t('aord.rejReason', { reason: o.rejection_reason })}</p>}
 
                   {/* Actions */}
                   {rejectId === o.id ? (
                     <div className="flex gap-2">
-                      <input value={reason} onChange={e => setReason(e.target.value)} placeholder="Rad etish sababi…"
+                      <input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('aord.rejPlaceholder')}
                         className="flex-1 bg-cream rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-danger border-2 border-transparent" />
                       <button onClick={() => act(o.id, 'reject', { reason })} disabled={busyId === o.id}
-                        className="bg-danger text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50">Rad etish</button>
-                      <button onClick={() => { setRejectId(null); setReason('') }} className="text-muted text-sm px-2">Bekor</button>
+                        className="bg-danger text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50">{t('aord.reject')}</button>
+                      <button onClick={() => { setRejectId(null); setReason('') }} className="text-muted text-sm px-2">{t('aord.cancelShort')}</button>
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
@@ -150,29 +152,29 @@ export default function AdminOrders({ orders, sellers }: { orders: Order[]; sell
                         <>
                           <button onClick={() => act(o.id, 'confirm')} disabled={busyId === o.id}
                             className="flex items-center gap-1.5 bg-gradient-to-br from-mint to-success text-white text-sm font-semibold px-4 py-2 rounded-lg active:scale-95 transition disabled:opacity-50">
-                            <CheckCircle className="w-4 h-4" /> Tasdiqlash
+                            <CheckCircle className="w-4 h-4" /> {t('aord.confirm')}
                           </button>
                           <button onClick={() => setRejectId(o.id)} disabled={busyId === o.id}
                             className="flex items-center gap-1.5 bg-red-50 text-danger text-sm font-semibold px-4 py-2 rounded-lg active:scale-95 transition disabled:opacity-50">
-                            <XCircle className="w-4 h-4" /> Rad etish
+                            <XCircle className="w-4 h-4" /> {t('aord.reject')}
                           </button>
                         </>
                       )}
                       {o.status === 'confirmed' && (
                         <button onClick={() => act(o.id, 'delivering')} disabled={busyId === o.id}
                           className="flex items-center gap-1.5 bg-gradient-to-br from-sky to-lavender text-white text-sm font-semibold px-4 py-2 rounded-lg active:scale-95 transition disabled:opacity-50">
-                          <Truck className="w-4 h-4" /> Yetkazishga berish
+                          <Truck className="w-4 h-4" /> {t('aord.deliver')}
                         </button>
                       )}
                       {o.status === 'delivering' && (
                         <button onClick={() => act(o.id, 'delivered')} disabled={busyId === o.id}
                           className="flex items-center gap-1.5 bg-gradient-to-br from-mint to-success text-white text-sm font-semibold px-4 py-2 rounded-lg active:scale-95 transition disabled:opacity-50">
-                          <CheckCircle className="w-4 h-4" /> Yetkazildi
+                          <CheckCircle className="w-4 h-4" /> {t('aord.delivered')}
                         </button>
                       )}
                       {o.status !== 'delivered' && o.status !== 'cancelled' && (
                         <button onClick={() => act(o.id, 'cancelled')} disabled={busyId === o.id}
-                          className="text-muted hover:text-danger text-sm px-3 py-2 transition">Bekor qilish</button>
+                          className="text-muted hover:text-danger text-sm px-3 py-2 transition">{t('aord.cancel')}</button>
                       )}
                     </div>
                   )}

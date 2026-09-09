@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { createClient } from '@/lib/supabase/browser'
 import { formatUZS, formatDate } from '@/lib/format'
+import { useT } from '@/i18n'
 import { Bell, X, ClipboardList, RotateCcw, Wallet, Check, XCircle } from 'lucide-react'
 
 // 🔔 Everything waiting on the seller, in one place (redesign.md §4.6).
@@ -31,6 +32,7 @@ const TONE = {
 }
 
 export default function NotificationBell() {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<Notif[]>([])
@@ -57,8 +59,8 @@ export default function NotificationBell() {
         id: `req-${r.id}`,
         at: r.resolved_at ?? r.created_at,
         icon: 'request', tone: ok ? 'good' : 'bad',
-        text: ok ? `So'rovingiz tasdiqlandi: ${r.product_name}` : `So'rovingiz rad etildi: ${r.product_name}`,
-        sub: r.admin_note ? `Admin: ${r.admin_note}` : `${r.requested_qty} ta`,
+        text: ok ? t('acomp.req_approved', { name: r.product_name }) : t('acomp.req_rejected', { name: r.product_name }),
+        sub: r.admin_note ? t('acomp.admin_note', { note: r.admin_note }) : t('acomp.n_ta', { n: r.requested_qty }),
         href: '/seller/requests',
       })
     }
@@ -71,21 +73,21 @@ export default function NotificationBell() {
         id: `price-${r.id}`,
         at: r.resolved_at ?? r.created_at,
         icon: 'price', tone: ok ? 'good' : 'bad',
-        text: ok ? `Narx so'rovi tasdiqlandi: ${r.product_name}` : `Narx so'rovi rad etildi: ${r.product_name}`,
-        sub: r.admin_note ? `Admin: ${r.admin_note}` : `${formatUZS(r.requested_price)}`,
+        text: ok ? t('acomp.price_approved', { name: r.product_name }) : t('acomp.price_rejected', { name: r.product_name }),
+        sub: r.admin_note ? t('acomp.admin_note', { note: r.admin_note }) : `${formatUZS(r.requested_price)}`,
         href: '/seller/requests',
       })
     }
 
     // Returns waiting for HER confirmation — the only actionable item
-    for (const t of (transfers.data ?? []) as any[]) {
-      if (t.is_outgoing || t.status !== 'pending') continue
+    for (const tr of (transfers.data ?? []) as any[]) {
+      if (tr.is_outgoing || tr.status !== 'pending') continue
       out.push({
-        id: `tx-${t.id}`,
-        at: t.created_at,
+        id: `tx-${tr.id}`,
+        at: tr.created_at,
         icon: 'transfer', tone: 'wait',
-        text: `${t.from_name} sizga ${t.qty} ta qaytarmoqchi`,
-        sub: `${t.product_name} — tasdiqlang`,
+        text: t('acomp.transfer_incoming', { name: tr.from_name, qty: tr.qty }),
+        sub: t('acomp.transfer_confirm_sub', { name: tr.product_name }),
         href: '/seller/transfers',
       })
     }
@@ -96,7 +98,7 @@ export default function NotificationBell() {
         id: `pay-${p.id}`,
         at: p.paid_at,
         icon: 'payment', tone: 'good',
-        text: `To'lov qabul qilindi: ${formatUZS(p.amount)}`,
+        text: t('acomp.payment_received', { amount: formatUZS(p.amount) }),
         sub: p.note ?? undefined,
         href: '/seller/balance',
       })
@@ -118,7 +120,7 @@ export default function NotificationBell() {
 
   return (
     <>
-      <button onClick={() => setOpen(true)} aria-label="Bildirishnomalar"
+      <button onClick={() => setOpen(true)} aria-label={t('acomp.notifications')}
         className="relative text-white/70 hover:text-white p-2 transition">
         <Bell className="w-5 h-5" />
         {unread > 0 && (
@@ -134,8 +136,8 @@ export default function NotificationBell() {
           <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
             <div className="flex items-center justify-between mb-4">
-              <p className="font-display font-bold text-ink text-lg">Bildirishnomalar</p>
-              <button aria-label="Yopish" onClick={() => setOpen(false)} className="text-muted hover:text-ink transition">
+              <p className="font-display font-bold text-ink text-lg">{t('acomp.notifications')}</p>
+              <button aria-label={t('common.close')} onClick={() => setOpen(false)} className="text-muted hover:text-ink transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -143,7 +145,7 @@ export default function NotificationBell() {
             {items.length === 0 ? (
               <div className="text-center text-muted py-10">
                 <Bell className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Hozircha yangilik yo'q</p>
+                <p className="text-sm">{t('acomp.no_news')}</p>
               </div>
             ) : (
               <>
@@ -177,7 +179,7 @@ export default function NotificationBell() {
                 {unread > 0 && (
                   <button onClick={markAllRead}
                     className="w-full mt-4 flex items-center justify-center gap-2 bg-cream text-ink text-sm font-semibold py-3 rounded-full active:scale-95 transition">
-                    <Check className="w-4 h-4" /> Hammasini o'qilgan deb belgilash
+                    <Check className="w-4 h-4" /> {t('acomp.mark_all_read')}
                   </button>
                 )}
               </>

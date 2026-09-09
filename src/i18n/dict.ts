@@ -1,8 +1,13 @@
 import type { Locale } from './index'
+import { sellerDict } from './dict.seller'
+import { adminDict } from './dict.admin'
+import { adminDict2 } from './dict.admin2'
 
 // key → { uz, en, ru, ko }. Uzbek is the source/fallback. Interpolation: {var}. A leading/embedded
 // *word* in hero-style strings marks a highlighted span (rendered by the page). Grows per page.
-export const dict: Record<string, Record<Locale, string>> = {
+// Public + shared strings live here; seller/admin internal strings live in dict.seller / dict.admin.
+export type Entry = Record<Locale, string>
+const baseDict: Record<string, Entry> = {
   // ── Shared: availability state labels (lib/availability STATE_LABEL) ──
   'state.in_stock':          { uz: 'Bor', en: 'In stock', ru: 'В наличии', ko: '재고 있음' },
   'state.low':               { uz: 'Kam qoldi', en: 'Low stock', ru: 'Мало осталось', ko: '재고 부족' },
@@ -11,6 +16,13 @@ export const dict: Record<string, Record<Locale, string>> = {
   'state.not_arrived':       { uz: "Yo'lda", en: 'On the way', ru: 'В пути', ko: '입고 예정' },
   'state.discontinued':      { uz: 'Endi keltirilmaydi', en: 'Discontinued', ru: 'Больше не завозится', ko: '단종' },
   'state.leftCount':         { uz: '{n} ta qoldi', en: '{n} left', ru: 'осталось {n}', ko: '{n}개 남음' },
+
+  // ── Shared: expiry status labels (lib/expiry EXPIRY_LABEL) ──
+  'expiry.expired':  { uz: 'Muddati tugagan', en: 'Expired', ru: 'Срок истёк', ko: '유통기한 만료' },
+  'expiry.critical': { uz: 'Tez tugaydi', en: 'Expiring soon', ru: 'Скоро истекает', ko: '곧 만료' },
+  'expiry.soon':     { uz: 'Yaqinlashmoqda', en: 'Approaching', ru: 'Приближается', ko: '임박' },
+  'expiry.ok':       { uz: 'Yaxshi', en: 'Good', ru: 'В норме', ko: '양호' },
+  'expiry.none':     { uz: '—', en: '—', ru: '—', ko: '—' },
 
   // ── Shared: community topics (consts/community) ──
   'topic.dasturchilik':     { uz: 'Dasturchilik', en: 'Programming', ru: 'Программирование', ko: '프로그래밍' },
@@ -71,6 +83,71 @@ export const dict: Record<string, Record<Locale, string>> = {
   'anav.payments': { uz: "To'lovlar", en: 'Payments', ru: 'Платежи', ko: '결제' },
   'anav.giveaways':{ uz: "Sovg'alar", en: 'Giveaways', ru: 'Подарки', ko: '증정' },
 
+  // ── Admin dashboard (/admin) ──
+  'adash.bizStatus':   { uz: 'Biznes holati', en: 'Business status', ru: 'Состояние бизнеса', ko: '비즈니스 현황' },
+  'adash.sold':        { uz: 'Sotildi', en: 'Sold', ru: 'Продано', ko: '판매됨' },
+  'adash.progressNote':{ uz: '{pct}% sotilgan · omborda yana {worth} lik tovar bor', en: '{pct}% sold · {worth} of stock still in warehouse', ru: '{pct}% продано · на складе ещё товара на {worth}', ko: '{pct}% 판매 · 창고에 {worth} 상당 재고' },
+  'adash.investedLabel':{ uz: 'Omborda turgan pul', en: 'Money in stock', ru: 'Деньги на складе', ko: '재고 자금' },
+  'adash.investedSub': { uz: 'sotilmagan tovar xaridi', en: 'cost of unsold stock', ru: 'закупка непроданного', ko: '미판매 재고 원가' },
+  'adash.worthLabel':  { uz: 'Ombor qiymati', en: 'Stock value', ru: 'Стоимость склада', ko: '재고 가치' },
+  'adash.worthSub':    { uz: 'sotilmagan tovar narxi', en: 'price of unsold stock', ru: 'цена непроданного', ko: '미판매 재고 가격' },
+  'adash.expectedLabel':{ uz: 'Kutilayotgan foyda', en: 'Expected profit', ru: 'Ожидаемая прибыль', ko: '예상 수익' },
+  'adash.expectedSub': { uz: 'agar qolgani sotilsa', en: 'if the rest sells', ru: 'если остальное продастся', ko: '나머지 판매 시' },
+  'adash.giveawaysLabel':{ uz: "Sovg'alar", en: 'Giveaways', ru: 'Подарки', ko: '증정' },
+  'adash.giveUnits':   { uz: '{n} dona', en: '{n} pcs', ru: '{n} шт', ko: '{n}개' },
+  'adash.giveSub':     { uz: '{v} xarajat', en: '{v} cost', ru: 'расход {v}', ko: '비용 {v}' },
+  'adash.totalSales':  { uz: 'Umumiy savdo', en: 'Total sales', ru: 'Общие продажи', ko: '총 매출' },
+  'adash.unitsSold':   { uz: 'Sotilgan (dona)', en: 'Units sold', ru: 'Продано (шт)', ko: '판매 수량' },
+  'adash.topProducts': { uz: "Ko'p sotilgan mahsulotlar", en: 'Best-selling products', ru: 'Самые продаваемые', ko: '베스트셀러' },
+  'adash.productReport':{ uz: 'Mahsulot hisoboti', en: 'Product report', ru: 'Отчёт по товарам', ko: '상품 보고서' },
+  'adash.colProduct':  { uz: 'Mahsulot', en: 'Product', ru: 'Товар', ko: '상품' },
+  'adash.colTotal':    { uz: 'Jami', en: 'Total', ru: 'Всего', ko: '전체' },
+  'adash.colLeft':     { uz: 'Qoldi', en: 'Left', ru: 'Остаток', ko: '남음' },
+  'adash.colRevenue':  { uz: 'Tushum', en: 'Revenue', ru: 'Выручка', ko: '매출' },
+  'adash.bySeller':    { uz: "Sotuvchilar bo'yicha", en: 'By seller', ru: 'По продавцам', ko: '판매자별' },
+  'adash.remaining':   { uz: 'Qolgan', en: 'Remaining', ru: 'Остаток', ko: '잔여' },
+  'adash.recentSales': { uz: "So'nggi sotuvlar", en: 'Recent sales', ru: 'Последние продажи', ko: '최근 판매' },
+
+  // ── Seller sell (/seller — gift + residual strings) ──
+  'sell.errGeneric':   { uz: "Xatolik — qayta urinib ko'ring", en: 'Something went wrong — try again', ru: 'Ошибка — попробуйте снова', ko: '오류 — 다시 시도하세요' },
+  'sell.errGiftFields':{ uz: 'Kimga va telefon raqamini kiriting', en: 'Enter the recipient and phone number', ru: 'Укажите получателя и номер телефона', ko: '받는 사람과 전화번호를 입력하세요' },
+  'sell.errNet':       { uz: "Internet bilan muammo — qayta urinib ko'ring", en: 'Connection problem — try again', ru: 'Проблема с интернетом — попробуйте снова', ko: '인터넷 문제 — 다시 시도하세요' },
+  'sell.giftDone':     { uz: "Sovg'a berildi 🎁", en: 'Gift given 🎁', ru: 'Подарок вручён 🎁', ko: '선물 전달됨 🎁' },
+  'sell.giftTo':       { uz: 'Kimga:', en: 'To:', ru: 'Кому:', ko: '받는 사람:' },
+  'sell.giftDeducted': { uz: 'Ombordan {qty} ta ayirildi. Bu bepul — hisobingizga yozilmaydi.', en: '{qty} deducted from stock. It’s free — not charged to your account.', ru: 'Со склада списано {qty}. Это бесплатно — на ваш счёт не влияет.', ko: '재고에서 {qty}개 차감. 무료 — 계정에 청구되지 않습니다.' },
+  'sell.max':          { uz: 'Max: {n} ta', en: 'Max: {n}', ru: 'Макс: {n}', ko: '최대: {n}개' },
+  'sell.gift':         { uz: "Sovg'a", en: 'Gift', ru: 'Подарок', ko: '선물' },
+  'sell.giftNamePh':   { uz: 'Kimga? (ism)', en: 'To whom? (name)', ru: 'Кому? (имя)', ko: '누구에게? (이름)' },
+  'sell.giftPhonePh':  { uz: 'Telefon raqami', en: 'Phone number', ru: 'Номер телефона', ko: '전화번호' },
+  'sell.giftNote':     { uz: "Sovg'a bepul — hisobingizga yozilmaydi, ombordan ayiriladi.", en: 'A gift is free — not charged to you, only deducted from stock.', ru: 'Подарок бесплатный — не на ваш счёт, только списывается со склада.', ko: '선물은 무료 — 계정에 청구되지 않고 재고에서만 차감됩니다.' },
+  'sell.giftReviewItem':{ uz: '{qty} ta {name}', en: '{qty} × {name}', ru: '{qty} × {name}', ko: '{name} {qty}개' },
+  'sell.asGift':       { uz: "sovg'a", en: 'gift', ru: 'подарок', ko: '선물' },
+  'sell.giftToLine':   { uz: 'Kimga: {name} · {phone}', en: 'To: {name} · {phone}', ru: 'Кому: {name} · {phone}', ko: '받는 사람: {name} · {phone}' },
+
+  // ── Seller settings (/seller/settings) ──
+  'sset.title':        { uz: 'Sozlamalar', en: 'Settings', ru: 'Настройки', ko: '설정' },
+  'sset.cardTitle':    { uz: "To'lov kartangiz", en: 'Your payout card', ru: 'Ваша карта для оплаты', ko: '결제 카드' },
+  'sset.cardSub':      { uz: "Onlayn buyurtmalarda mijozlar shu kartaga o'tkazma qiladi.", en: 'For online orders, customers transfer to this card.', ru: 'При онлайн-заказах клиенты переводят на эту карту.', ko: '온라인 주문 시 고객이 이 카드로 송금합니다.' },
+  'sset.region':       { uz: 'Viloyat', en: 'Region', ru: 'Область', ko: '지역' },
+  'sset.selectDash':   { uz: '— tanlang —', en: '— select —', ru: '— выберите —', ko: '— 선택 —' },
+  'sset.cardNumber':   { uz: 'Karta raqami', en: 'Card number', ru: 'Номер карты', ko: '카드 번호' },
+  'sset.cardHolder':   { uz: 'Karta egasi (ism)', en: 'Cardholder (name)', ru: 'Владелец карты (имя)', ko: '카드 소유자 (이름)' },
+  'sset.cardHolderPh': { uz: 'Masalan: GULSHANOY M.', en: 'e.g. GULSHANOY M.', ru: 'Напр.: GULSHANOY M.', ko: '예: GULSHANOY M.' },
+  'sset.saved':        { uz: 'Saqlandi!', en: 'Saved!', ru: 'Сохранено!', ko: '저장됨!' },
+  'sset.saveCard':     { uz: 'Kartani saqlash', en: 'Save card', ru: 'Сохранить карту', ko: '카드 저장' },
+  'sset.cardIncomplete':{ uz: "Karta raqami to'liq emas (16 ta raqam).", en: 'Card number is incomplete (16 digits).', ru: 'Номер карты неполный (16 цифр).', ko: '카드 번호가 완전하지 않습니다 (16자리).' },
+  'sset.pwTitle':      { uz: "Parolni o'zgartirish", en: 'Change password', ru: 'Сменить пароль', ko: '비밀번호 변경' },
+  'sset.pwSub':        { uz: 'Xavfsizlik uchun parolingizni istalgan vaqt yangilashingiz mumkin.', en: 'You can update your password anytime for security.', ru: 'Для безопасности можно обновить пароль в любое время.', ko: '보안을 위해 언제든지 비밀번호를 변경할 수 있습니다.' },
+  'sset.newPw':        { uz: 'Yangi parol', en: 'New password', ru: 'Новый пароль', ko: '새 비밀번호' },
+  'sset.newPwPh':      { uz: 'Kamida 6 ta belgi', en: 'At least 6 characters', ru: 'Минимум 6 символов', ko: '최소 6자' },
+  'sset.repeatPw':     { uz: 'Yangi parolni takrorlang', en: 'Repeat new password', ru: 'Повторите новый пароль', ko: '새 비밀번호 재입력' },
+  'sset.pwChanged':    { uz: "Parol o'zgartirildi!", en: 'Password changed!', ru: 'Пароль изменён!', ko: '비밀번호가 변경되었습니다!' },
+  'sset.savePw':       { uz: 'Parolni saqlash', en: 'Save password', ru: 'Сохранить пароль', ko: '비밀번호 저장' },
+  'sset.pwMin':        { uz: "Parol kamida 6 ta belgidan iborat bo'lsin", en: 'Password must be at least 6 characters', ru: 'Пароль должен быть не менее 6 символов', ko: '비밀번호는 최소 6자 이상이어야 합니다' },
+  'sset.pwMismatch':   { uz: 'Parollar mos kelmadi', en: 'Passwords do not match', ru: 'Пароли не совпадают', ko: '비밀번호가 일치하지 않습니다' },
+  'sset.pwDiffer':     { uz: 'Yangi parol eskisidan farq qilishi kerak', en: 'New password must differ from the old one', ru: 'Новый пароль должен отличаться от старого', ko: '새 비밀번호는 기존과 달라야 합니다' },
+  'sset.pwFail':       { uz: "Parolni o'zgartirib bo'lmadi. Qayta urinib ko'ring", en: 'Could not change password. Try again', ru: 'Не удалось сменить пароль. Попробуйте снова', ko: '비밀번호를 변경할 수 없습니다. 다시 시도하세요' },
+
   // ── Common ──
   'common.loading':  { uz: 'Yuklanmoqda…', en: 'Loading…', ru: 'Загрузка…', ko: '불러오는 중…' },
   'common.close':    { uz: 'Yopish', en: 'Close', ru: 'Закрыть', ko: '닫기' },
@@ -112,6 +189,11 @@ export const dict: Record<string, Record<Locale, string>> = {
   'common.remove':   { uz: "O'chirish", en: 'Remove', ru: 'Удалить', ko: '삭제' },
   'common.no':       { uz: "Yo'q", en: 'No', ru: 'Нет', ko: '아니요' },
   'common.sending':  { uz: 'Yuborilmoqda…', en: 'Sending…', ru: 'Отправка…', ko: '전송 중…' },
+  'common.saving':   { uz: 'Saqlanmoqda…', en: 'Saving…', ru: 'Сохранение…', ko: '저장 중…' },
+  'common.error':    { uz: 'Xatolik', en: 'Error', ru: 'Ошибка', ko: '오류' },
+  'common.save':     { uz: 'Saqlash', en: 'Save', ru: 'Сохранить', ko: '저장' },
+  'common.yes':      { uz: 'Ha', en: 'Yes', ru: 'Да', ko: '예' },
+  'common.pcs':      { uz: 'dona', en: 'pcs', ru: 'шт', ko: '개' },
 
   // ── Cart + checkout (/savat) ──
   'cart.title':       { uz: 'Savat', en: 'Cart', ru: 'Корзина', ko: '장바구니' },
@@ -281,3 +363,5 @@ export const dict: Record<string, Record<Locale, string>> = {
   'home.orderFor':   { uz: 'Buyurtma uchun', en: 'To order', ru: 'Для заказа', ko: '주문 문의' },
   'home.social':     { uz: 'Ijtimoiy tarmoqlar', en: 'Social', ru: 'Соцсети', ko: 'SNS' },
 }
+
+export const dict: Record<string, Entry> = { ...baseDict, ...sellerDict, ...adminDict, ...adminDict2 }

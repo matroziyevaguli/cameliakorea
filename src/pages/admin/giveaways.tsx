@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
 import { formatDate } from '@/lib/format'
+import { useT } from '@/i18n'
 import { Gift, Send, AtSign, CheckCircle } from 'lucide-react'
 
 type Product = { id: string; name: string }
@@ -15,14 +16,15 @@ type Giveaway = {
 }
 type Props = { products: Product[]; sellers: Seller[]; giveaways: Giveaway[] }
 
-const CHANNELS = [
-  { value: 'telegram',  label: 'Telegram' },
-  { value: 'instagram', label: 'Instagram' },
-  { value: 'other',     label: 'Boshqa' },
-]
-const CHANNEL_LABEL: Record<string, string> = { telegram: 'Telegram', instagram: 'Instagram', other: 'Boshqa' }
-
 export default function Giveaways({ products, sellers, giveaways: initialGiveaways }: Props) {
+  const t = useT()
+  // Telegram/Instagram are brand names; only "other" is localized.
+  const CHANNELS = [
+    { value: 'telegram',  label: 'Telegram' },
+    { value: 'instagram', label: 'Instagram' },
+    { value: 'other',     label: t('agiv.channel_other') },
+  ]
+  const channelLabel = (c: string) => CHANNELS.find(x => x.value === c)?.label ?? c
   // G2 — write, update in place, reconcile. No SSR round-trip.
   const [giveaways, setGiveaways] = useState<Giveaway[]>(initialGiveaways)
   const [productId, setProductId] = useState('')
@@ -37,7 +39,7 @@ export default function Giveaways({ products, sellers, giveaways: initialGiveawa
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    if (!productId || !sellerId || Number(qty) <= 0) { setError('Mahsulot, sotuvchi va sonni tanlang'); return }
+    if (!productId || !sellerId || Number(qty) <= 0) { setError(t('agiv.err_select')); return }
     setLoading(true); setError('')
     const supabase = createBrowser()
     const { error: err } = await supabase.from('stock_adjustments').insert({
@@ -60,38 +62,37 @@ export default function Giveaways({ products, sellers, giveaways: initialGiveawa
       <main className="p-4 md:p-6 max-w-2xl mx-auto">
         <div className="flex items-center gap-2 mb-2">
           <Gift className="w-6 h-6 text-rose" />
-          <h2 className="font-display font-bold text-ink text-2xl">Sovg'alar</h2>
+          <h2 className="font-display font-bold text-ink text-2xl">{t('agiv.title')}</h2>
         </div>
         <p className="text-sm text-muted mb-6">
-          Telegram/Instagram'da bepul tarqatilgan mahsulotlar. Ombordan chiqadi, lekin pul yoki
-          qarz yo'q (bu marketing xarajati).
+          {t('agiv.desc')}
         </p>
 
         {/* Record a giveaway */}
         <form onSubmit={submit} className="bg-surface rounded-2xl shadow-card p-5 space-y-4 mb-6">
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Mahsulot</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('agiv.product')}</label>
               <select value={productId} onChange={e => setProductId(e.target.value)}
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
-                <option value="">Tanlang…</option>
+                <option value="">{t('agiv.select_ph')}</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Kimning omboridan</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('agiv.from_stock')}</label>
               <select value={sellerId} onChange={e => setSellerId(e.target.value)}
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
                 {sellers.map(s => <option key={s.id} value={s.id}>{s.full_name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Soni</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('agiv.qty')}</label>
               <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)}
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Kanal</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('agiv.channel')}</label>
               <select value={channel} onChange={e => setChannel(e.target.value)}
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
                 {CHANNELS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -99,31 +100,31 @@ export default function Giveaways({ products, sellers, giveaways: initialGiveawa
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold text-muted mb-1">G'olib (ism / @username) — Telfon raqami</label>
-            <input value={winner} onChange={e => setWinner(e.target.value)} placeholder="@username yoki ism"
+            <label className="block text-xs font-semibold text-muted mb-1">{t('agiv.winner_label')}</label>
+            <input value={winner} onChange={e => setWinner(e.target.value)} placeholder={t('agiv.winner_ph')}
               className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
           </div>
           <div>
-            <label className="block text-xs font-semibold text-muted mb-1">Izoh — ixtiyoriy</label>
-            <input value={note} onChange={e => setNote(e.target.value)} placeholder="Masalan: Yangi yil aksiyasi"
+            <label className="block text-xs font-semibold text-muted mb-1">{t('agiv.note_label')}</label>
+            <input value={note} onChange={e => setNote(e.target.value)} placeholder={t('agiv.note_ph')}
               className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
           </div>
 
           {error && <p className="text-danger text-sm">{error}</p>}
-          {success && <p className="flex items-center gap-2 text-success text-sm font-semibold"><CheckCircle className="w-4 h-4" /> Saqlandi!</p>}
+          {success && <p className="flex items-center gap-2 text-success text-sm font-semibold"><CheckCircle className="w-4 h-4" /> {t('agiv.saved')}</p>}
 
           <button type="submit" disabled={loading}
             className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-3.5 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
-            <Gift className="w-5 h-5" /> {loading ? 'Saqlanmoqda…' : "Sovg'ani yozib qo'yish"}
+            <Gift className="w-5 h-5" /> {loading ? t('common.saving') : t('agiv.submit')}
           </button>
         </form>
 
         {/* History */}
         <div className="flex items-center justify-between mb-3 px-1">
-          <h3 className="font-display font-bold text-ink text-lg">Tarix</h3>
+          <h3 className="font-display font-bold text-ink text-lg">{t('agiv.history')}</h3>
           {giveaways.length > 0 && (
             <span className="text-xs font-semibold text-rose bg-rose/10 px-3 py-1.5 rounded-full">
-              {giveaways.length} ta sovg'a · {totalGiven} dona
+              {t('agiv.summary', { count: giveaways.length, total: totalGiven })}
             </span>
           )}
         </div>
@@ -131,7 +132,7 @@ export default function Giveaways({ products, sellers, giveaways: initialGiveawa
         {giveaways.length === 0 ? (
           <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
             <Gift className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Hali sovg'a yo'q</p>
+            <p className="text-sm">{t('agiv.empty')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -139,9 +140,9 @@ export default function Giveaways({ products, sellers, giveaways: initialGiveawa
               <div key={g.id} className="bg-surface rounded-2xl shadow-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-ink text-sm">{g.product_name} · <span className="text-rose">{g.qty} dona</span></p>
+                    <p className="font-semibold text-ink text-sm">{g.product_name} · <span className="text-rose">{g.qty} {t('common.pcs')}</span></p>
                     <p className="text-xs text-muted mt-0.5">
-                      {g.seller_name ? `${g.seller_name} omboridan · ` : ''}{formatDate(g.created_at)}
+                      {g.seller_name ? t('agiv.from_seller', { name: g.seller_name }) : ''}{formatDate(g.created_at)}
                     </p>
                     {(g.winner || g.note) && (
                       <p className="text-xs text-muted mt-1">{g.winner ? `🏆 ${g.winner}` : ''}{g.winner && g.note ? ' · ' : ''}{g.note ?? ''}</p>
@@ -150,7 +151,7 @@ export default function Giveaways({ products, sellers, giveaways: initialGiveawa
                   {g.channel && (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-sky bg-sky/10 px-2.5 py-1 rounded-full flex-shrink-0">
                       {g.channel === 'instagram' ? <AtSign className="w-3 h-3" /> : <Send className="w-3 h-3" />}
-                      {CHANNEL_LABEL[g.channel] ?? g.channel}
+                      {channelLabel(g.channel)}
                     </span>
                   )}
                 </div>

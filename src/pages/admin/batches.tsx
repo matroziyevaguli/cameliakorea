@@ -7,7 +7,8 @@ import AdminNav from '@/components/AdminNav'
 import ConfirmBar from '@/components/ConfirmBar'
 import { formatUZS } from '@/lib/format'
 import { Layers, Plus, Trash2, X, CalendarClock, Truck, PackageCheck, ShoppingCart } from 'lucide-react'
-import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
+import { expiryInfo, type ExpiryStatus } from '@/lib/expiry'
+import { useT } from '@/i18n'
 
 const EXPIRY_STYLE: Record<ExpiryStatus, string> = {
   expired: 'bg-red-100 text-danger',
@@ -19,11 +20,11 @@ const EXPIRY_STYLE: Record<ExpiryStatus, string> = {
 
 // Pipeline A, admin side (redesign.md §1.1). A shipment moves left to right.
 type BatchStatus = 'ordered' | 'in_transit' | 'arrived' | 'cancelled'
-const STATUS: Record<BatchStatus, { label: string; cls: string; icon: any }> = {
-  ordered:    { label: 'Buyurtma',  cls: 'bg-lavender/20 text-lavender', icon: ShoppingCart },
-  in_transit: { label: "Yo'lda",    cls: 'bg-sky/20 text-sky',           icon: Truck },
-  arrived:    { label: 'Keldi',     cls: 'bg-green-100 text-success',    icon: PackageCheck },
-  cancelled:  { label: 'Bekor',     cls: 'bg-gray-100 text-muted',       icon: X },
+const STATUS: Record<BatchStatus, { labelKey: string; cls: string; icon: any }> = {
+  ordered:    { labelKey: 'abatch.stOrdered',    cls: 'bg-lavender/20 text-lavender', icon: ShoppingCart },
+  in_transit: { labelKey: 'abatch.stInTransit',  cls: 'bg-sky/20 text-sky',           icon: Truck },
+  arrived:    { labelKey: 'abatch.stArrived',    cls: 'bg-green-100 text-success',    icon: PackageCheck },
+  cancelled:  { labelKey: 'abatch.stCancelled',  cls: 'bg-gray-100 text-muted',       icon: X },
 }
 
 type Product = { id: string; name: string; total_qty: number }
@@ -52,6 +53,7 @@ function order(list: Batch[]) {
 }
 
 export default function Batches({ products, batches: initial }: Props) {
+  const t = useT()
   const [batches, setBatches] = useState<Batch[]>(initial)
   const [openFor, setOpenFor] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -71,7 +73,7 @@ export default function Batches({ products, batches: initial }: Props) {
   function openAdd(pid: string) { setOpenFor(pid); setForm(EMPTY_FORM); setError('') }
 
   async function addBatch(pid: string) {
-    if (form.quantity === '' || Number(form.quantity) < 0) { setError("To'g'ri son kiriting"); return }
+    if (form.quantity === '' || Number(form.quantity) < 0) { setError(t('abatch.errQty')); return }
     setBusy(true); setError('')
     const supabase = createBrowser()
     const { error: err } = await supabase.from('product_batches').insert({
@@ -116,11 +118,10 @@ export default function Batches({ products, batches: initial }: Props) {
       <main className="p-4 md:p-6 max-w-3xl mx-auto">
         <div className="flex items-center gap-2 mb-2">
           <Layers className="w-6 h-6 text-rose" />
-          <h2 className="font-display font-bold text-ink text-2xl">Partiyalar</h2>
+          <h2 className="font-display font-bold text-ink text-2xl">{t('abatch.title')}</h2>
         </div>
         <p className="text-sm text-muted mb-6">
-          Har bir yuborilgan partiya — alohida yozuv. Buyurtma bergandan keyin qo'shing,
-          kelganda <b className="text-ink">«Keldi»</b> tugmasini bosing: ombor va sayt o'zi yangilanadi.
+          {t('abatch.introBefore')} <b className="text-ink">«{t('abatch.stArrived')}»</b> {t('abatch.introAfter')}
         </p>
 
         <div className="space-y-3">
@@ -134,13 +135,13 @@ export default function Batches({ products, batches: initial }: Props) {
                   <div>
                     <p className="font-semibold text-ink text-sm">{p.name}</p>
                     <p className="text-xs text-muted">
-                      Kelgan: <strong className="text-ink">{arrivedQty}</strong> ta
-                      {incomingQty > 0 && <> · <span className="text-sky font-semibold">yo'lda: {incomingQty} ta</span></>}
+                      {t('abatch.arrivedColon')} <strong className="text-ink">{arrivedQty}</strong> {t('abatch.pcs')}
+                      {incomingQty > 0 && <> · <span className="text-sky font-semibold">{t('abatch.incomingColon')} {incomingQty} {t('abatch.pcs')}</span></>}
                     </p>
                   </div>
                   <button onClick={() => openAdd(p.id)}
                     className="flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-br from-rose to-peach text-white px-3 py-1.5 rounded-full active:scale-95 transition flex-shrink-0">
-                    <Plus className="w-3.5 h-3.5" /> Partiya
+                    <Plus className="w-3.5 h-3.5" /> {t('abatch.batchBtn')}
                   </button>
                 </div>
 
@@ -152,70 +153,72 @@ export default function Batches({ products, batches: initial }: Props) {
                       {(['ordered', 'in_transit', 'arrived'] as BatchStatus[]).map(st => (
                         <button key={st} onClick={() => setForm(f => ({ ...f, status: st }))}
                           className={`flex-1 text-xs font-semibold py-2 rounded-lg transition ${form.status === st ? 'bg-gradient-to-br from-rose to-peach text-white' : 'bg-surface text-muted'}`}>
-                          {STATUS[st].label}
+                          {t(STATUS[st].labelKey)}
                         </button>
                       ))}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-xs text-muted mb-1">Soni</label>
+                        <label className="block text-xs text-muted mb-1">{t('abatch.qty')}</label>
                         <input type="number" min={0} value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
                           className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                       </div>
                       <div>
-                        <label className="block text-xs text-muted mb-1">Dona narxi (xarid)</label>
+                        <label className="block text-xs text-muted mb-1">{t('abatch.unitCost')}</label>
                         <input type="number" min={0} value={form.unit_cost} onChange={e => setForm(f => ({ ...f, unit_cost: e.target.value }))}
-                          placeholder="ixtiyoriy"
+                          placeholder={t('abatch.optional')}
                           className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                       </div>
                       <div>
-                        <label className="block text-xs text-muted mb-1">Yaroqlilik muddati</label>
+                        <label className="block text-xs text-muted mb-1">{t('abatch.expiryDate')}</label>
                         <input type="date" value={form.expiry_date} onChange={e => setForm(f => ({ ...f, expiry_date: e.target.value }))}
                           className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                       </div>
                       {form.status !== 'arrived' && (
                         <div>
-                          <label className="block text-xs text-muted mb-1">Kutilmoqda (ichki)</label>
+                          <label className="block text-xs text-muted mb-1">{t('abatch.eta')}</label>
                           <input type="date" value={form.eta} onChange={e => setForm(f => ({ ...f, eta: e.target.value }))}
                             className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                         </div>
                       )}
                     </div>
 
-                    <input value={form.lot_label} onChange={e => setForm(f => ({ ...f, lot_label: e.target.value }))} placeholder="Partiya nomi / lot (ixtiyoriy)"
+                    <input value={form.lot_label} onChange={e => setForm(f => ({ ...f, lot_label: e.target.value }))} placeholder={t('abatch.lotPlaceholder')}
                       className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                    <input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder="Izoh (ixtiyoriy)"
+                    <input value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} placeholder={t('abatch.notePlaceholder')}
                       className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
 
                     {form.status !== 'arrived' && (
                       <p className="text-[11px] text-muted leading-snug">
-                        Hali kelmagan partiya omborga qo'shilmaydi. Saytda mahsulot{' '}
-                        <b className="text-sky">«Yo'lda»</b> deb ko'rinadi. Kelganda «Keldi» bosing.
+                        {(() => {
+                          const parts = t('abatch.notArrivedHint').split('{tag}')
+                          return <>{parts[0]}<b className="text-sky">«{t('abatch.stInTransit')}»</b>{parts[1]}</>
+                        })()}
                       </p>
                     )}
                     {error && <p className="text-danger text-xs">{error}</p>}
                     <div className="flex gap-2">
                       <button disabled={busy} onClick={() => addBatch(p.id)}
                         className="flex-1 bg-rose text-white text-xs font-semibold py-2 rounded-lg disabled:opacity-50">
-                        {busy ? 'Saqlanmoqda…' : "Qo'shish"}
+                        {busy ? t('abatch.saving') : t('abatch.add')}
                       </button>
-                      <button aria-label="Yopish" onClick={() => setOpenFor(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
+                      <button aria-label={t('common.close')} onClick={() => setOpenFor(null)} className="px-3 text-muted"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 )}
 
                 {/* Batch list — arrived first (FEFO), then incoming by ETA */}
                 {list.length === 0 ? (
-                  <p className="text-xs text-muted">Partiya qo'shilmagan.</p>
+                  <p className="text-xs text-muted">{t('abatch.noBatches')}</p>
                 ) : (
                   <div className="space-y-1.5">
                     {list.map((b, i) => {
                       if (confirmId === b.id) return (
                         <div key={b.id} className="bg-cream rounded-lg px-3 pb-2">
                           <ConfirmBar
-                            question={`${b.quantity} ta partiyani o'chirasizmi?`}
-                            confirmLabel="Ha, o'chirish"
+                            question={t('abatch.deleteConfirm', { n: b.quantity })}
+                            confirmLabel={t('abatch.deleteConfirmBtn')}
                             onConfirm={() => removeBatch(b.id)}
                             onCancel={() => setConfirmId(null)}
                           />
@@ -228,33 +231,33 @@ export default function Batches({ products, batches: initial }: Props) {
                       return (
                         <div key={b.id} className={`flex flex-wrap items-center gap-2 rounded-lg px-3 py-2 ${b.status === 'arrived' ? 'bg-cream' : 'bg-sky/5 border border-sky/20'}`}>
                           <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${meta.cls}`}>
-                            <Icon className="w-3 h-3" /> {meta.label}
+                            <Icon className="w-3 h-3" /> {t(meta.labelKey)}
                           </span>
                           {firstArrived && (
-                            <span className="text-[10px] font-bold text-rose bg-rose/10 px-1.5 py-0.5 rounded-full flex-shrink-0">1-navbat</span>
+                            <span className="text-[10px] font-bold text-rose bg-rose/10 px-1.5 py-0.5 rounded-full flex-shrink-0">{t('abatch.firstQueue')}</span>
                           )}
-                          <span className="font-display font-bold text-ink text-sm">{b.quantity} ta</span>
-                          {b.unit_cost != null && <span className="text-[11px] text-muted">· {formatUZS(b.unit_cost)}/dona</span>}
+                          <span className="font-display font-bold text-ink text-sm">{b.quantity} {t('abatch.pcs')}</span>
+                          {b.unit_cost != null && <span className="text-[11px] text-muted">· {formatUZS(b.unit_cost)}{t('abatch.unitCostShort')}</span>}
                           {b.lot_label && <span className="text-xs text-muted truncate">· {b.lot_label}</span>}
 
                           <span className="ml-auto flex items-center gap-1.5 flex-shrink-0">
                             {b.status !== 'arrived' && b.status !== 'cancelled' && (
                               <>
-                                {b.eta && <span className="text-[11px] text-sky">kutilmoqda: {b.eta}</span>}
+                                {b.eta && <span className="text-[11px] text-sky">{t('abatch.etaColon')} {b.eta}</span>}
                                 <button onClick={() => markArrived(b.id)} disabled={arrivingId === b.id}
                                   className="flex items-center gap-1 text-[11px] font-bold bg-gradient-to-br from-mint to-success text-white px-3 py-1.5 rounded-full active:scale-95 transition disabled:opacity-50">
                                   <PackageCheck className="w-3.5 h-3.5" />
-                                  {arrivingId === b.id ? '…' : 'Keldi'}
+                                  {arrivingId === b.id ? '…' : t('abatch.stArrived')}
                                 </button>
                               </>
                             )}
                             {b.status === 'arrived' && (b.expiry_date ? (
                               <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full ${EXPIRY_STYLE[expSt]}`}>
                                 <CalendarClock className="w-3 h-3" />
-                                {b.expiry_date}{expSt !== 'ok' && expSt !== 'none' ? ` · ${EXPIRY_LABEL[expSt]}` : ''}
+                                {b.expiry_date}{expSt !== 'ok' && expSt !== 'none' ? ` · ${t(`expiry.${expSt}`)}` : ''}
                               </span>
-                            ) : <span className="text-[11px] text-muted">muddat yo'q</span>)}
-                            <button onClick={() => setConfirmId(b.id)} aria-label="Partiyani o'chirish"
+                            ) : <span className="text-[11px] text-muted">{t('abatch.noExpiry')}</span>)}
+                            <button onClick={() => setConfirmId(b.id)} aria-label={t('abatch.deleteBatchAria')}
                               className="text-muted hover:text-danger transition">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

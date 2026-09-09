@@ -10,6 +10,7 @@ import { MiniSpinner } from '@/components/Loader'
 import HelpSheet from '@/components/HelpSheet'
 import SellerNav from '@/components/SellerNav'
 import { useS } from '@/consts/strings'
+import { useT } from '@/i18n'
 import { CITIES } from '@/consts/geo'
 import CardNumberInput from '@/components/CardNumberInput'
 import CardPreview from '@/components/CardPreview'
@@ -19,6 +20,7 @@ type CardInfo = { card_number: string | null; card_holder: string | null; city: 
 
 export default function SellerSettings({ sellerName, card }: { sellerName: string; card: CardInfo }) {
   const S = useS()
+  const t = useT()
   const router = useRouter()
 
   // Payout card — shown to customers who order for this seller's city.
@@ -33,7 +35,7 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
     e.preventDefault()
     // Validate: a card, if entered, must be complete (16 digits).
     if (cardDigits(cardForm.card_number).length > 0 && !isValidCard(cardForm.card_number)) {
-      setCardErr('Karta raqami to\'liq emas (16 ta raqam).'); return
+      setCardErr(t('sset.cardIncomplete')); return
     }
     setCardBusy(true); setCardErr(''); setCardDone(false)
     const res = await fetch('/api/seller/update-card', {
@@ -41,7 +43,7 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
     })
     const j = await res.json().catch(() => ({}))
     setCardBusy(false)
-    if (!res.ok) { setCardErr(j.error ?? 'Xatolik'); return }
+    if (!res.ok) { setCardErr(j.error ?? t('common.error')); return }
     setCardDone(true); setTimeout(() => setCardDone(false), 2500)
   }
 
@@ -65,14 +67,14 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
   async function changePassword(e: React.FormEvent) {
     e.preventDefault()
     setError(''); setDone(false)
-    if (pw1.length < 6) { setError("Parol kamida 6 ta belgidan iborat bo'lsin"); return }
-    if (pw1 !== pw2) { setError("Parollar mos kelmadi"); return }
+    if (pw1.length < 6) { setError(t('sset.pwMin')); return }
+    if (pw1 !== pw2) { setError(t('sset.pwMismatch')); return }
     setLoading(true)
     const supabase = createBrowser()
     const { error: err } = await supabase.auth.updateUser({ password: pw1 })
     setLoading(false)
     if (err) {
-      setError(/different/i.test(err.message) ? "Yangi parol eskisidan farq qilishi kerak" : "Parolni o'zgartirib bo'lmadi. Qayta urinib ko'ring")
+      setError(/different/i.test(err.message) ? t('sset.pwDiffer') : t('sset.pwFail'))
       return
     }
     setDone(true); setPw1(''); setPw2('')
@@ -88,7 +90,7 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
     <div className="min-h-screen bg-cream">
       <header className="bg-gradient-to-br from-rose to-peach text-white px-5 pt-10 pb-14 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/3 translate-x-1/4" />
-        <h1 className="font-display text-2xl font-bold relative">Sozlamalar</h1>
+        <h1 className="font-display text-2xl font-bold relative">{t('sset.title')}</h1>
         <p className="text-white/80 text-sm relative mt-1">{sellerName}</p>
       </header>
 
@@ -125,36 +127,36 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
         {/* Payout card — for online orders */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h2 className="font-display font-bold text-ink text-lg mb-1 flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-rose" /> To'lov kartangiz
+            <CreditCard className="w-5 h-5 text-rose" /> {t('sset.cardTitle')}
           </h2>
-          <p className="text-xs text-muted mb-5">Onlayn buyurtmalarda mijozlar shu kartaga o'tkazma qiladi.</p>
+          <p className="text-xs text-muted mb-5">{t('sset.cardSub')}</p>
 
           <div className="mb-5"><CardPreview number={cardForm.card_number} holder={cardForm.card_holder} /></div>
 
           <form onSubmit={saveCard} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Viloyat</label>
+              <label className="block text-sm font-medium text-muted mb-1">{t('sset.region')}</label>
               <select value={cardForm.city} onChange={e => setCardForm(f => ({ ...f, city: e.target.value }))}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
-                <option value="">— tanlang —</option>
-                {CITIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                <option value="">{t('common.select')}</option>
+                {CITIES.map(c => <option key={c.value} value={c.value}>{t(`region.${c.value}`)}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Karta raqami</label>
+              <label className="block text-sm font-medium text-muted mb-1">{t('sset.cardNumber')}</label>
               <CardNumberInput value={cardForm.card_number} onChange={v => setCardForm(f => ({ ...f, card_number: v }))} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Karta egasi (ism)</label>
+              <label className="block text-sm font-medium text-muted mb-1">{t('sset.cardHolder')}</label>
               <input value={cardForm.card_holder} onChange={e => setCardForm(f => ({ ...f, card_holder: e.target.value }))}
-                placeholder="Masalan: GULSHANOY M."
+                placeholder={t('sset.cardHolderPh')}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
             </div>
             {cardErr && <div className="bg-red-50 text-danger text-sm text-center py-3 rounded-xl">{cardErr}</div>}
-            {cardDone && <div className="flex items-center justify-center gap-2 bg-green-50 text-success text-sm font-semibold py-3 rounded-xl"><CheckCircle className="w-4 h-4" /> Saqlandi!</div>}
+            {cardDone && <div className="flex items-center justify-center gap-2 bg-green-50 text-success text-sm font-semibold py-3 rounded-xl"><CheckCircle className="w-4 h-4" /> {t('sset.saved')}</div>}
             <button type="submit" disabled={cardBusy}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-60">
-              {cardBusy && <MiniSpinner />} {cardBusy ? 'Saqlanmoqda…' : 'Kartani saqlash'}
+              {cardBusy && <MiniSpinner />} {cardBusy ? t('common.saving') : t('sset.saveCard')}
             </button>
           </form>
         </div>
@@ -162,19 +164,19 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
         {/* Change password */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h2 className="font-display font-bold text-ink text-lg mb-1 flex items-center gap-2">
-            <Lock className="w-5 h-5 text-rose" /> Parolni o'zgartirish
+            <Lock className="w-5 h-5 text-rose" /> {t('sset.pwTitle')}
           </h2>
-          <p className="text-xs text-muted mb-5">Xavfsizlik uchun parolingizni istalgan vaqt yangilashingiz mumkin.</p>
+          <p className="text-xs text-muted mb-5">{t('sset.pwSub')}</p>
 
           <form onSubmit={changePassword} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Yangi parol</label>
+              <label className="block text-sm font-medium text-muted mb-1">{t('sset.newPw')}</label>
               <input type="password" value={pw1} onChange={e => setPw1(e.target.value)} required
-                placeholder="Kamida 6 ta belgi"
+                placeholder={t('sset.newPwPh')}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Yangi parolni takrorlang</label>
+              <label className="block text-sm font-medium text-muted mb-1">{t('sset.repeatPw')}</label>
               <input type="password" value={pw2} onChange={e => setPw2(e.target.value)} required
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
             </div>
@@ -182,14 +184,14 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
             {error && <div className="bg-red-50 text-danger text-sm text-center py-3 rounded-xl">{error}</div>}
             {done && (
               <div className="flex items-center justify-center gap-2 bg-green-50 text-success text-sm font-semibold py-3 rounded-xl">
-                <CheckCircle className="w-4 h-4" /> Parol o'zgartirildi!
+                <CheckCircle className="w-4 h-4" /> {t('sset.pwChanged')}
               </div>
             )}
 
             <button type="submit" disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-60">
               {loading && <MiniSpinner />}
-              {loading ? 'Saqlanmoqda…' : 'Parolni saqlash'}
+              {loading ? t('common.saving') : t('sset.savePw')}
             </button>
           </form>
         </div>
@@ -197,7 +199,7 @@ export default function SellerSettings({ sellerName, card }: { sellerName: strin
         {/* Sign out */}
         <button onClick={signOut}
           className="w-full flex items-center justify-center gap-2 bg-surface text-danger font-semibold py-3.5 rounded-2xl shadow-card active:scale-95 transition">
-          <LogOut className="w-4 h-4" /> Chiqish
+          <LogOut className="w-4 h-4" /> {t('account.logout')}
         </button>
       </main>
 

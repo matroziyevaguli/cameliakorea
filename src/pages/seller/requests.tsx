@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/guards'
 import { formatDate, formatUZS } from '@/lib/format'
 import SellerNav from '@/components/SellerNav'
 import { ClipboardList } from 'lucide-react'
+import { useT } from '@/i18n'
 
 type MyRequest = {
   id: string; product_id: string; product_name: string; type: 'correction' | 'new_product'
@@ -17,30 +18,36 @@ type MyPriceRequest = {
 }
 type Props = { requests: MyRequest[]; priceRequests: MyPriceRequest[] }
 
-const REQ_BADGE: Record<MyRequest['status'], { label: string; cls: string }> = {
-  pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
-  approved: { label: 'Tasdiqlandi', cls: 'bg-green-100 text-success' },
-  rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
+const REQ_BADGE_CLS: Record<MyRequest['status'], string> = {
+  pending:  'bg-orange-100 text-warning',
+  approved: 'bg-green-100 text-success',
+  rejected: 'bg-red-100 text-danger',
+}
+const REQ_STATUS_KEY: Record<MyRequest['status'], string> = {
+  pending:  'sreq.statusPending',
+  approved: 'sreq.statusApproved',
+  rejected: 'sreq.statusRejected',
 }
 
 export default function SellerRequests({ requests, priceRequests }: Props) {
+  const t = useT()
   const nothing = requests.length === 0 && priceRequests.length === 0
   return (
     <div className="min-h-screen bg-cream pb-28">
       <header className="bg-gradient-to-br from-rose to-peach text-white px-5 pt-10 pb-8">
         <div className="flex items-center gap-2">
           <ClipboardList className="w-5 h-5" />
-          <h1 className="font-display text-xl font-bold">So'rovlarim</h1>
+          <h1 className="font-display text-xl font-bold">{t('sreq.title')}</h1>
         </div>
-        <p className="text-white/80 text-sm mt-1">Tuzatish, yangi mahsulot va narx so'rovlaringiz holati</p>
+        <p className="text-white/80 text-sm mt-1">{t('sreq.subtitle')}</p>
       </header>
 
       <main className="px-4 -mt-4 relative z-10 space-y-2">
         {nothing && (
           <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
             <ClipboardList className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Hozircha so'rov yo'q</p>
-            <p className="text-xs mt-1">Mahsulot yoki sotuv sahifasida tuzatish so'rovini yuboring.</p>
+            <p className="text-sm">{t('sreq.empty')}</p>
+            <p className="text-xs mt-1">{t('sreq.emptyHint')}</p>
           </div>
         )}
 
@@ -50,18 +57,18 @@ export default function SellerRequests({ requests, priceRequests }: Props) {
               <div className="flex items-center gap-2 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{r.product_name}</p>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${r.type === 'new_product' ? 'bg-sky/15 text-sky' : 'bg-lavender/20 text-ink'}`}>
-                  {r.type === 'new_product' ? 'Yangi' : 'Tuzatish'}
+                  {r.type === 'new_product' ? t('sreq.typeNew') : t('sreq.typeCorrection')}
                 </span>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE[r.status].cls}`}>
-                {REQ_BADGE[r.status].label}
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE_CLS[r.status]}`}>
+                {t(REQ_STATUS_KEY[r.status])}
               </span>
             </div>
             <p className="text-xs text-muted">
-              {r.type === 'new_product' ? `${r.requested_qty} ta so'raldi` : `${r.current_qty} → ${r.requested_qty} ta`}
+              {r.type === 'new_product' ? t('sreq.requestedQty', { n: r.requested_qty }) : t('sreq.qtyChange', { a: r.current_qty, b: r.requested_qty })}
               {r.reason ? ` · "${r.reason}"` : ''} · {formatDate(r.created_at)}
             </p>
-            {r.admin_note && <p className="text-xs text-muted mt-0.5">Admin: {r.admin_note}</p>}
+            {r.admin_note && <p className="text-xs text-muted mt-0.5">{t('sreq.adminNote', { note: r.admin_note })}</p>}
           </div>
         ))}
 
@@ -70,17 +77,17 @@ export default function SellerRequests({ requests, priceRequests }: Props) {
             <div className="flex items-center justify-between gap-3 mb-1">
               <div className="flex items-center gap-2 min-w-0">
                 <p className="text-sm font-semibold text-ink truncate">{r.product_name}</p>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 bg-peach/25 text-ink">Narx</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 bg-peach/25 text-ink">{t('sreq.typePrice')}</span>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE[r.status].cls}`}>
-                {REQ_BADGE[r.status].label}
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold flex-shrink-0 ${REQ_BADGE_CLS[r.status]}`}>
+                {t(REQ_STATUS_KEY[r.status])}
               </span>
             </div>
             <p className="text-xs text-muted">
               {formatUZS(r.current_price)} → {formatUZS(r.requested_price)}
               {r.reason ? ` · "${r.reason}"` : ''} · {formatDate(r.created_at)}
             </p>
-            {r.admin_note && <p className="text-xs text-muted mt-0.5">Admin: {r.admin_note}</p>}
+            {r.admin_note && <p className="text-xs text-muted mt-0.5">{t('sreq.adminNote', { note: r.admin_note })}</p>}
           </div>
         ))}
 

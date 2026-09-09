@@ -1,3 +1,5 @@
+import { useT } from '@/i18n'
+
 // The ONE confirmation pattern (redesign.md G1). Renders in place of the row's
 // actions — never a native window.confirm(), which blocks the page on Android and
 // breaks the visual language.
@@ -6,8 +8,8 @@
 // normal action row when it matches.
 export default function ConfirmBar({
   question,
-  confirmLabel = 'Ha',
-  cancelLabel = 'Bekor qilish',
+  confirmLabel,
+  cancelLabel,
   busy = false,
   tone = 'danger',
   compact = false,
@@ -24,6 +26,9 @@ export default function ConfirmBar({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  const t = useT()
+  const confirmText = confirmLabel ?? t('common.yes')
+  const cancelText = cancelLabel ?? t('common.cancel')
   const confirmCls = tone === 'danger'
     ? 'bg-danger text-white'
     : 'bg-gradient-to-br from-rose to-peach text-white shadow-rose'
@@ -32,10 +37,10 @@ export default function ConfirmBar({
     <div className="flex items-center justify-end gap-2 whitespace-nowrap">
       <span className="text-xs text-ink">{question}</span>
       <button onClick={onCancel} disabled={busy}
-        className="text-xs font-semibold text-muted px-2 py-1 disabled:opacity-50">{cancelLabel}</button>
+        className="text-xs font-semibold text-muted px-2 py-1 disabled:opacity-50">{cancelText}</button>
       <button onClick={onConfirm} disabled={busy}
         className={`text-xs font-semibold ${confirmCls} px-3 py-1.5 rounded-full active:scale-95 transition disabled:opacity-50`}>
-        {busy ? '…' : confirmLabel}
+        {busy ? '…' : confirmText}
       </button>
     </div>
   )
@@ -46,11 +51,11 @@ export default function ConfirmBar({
       <div className="flex gap-2">
         <button onClick={onCancel} disabled={busy}
           className="flex-1 bg-cream text-ink text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50">
-          {cancelLabel}
+          {cancelText}
         </button>
         <button onClick={onConfirm} disabled={busy}
           className={`flex-1 ${confirmCls} text-sm font-semibold py-2.5 rounded-full active:scale-95 transition disabled:opacity-50`}>
-          {busy ? '…' : confirmLabel}
+          {busy ? '…' : confirmText}
         </button>
       </div>
     </div>

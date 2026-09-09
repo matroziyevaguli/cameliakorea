@@ -12,16 +12,13 @@ import HelpSheet from '@/components/HelpSheet'
 import NotificationBell from '@/components/NotificationBell'
 import { getPending, flushPending } from '@/lib/pendingSales'
 import { useS } from '@/consts/strings'
+import { useT, useLocale } from '@/i18n'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
-import { expiryInfo, EXPIRY_LABEL } from '@/lib/expiry'
-import { stateOf, STATE_STYLE, sellerLabel } from '@/lib/availability'
+import { expiryInfo } from '@/lib/expiry'
+import { stateOf, STATE_STYLE } from '@/lib/availability'
 
 // Uzbek month names by number (1–12). v_my_monthly returns month as "YYYY-MM".
 const UZ_MONTH_BY_NUM = ['', 'Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn', 'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek']
-function uzMonth(month: string): string {
-  const n = parseInt((month || '').slice(5, 7), 10)   // "2026-07" → 7
-  return UZ_MONTH_BY_NUM[n] ?? month
-}
 const CARD_COLORS = ['#F4628E','#B9A7F0','#6FD8C0','#7CC4F2','#FFB088','#E14B79']
 
 type Summary = { your_total_profit: number; total_owed: number; submitted: number; not_submitted: number }
@@ -44,10 +41,11 @@ type Props = { sellerName: string; summary: Summary | null; monthly: Monthly[]; 
 // The card's ONE stock signal, from the shared vocabulary (src/lib/availability.ts) —
 // the same words the customer sees on the storefront.
 function StockBadge({ p }: { p: Product }) {
+  const t = useT()
   const st = stateOf({ state: p.state, remaining: p.remaining, incoming_qty: p.incoming_qty })
   return (
     <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATE_STYLE[st]}`}>
-      {sellerLabel(st, p.remaining)}
+      {(st === 'in_stock' || st === 'low') ? t('state.leftCount', { n: p.remaining }) : t(`state.${st}`)}
     </span>
   )
 }
@@ -58,6 +56,7 @@ function StockBadge({ p }: { p: Product }) {
 // empty bar still reads as "0 sotildi — hammasi turibdi", not as a missing element.
 function SoldProgress({ had, sold, remaining }: { had: number; sold: number; remaining: number }) {
   const S = useS()
+  const t = useT()
   if (had <= 0) return null
   const pct   = Math.min(100, Math.round((sold / had) * 100))
   const done  = remaining === 0
@@ -70,15 +69,15 @@ function SoldProgress({ had, sold, remaining }: { had: number; sold: number; rem
       <div className="flex items-center justify-between text-xs mb-1.5">
         {empty ? (
           <span className="text-muted">
-            <b className="text-ink font-semibold">{had} ta</b> turibdi — hali sotilmadi
+            <b className="text-ink font-semibold">{t('shome.pcs', { n: had })}</b> {t('shome.notSoldYet')}
           </span>
         ) : (
           <span className="text-muted">
-            <b className="text-ink font-semibold">{had} tadan {sold} ta</b> sotildi
+            <b className="text-ink font-semibold">{t('shome.soldFraction', { had, sold })}</b> {t('shome.soldSuffix')}
           </span>
         )}
         <span className={`font-semibold ${done ? 'text-danger' : remaining <= 2 ? 'text-warning' : 'text-success'}`}>
-          {done ? 'Tugadi' : S.remaining(remaining)}
+          {done ? t('state.sold_out') : S.remaining(remaining)}
         </span>
       </div>
 
@@ -159,7 +158,17 @@ function buildCaption(p: Product) {
 
 export default function SellerHome({ sellerName, summary, monthly, products: initialProducts, thisMonthProfit, requests, available, totalUnitsSold, totalRevenue }: Props) {
   const S = useS()
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
+
+  // Chart month labels: keep the Uzbek short names for uz; use the browser's
+  // locale-aware short month for en/ru/ko. v_my_monthly returns "YYYY-MM".
+  function monthLabel(month: string): string {
+    const n = parseInt((month || '').slice(5, 7), 10)   // "2026-07" → 7
+    if (locale === 'uz') return UZ_MONTH_BY_NUM[n] ?? month
+    return new Date(2000, n - 1, 1).toLocaleString(locale, { month: 'short' })
+  }
 
   const [search, setSearch] = useState('')
   const [helpOpen, setHelpOpen] = useState(false)
@@ -220,8 +229,8 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
     setNewOpen(true); setNewProductId(''); setNewQty(''); setNewReason(''); setNewError('')
   }
   async function submitNewRequest() {
-    if (!newProductId) { setNewError('Mahsulotni tanlang'); return }
-    if (newQty === '' || Number(newQty) <= 0) { setNewError("To'g'ri son kiriting"); return }
+    if (!newProductId) { setNewError(t('shome.pickProductErr')); return }
+    if (newQty === '' || Number(newQty) <= 0) { setNewError(t('shome.enterValidNumber')); return }
     setNewBusy(true); setNewError('')
     const res = await fetch('/api/allocation-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -229,7 +238,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
     })
     const json = await res.json().catch(() => ({}))
     setNewBusy(false)
-    if (!res.ok) { setNewError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setNewError(json.error ?? t('common.error')); return }
     setNewOpen(false)
     setPendingIds(ids => [...ids, newProductId])   // G2: instant, no reload
   }
@@ -247,7 +256,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
   }
   async function submitReceived() {
     if (!fixProduct) return
-    if (recvQty === '' || Number(recvQty) < 0) { setRecvError("To'g'ri son kiriting"); return }
+    if (recvQty === '' || Number(recvQty) < 0) { setRecvError(t('shome.enterValidNumber')); return }
     setRecvBusy(true); setRecvError('')
     const res = await fetch('/api/allocation-request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -255,7 +264,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
     })
     const json = await res.json().catch(() => ({}))
     setRecvBusy(false)
-    if (!res.ok) { setRecvError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setRecvError(json.error ?? t('common.error')); return }
     setRecvDone(true)
     // G2: mark the card "so'rov kutilmoqda" immediately, no page reload.
     setPendingIds(ids => [...ids, fixProduct.product_id])
@@ -300,14 +309,14 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
     })
     const json = await res.json()
     setPosting(false)
-    if (!res.ok) { setPostError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setPostError(json.error ?? t('common.error')); return }
     setPostDone(true)
     setTimeout(() => setPostProduct(null), 1400)
   }
 
 
   const chartData = monthly.map(m => ({
-    label: uzMonth(m.month),
+    label: monthLabel(m.month),
     foyda: Math.round(m.your_profit),
   }))
 
@@ -323,7 +332,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
             <p className="text-white/70 text-sm font-medium">Camelia</p>
             <h1 className="font-display text-2xl font-bold mt-1">{S.greeting(sellerName)}</h1>
             <p className="text-white/80 text-sm mt-2">
-              Bu oy daromadingiz:{' '}
+              {t('shome.thisMonthIncome')}{' '}
               <span className="font-display font-bold text-white text-base">{formatUZS(thisMonthProfit)}</span>
             </p>
           </div>
@@ -355,14 +364,14 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
             Selling is the job of this screen; money lives one tap away in Hisobim. ── */}
         <div className="bg-surface rounded-2xl shadow-card grid grid-cols-4 divide-x divide-gray-100 overflow-hidden">
           {[
-            { label: 'Sotilgan',        value: formatUZS(totalRevenue),                                    cls: 'text-ink',     href: '/seller/sales' },
+            { label: t('shome.sold'),   value: formatUZS(totalRevenue),                                    cls: 'text-ink',     href: '/seller/sales' },
             { label: S.earningsSeller,  value: formatUZS(summary?.your_total_profit ?? 0),                 cls: 'text-success', href: '/seller/balance' },
             { label: S.moneyCollect,    value: formatUZS(Math.max(0, summary?.not_submitted ?? 0)),        cls: (summary?.not_submitted ?? 0) > 0 ? 'text-danger' : 'text-success', href: '/seller/balance' },
             { label: S.moneyHandedOver, value: formatUZS(summary?.submitted ?? 0),                         cls: 'text-ink',     href: '/seller/balance' },
-          ].map(t => (
-            <Link key={t.label} href={t.href} className="px-2 py-3 text-center active:bg-cream transition">
-              <p className="text-[10px] font-semibold text-muted leading-tight mb-1">{t.label}</p>
-              <p className={`font-display text-sm font-bold leading-tight ${t.cls}`}>{t.value}</p>
+          ].map(col => (
+            <Link key={col.label} href={col.href} className="px-2 py-3 text-center active:bg-cream transition">
+              <p className="text-[10px] font-semibold text-muted leading-tight mb-1">{col.label}</p>
+              <p className={`font-display text-sm font-bold leading-tight ${col.cls}`}>{col.value}</p>
             </Link>
           ))}
         </div>
@@ -372,7 +381,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
           <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <button onClick={() => setChartOpen(o => !o)} className="w-full flex items-center justify-between px-5 py-4">
               <span className="flex items-center gap-2 font-display font-bold text-ink text-base">
-                <TrendingUp className="w-4 h-4 text-rose" /> Oylik grafik
+                <TrendingUp className="w-4 h-4 text-rose" /> {t('shome.monthlyChart')}
               </span>
               <ChevronDown className={`w-5 h-5 text-muted transition ${chartOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -384,7 +393,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
                 <YAxis hide />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 4px 20px rgba(244,98,142,0.15)', fontSize: 12 }}
-                  formatter={(v) => [formatUZS(Number(v)), 'Foyda']}
+                  formatter={(v) => [formatUZS(Number(v)), t('shome.profit')]}
                 />
                 <Bar dataKey="foyda" radius={[6, 6, 0, 0]}>
                   {chartData.map((_, i) => <Cell key={i} fill={CARD_COLORS[i % CARD_COLORS.length]} />)}
@@ -403,7 +412,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
             {availableToRequest.length > 0 && (
               <button onClick={openNewRequest}
                 className="flex items-center gap-1.5 text-xs font-semibold text-rose hover:text-roseDark transition">
-                <Plus className="w-4 h-4" /> Yangi mahsulot so'rash
+                <Plus className="w-4 h-4" /> {t('shome.requestNewProduct')}
               </button>
             )}
           </div>
@@ -412,7 +421,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
           {products.length > 0 && (
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Mahsulot qidirish…"
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('shome.searchProduct')}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-surface text-ink text-sm shadow-card border-2 border-transparent focus:outline-none focus:border-rose transition" />
             </div>
           )}
@@ -423,7 +432,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
               <p className="text-sm">{S.noProducts}</p>
             </div>
           ) : visibleProducts.length === 0 ? (
-            <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">"{search}" bo'yicha mahsulot topilmadi</div>
+            <div className="bg-surface rounded-2xl shadow-card p-8 text-center text-muted text-sm">{t('shome.noSearchResults', { q: search })}</div>
           ) : (
             <div className="space-y-4">
               {visibleProducts.map((p, i) => (
@@ -464,12 +473,12 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
                         <div className="flex flex-wrap gap-2 mt-2">
                           {showExp && (
                             <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${status === 'expired' ? 'bg-red-100 text-danger' : status === 'critical' ? 'bg-orange-100 text-warning' : 'bg-yellow-100 text-yellow-700'}`}>
-                              <CalendarClock className="w-3 h-3" /> {EXPIRY_LABEL[status]}
+                              <CalendarClock className="w-3 h-3" /> {t(`expiry.${status}`)}
                             </span>
                           )}
                           {pendingByProduct.has(p.product_id) && (
                             <span className="inline-flex items-center gap-1 text-xs font-semibold text-warning bg-orange-50 px-2.5 py-1 rounded-full">
-                              <ClipboardList className="w-3 h-3" /> so'rov kutilmoqda
+                              <ClipboardList className="w-3 h-3" /> {t('shome.requestPending')}
                             </span>
                           )}
                         </div>
@@ -485,7 +494,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
                         {S.soldBtn}
                       </Link>
                     ) : (
-                      <div className="w-full bg-cream text-muted font-display font-bold py-3.5 rounded-full text-base text-center">Tugadi</div>
+                      <div className="w-full bg-cream text-muted font-display font-bold py-3.5 rounded-full text-base text-center">{t('state.sold_out')}</div>
                     )}
                   </div>
                 </div>
@@ -507,14 +516,14 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
             <div className="flex items-center justify-between mb-3">
               <p className="font-display font-bold text-ink text-base truncate">{moreProduct.name}</p>
-              <button aria-label="Yopish" onClick={() => setMoreProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
+              <button aria-label={t('common.close')} onClick={() => setMoreProduct(null)} className="text-muted"><X className="w-5 h-5" /></button>
             </div>
             {/* Where this product stands — the per-unit detail that used to crowd the
                 card now lives here, where there is room for it. */}
             <div className="bg-cream rounded-2xl p-4 mb-4">
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-muted">Sizda <b className="text-ink">{moreProduct.remaining} ta</b></span>
-                <span className="text-muted"><b className="text-ink">{moreProduct.sold} ta</b> sotildi</span>
+                <span className="text-muted">{t('shome.youHave')} <b className="text-ink">{t('shome.pcs', { n: moreProduct.remaining })}</b></span>
+                <span className="text-muted"><b className="text-ink">{t('shome.pcs', { n: moreProduct.sold })}</b> {t('shome.soldSuffix')}</span>
               </div>
               <SoldProgress had={moreProduct.had} sold={moreProduct.sold} remaining={moreProduct.remaining} />
             </div>
@@ -527,42 +536,42 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
                 className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
                 <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center flex-shrink-0"><Pencil className="w-4 h-4 text-rose" /></span>
                 <span>
-                  <span className="block font-semibold text-sm text-ink">Boshqacha son oldim</span>
-                  <span className="block text-xs text-muted">Admin tasdiqlaydi</span>
+                  <span className="block font-semibold text-sm text-ink">{t('shome.gotDifferent')}</span>
+                  <span className="block text-xs text-muted">{t('shome.adminApproves')}</span>
                 </span>
               </button>
               {moreProduct.image_url && (
                 <button onClick={() => { const p = moreProduct; setMoreProduct(null); openPost(p) }}
                   className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
                   <span className="w-9 h-9 rounded-full bg-sky/15 grid place-items-center flex-shrink-0"><Send className="w-4 h-4 text-sky" /></span>
-                  <span className="font-semibold text-sm text-ink">Telegram kanalga yuborish</span>
+                  <span className="font-semibold text-sm text-ink">{t('shome.sendToTelegram')}</span>
                 </button>
               )}
               {moreProduct.link && (
                 <a href={moreProduct.link} target="_blank" rel="noopener noreferrer" onClick={() => setMoreProduct(null)}
                   className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition">
                   <span className="w-9 h-9 rounded-full bg-red-50 grid place-items-center flex-shrink-0"><PlayCircle className="w-4 h-4 text-red-600" /></span>
-                  <span className="font-semibold text-sm text-ink">Videoni ko'rish</span>
+                  <span className="font-semibold text-sm text-ink">{t('shome.watchVideo')}</span>
                 </a>
               )}
               {moreProduct.remaining > 0 && (
                 <Link href="/seller/transfers" onClick={() => setMoreProduct(null)}
                   className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-cream transition text-left">
                   <span className="w-9 h-9 rounded-full bg-mint/20 grid place-items-center flex-shrink-0"><RotateCcw className="w-4 h-4 text-success" /></span>
-                  <span className="font-semibold text-sm text-ink">Boshqa sotuvchiga qaytarish</span>
+                  <span className="font-semibold text-sm text-ink">{t('shome.returnToSeller')}</span>
                 </Link>
               )}
             </div>
 
             {/* Expiry editor */}
             <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-semibold text-muted mb-2 flex items-center gap-1.5"><CalendarClock className="w-3.5 h-3.5" /> Yaroqlilik muddati</p>
+              <p className="text-xs font-semibold text-muted mb-2 flex items-center gap-1.5"><CalendarClock className="w-3.5 h-3.5" /> {t('shome.expiryDate')}</p>
               <div className="flex items-center gap-2">
                 <input type="date" value={moreExpiry} onChange={e => setMoreExpiry(e.target.value)}
                   className="flex-1 bg-cream text-ink rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                 <button disabled={savingExpiry}
                   onClick={async () => { const p = moreProduct; await saveExpiry(p.product_id, moreExpiry); setMoreProduct(null) }}
-                  className="text-sm font-semibold bg-rose text-white px-4 py-2.5 rounded-lg disabled:opacity-50">Saqlash</button>
+                  className="text-sm font-semibold bg-rose text-white px-4 py-2.5 rounded-lg disabled:opacity-50">{t('common.save')}</button>
               </div>
             </div>
           </div>
@@ -596,8 +605,8 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
           <div className="absolute inset-0 bg-black/40" onClick={() => setPostProduct(null)} />
           <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <p className="font-display font-bold text-ink text-base">📢 Kanalga yuborish</p>
-              <button aria-label="Yopish" onClick={() => setPostProduct(null)} className="text-muted hover:text-ink transition">
+              <p className="font-display font-bold text-ink text-base">{t('shome.postToChannel')}</p>
+              <button aria-label={t('common.close')} onClick={() => setPostProduct(null)} className="text-muted hover:text-ink transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -610,7 +619,7 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
               )}
               <div>
                 <p className="font-semibold text-ink text-sm">{postProduct.name}</p>
-                <p className="text-xs text-muted mt-0.5">@cameliakorea kanaliga yuboriladi</p>
+                <p className="text-xs text-muted mt-0.5">{t('shome.willBeSentToChannel')}</p>
               </div>
             </div>
 
@@ -625,13 +634,13 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
 
             {postDone ? (
               <div className="mt-3 text-center py-3 rounded-full bg-green-50 text-success font-semibold text-sm">
-                ✅ Kanalga yuborildi!
+                {t('shome.sentToChannel')}
               </div>
             ) : (
               <button onClick={sendPost} disabled={posting || !caption.trim()}
                 className="mt-3 w-full flex items-center justify-center gap-2 bg-gradient-to-br from-sky to-lavender text-white font-display font-bold py-4 rounded-full active:scale-95 transition disabled:opacity-50 shadow-sm">
                 <Send className="w-5 h-5" />
-                {posting ? 'Yuborilmoqda…' : "Telegram kanalga jo'natish"}
+                {posting ? t('common.sending') : t('shome.sendToChannelBtn')}
               </button>
             )}
           </div>
@@ -644,45 +653,45 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
           <div className="absolute inset-0 bg-black/40" onClick={() => setFixProduct(null)} />
           <div className="relative bg-surface rounded-t-3xl sm:rounded-3xl p-5 pb-8 w-full sm:max-w-md max-h-[88vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-1">
-              <p className="font-display font-bold text-ink text-base">Boshqacha son oldim</p>
-              <button aria-label="Yopish" onClick={() => setFixProduct(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <p className="font-display font-bold text-ink text-base">{t('shome.gotDifferent')}</p>
+              <button aria-label={t('common.close')} onClick={() => setFixProduct(null)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <p className="text-sm text-muted mb-4 truncate">{fixProduct.name}</p>
 
             {/* Current summary */}
             <div className="grid grid-cols-2 gap-2 mb-5">
               <div className="bg-cream rounded-xl p-3 text-center">
-                <p className="text-xs text-muted mb-0.5">Berilgan</p>
+                <p className="text-xs text-muted mb-0.5">{t('shome.given')}</p>
                 <p className="font-display font-bold text-lg text-ink">{fixProduct.had}</p>
               </div>
               <div className="bg-cream rounded-xl p-3 text-center">
-                <p className="text-xs text-muted mb-0.5">Sotilgan</p>
+                <p className="text-xs text-muted mb-0.5">{t('shome.sold')}</p>
                 <p className="font-display font-bold text-lg text-success">{fixProduct.sold}</p>
               </div>
             </div>
 
             {/* Received-quantity correction — the one thing here that needs approval */}
             <div className="mb-5">
-              <p className="text-sm font-semibold text-ink mb-1">Sizga berilgan soni</p>
-              <p className="text-xs text-muted mb-2">Aslida nechta olganingizni yozing. Buni <b>admin tasdiqlaydi</b>.</p>
+              <p className="text-sm font-semibold text-ink mb-1">{t('shome.receivedQtyLabel')}</p>
+              <p className="text-xs text-muted mb-2">{t('shome.receivedQtyHint')} <b>{t('shome.adminApprovesBold')}</b>.</p>
               {pendingByProduct.has(fixProduct.product_id) ? (
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-warning bg-orange-50 px-3 py-2.5 rounded-xl">
-                  <ClipboardList className="w-4 h-4" /> So'rov yuborilgan — admin javobini kuting
+                  <ClipboardList className="w-4 h-4" /> {t('shome.requestSentWait')}
                 </div>
               ) : recvDone ? (
-                <div className="text-center py-2.5 rounded-xl bg-green-50 text-success font-semibold text-sm">✅ So'rov yuborildi</div>
+                <div className="text-center py-2.5 rounded-xl bg-green-50 text-success font-semibold text-sm">{t('shome.requestSent')}</div>
               ) : (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <input type="number" min={0} value={recvQty} onChange={e => setRecvQty(e.target.value)}
                       className="w-20 bg-cream text-ink text-right rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
-                    <input value={recvReason} onChange={e => setRecvReason(e.target.value)} placeholder="Sabab (ixtiyoriy)…"
+                    <input value={recvReason} onChange={e => setRecvReason(e.target.value)} placeholder={t('shome.reasonOptional')}
                       className="flex-1 bg-cream text-ink rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
                   </div>
                   {recvError && <p className="text-danger text-xs">{recvError}</p>}
                   <button disabled={recvBusy} onClick={submitReceived}
                     className="w-full bg-gradient-to-br from-rose to-peach text-white text-sm font-semibold py-2.5 rounded-full disabled:opacity-50 active:scale-95 transition">
-                    {recvBusy ? 'Yuborilmoqda…' : "Admin'ga so'rov yuborish"}
+                    {recvBusy ? t('common.sending') : t('shome.sendRequestToAdmin')}
                   </button>
                 </div>
               )}
@@ -694,8 +703,8 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
               className="flex items-center gap-3 px-3 py-3 rounded-xl bg-cream hover:bg-cream/70 transition">
               <span className="w-9 h-9 rounded-full bg-rose/10 grid place-items-center flex-shrink-0"><Receipt className="w-4 h-4 text-rose" /></span>
               <span>
-                <span className="block font-semibold text-sm text-ink">Sotuvni tuzatish kerakmi?</span>
-                <span className="block text-xs text-muted">«Sotuvlarim» sahifasida tuzating</span>
+                <span className="block font-semibold text-sm text-ink">{t('shome.needFixSale')}</span>
+                <span className="block text-xs text-muted">{t('shome.fixOnSalesPage')}</span>
               </span>
             </Link>
           </div>
@@ -708,30 +717,30 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
           <div className="absolute inset-0 bg-black/40" onClick={() => setNewOpen(false)} />
           <div className="relative bg-surface rounded-t-3xl p-5 pb-8 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <p className="font-display font-bold text-ink text-base">🆕 Yangi mahsulot so'rash</p>
-              <button aria-label="Yopish" onClick={() => setNewOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <p className="font-display font-bold text-ink text-base">{t('shome.requestNewProductTitle')}</p>
+              <button aria-label={t('common.close')} onClick={() => setNewOpen(false)} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
-            <p className="text-xs text-muted mb-4">Sizda yo'q mahsulotni tanlang va nechta olishni yozing. Admin tasdiqlaganda sizga biriktiriladi.</p>
+            <p className="text-xs text-muted mb-4">{t('shome.newProductHint')}</p>
 
-            <label className="block text-xs font-semibold text-muted mb-1">Mahsulot</label>
+            <label className="block text-xs font-semibold text-muted mb-1">{t('shome.product')}</label>
             <select value={newProductId} onChange={e => setNewProductId(e.target.value)}
               className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent">
-              <option value="">Tanlang…</option>
+              <option value="">{t('shome.selectDots')}</option>
               {availableToRequest.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
 
-            <label className="block text-xs font-semibold text-muted mb-1">Nechta?</label>
+            <label className="block text-xs font-semibold text-muted mb-1">{t('shome.howMany')}</label>
             <input type="number" min={1} value={newQty} onChange={e => setNewQty(e.target.value)} placeholder="0"
               className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
 
-            <input value={newReason} onChange={e => setNewReason(e.target.value)} placeholder="Izoh (ixtiyoriy)…"
+            <input value={newReason} onChange={e => setNewReason(e.target.value)} placeholder={t('shome.noteOptional')}
               className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent" />
 
             {newError && <p className="text-danger text-xs mb-2">{newError}</p>}
 
             <button onClick={submitNewRequest} disabled={newBusy}
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full active:scale-95 transition disabled:opacity-50 shadow-rose">
-              {newBusy ? 'Yuborilmoqda…' : "So'rov yuborish"}
+              {newBusy ? t('common.sending') : t('shome.sendRequest')}
             </button>
           </div>
         </div>

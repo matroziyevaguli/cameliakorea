@@ -2,7 +2,8 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS } from '@/lib/format'
-import { S } from '@/consts/strings'
+import { useS, type SShape } from '@/consts/strings'
+import { useT, type TFunc } from '@/i18n'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import { formatDate } from '@/lib/format'
 import AdminNav from '@/components/AdminNav'
@@ -28,11 +29,11 @@ type Props = { kpis: KPIs; biz: Biz; productStats: ProductStat[]; recentSales: R
 
 const CHART_COLORS = ['#F4628E','#B9A7F0','#6FD8C0','#7CC4F2','#FFB088','#F4628E','#B9A7F0','#6FD8C0']
 
-const kpiCards = (k: KPIs) => [
-  { label: 'Umumiy savdo',     value: formatUZS(k.totalRevenue),    icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark',     text: 'text-white' },
-  { label: S.earningsAdmin,    value: formatUZS(k.myProfit),        icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success',      text: 'text-white' },
-  { label: S.moneyCollect,     value: formatUZS(k.totalOutstanding),icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning',     text: 'text-white' },
-  { label: 'Sotilgan (dona)',  value: String(k.unitsSold),          icon: ShoppingCart,bg: 'bg-gradient-to-br from-lavender to-sky',      text: 'text-white' },
+const kpiCards = (k: KPIs, t: TFunc, S: SShape) => [
+  { label: t('adash.totalSales'), value: formatUZS(k.totalRevenue),    icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark',     text: 'text-white' },
+  { label: S.earningsAdmin,       value: formatUZS(k.myProfit),        icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success',      text: 'text-white' },
+  { label: S.moneyCollect,        value: formatUZS(k.totalOutstanding),icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning',     text: 'text-white' },
+  { label: t('adash.unitsSold'),  value: String(k.unitsSold),          icon: ShoppingCart,bg: 'bg-gradient-to-br from-lavender to-sky',      text: 'text-white' },
 ]
 
 function Metric({ icon: Icon, label, value, sub, accent }: { icon: any; label: string; value: string; sub?: string; accent?: boolean }) {
@@ -49,6 +50,8 @@ function Metric({ icon: Icon, label, value, sub, accent }: { icon: any; label: s
 }
 
 export default function AdminDashboard({ kpis, biz, productStats, recentSales, sellerStats, productRows }: Props) {
+  const t = useT()
+  const S = useS()
   // Honest denominator: what's been sold + what's still on the shelf. Comparing
   // cumulative revenue against *current* stock value would mix two different bases.
   const potential = biz.soldRevenue + biz.worth
@@ -60,13 +63,13 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
 
         {/* Business progress */}
         <div className="space-y-4">
-          <h2 className="font-display font-bold text-ink text-lg">Biznes holati</h2>
+          <h2 className="font-display font-bold text-ink text-lg">{t('adash.bizStatus')}</h2>
 
           {/* Progress hero — sold vs total worth */}
           <div className="bg-gradient-to-br from-rose to-roseDark text-white rounded-2xl p-6 shadow-card">
             <div className="flex items-end justify-between gap-3 mb-3">
               <div>
-                <p className="text-sm opacity-80">Sotildi</p>
+                <p className="text-sm opacity-80">{t('adash.sold')}</p>
                 <p className="font-display text-3xl font-bold">{formatUZS(biz.soldRevenue)}</p>
               </div>
               <p className="text-sm opacity-80 mb-1">/ {formatUZS(potential)}</p>
@@ -75,22 +78,22 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
               <div className="h-full bg-white rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%` }} />
             </div>
             <p className="text-xs opacity-90 mt-2">
-              {pct.toFixed(1)}% sotilgan · omborda yana {formatUZS(biz.worth)} lik tovar bor
+              {t('adash.progressNote', { pct: pct.toFixed(1), worth: formatUZS(biz.worth) })}
             </p>
           </div>
 
           {/* Metric grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Metric icon={Wallet}   label="Omborda turgan pul" value={formatUZS(biz.invested)}       sub="sotilmagan tovar xaridi" />
-            <Metric icon={Package}  label="Ombor qiymati"       value={formatUZS(biz.worth)}          sub="sotilmagan tovar narxi" />
-            <Metric icon={Sparkles} label="Kutilayotgan foyda"  value={formatUZS(biz.expectedProfit)} sub="agar qolgani sotilsa" accent />
-            <Metric icon={Gift}     label="Sovg'alar"           value={`${biz.giveawayUnits} dona`}   sub={`${formatUZS(biz.giveawayValue)} xarajat`} />
+            <Metric icon={Wallet}   label={t('adash.investedLabel')} value={formatUZS(biz.invested)}       sub={t('adash.investedSub')} />
+            <Metric icon={Package}  label={t('adash.worthLabel')}    value={formatUZS(biz.worth)}          sub={t('adash.worthSub')} />
+            <Metric icon={Sparkles} label={t('adash.expectedLabel')} value={formatUZS(biz.expectedProfit)} sub={t('adash.expectedSub')} accent />
+            <Metric icon={Gift}     label={t('adash.giveawaysLabel')} value={t('adash.giveUnits', { n: biz.giveawayUnits })} sub={t('adash.giveSub', { v: formatUZS(biz.giveawayValue) })} />
           </div>
         </div>
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {kpiCards(kpis).map(card => {
+          {kpiCards(kpis, t, S).map(card => {
             const Icon = card.icon
             return (
               <div key={card.label} className={`${card.bg} ${card.text} rounded-2xl p-5 shadow-card`}>
@@ -106,14 +109,14 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
 
         {/* Bar chart */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
-          <h2 className="font-display font-bold text-ink text-lg mb-5">Ko'p sotilgan mahsulotlar</h2>
+          <h2 className="font-display font-bold text-ink text-lg mb-5">{t('adash.topProducts')}</h2>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={productStats} margin={{ left: 0, right: 0 }}>
               <XAxis dataKey="name" tick={{ fill: '#8A7F8C', fontSize: 11, fontFamily: 'var(--font-inter)' }} />
               <YAxis tick={{ fill: '#8A7F8C', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', boxShadow: '0 8px 30px rgba(244,98,142,0.12)', fontFamily: 'var(--font-inter)' }}
-                formatter={(v: number) => [v, 'Sotildi']}
+                formatter={(v: number) => [v, t('adash.sold')]}
               />
               <Bar dataKey="units_sold" radius={[8, 8, 0, 0]}>
                 {productStats.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
@@ -125,16 +128,16 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
         {/* Per-product report (was /admin/stats) */}
         {productRows.length > 0 && (
           <div className="bg-surface rounded-2xl shadow-card p-6">
-            <h2 className="font-display font-bold text-ink text-lg mb-4">Mahsulot hisoboti</h2>
+            <h2 className="font-display font-bold text-ink text-lg mb-4">{t('adash.productReport')}</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[520px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-3 px-3 font-semibold text-muted">Mahsulot</th>
-                    <th className="text-right py-3 px-3 font-semibold text-muted">Jami</th>
-                    <th className="text-right py-3 px-3 font-semibold text-muted">Sotildi</th>
-                    <th className="text-right py-3 px-3 font-semibold text-muted">Qoldi</th>
-                    <th className="text-right py-3 px-3 font-semibold text-muted">Tushum</th>
+                    <th className="text-left py-3 px-3 font-semibold text-muted">{t('adash.colProduct')}</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">{t('adash.colTotal')}</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">{t('adash.sold')}</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">{t('adash.colLeft')}</th>
+                    <th className="text-right py-3 px-3 font-semibold text-muted">{t('adash.colRevenue')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -156,7 +159,7 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
         {/* Per-seller results (was /admin/stats) */}
         {sellerStats.length > 0 && (
           <div className="bg-surface rounded-2xl shadow-card p-6">
-            <h2 className="font-display font-bold text-ink text-lg mb-4">Sotuvchilar bo'yicha</h2>
+            <h2 className="font-display font-bold text-ink text-lg mb-4">{t('adash.bySeller')}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {sellerStats.map((s, i) => (
                 <Link key={s.seller_id} href={`/admin/sellers/${s.seller_id}`}
@@ -166,7 +169,7 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
                   <p className="font-semibold text-warning text-sm">{formatUZS(s.owed_from_sales)}</p>
                   <p className="text-xs text-muted mt-1">{S.moneyHandedOver}</p>
                   <p className="font-semibold text-success text-sm">{formatUZS(s.received)}</p>
-                  <p className="text-xs text-muted mt-1">Qolgan</p>
+                  <p className="text-xs text-muted mt-1">{t('adash.remaining')}</p>
                   <p className={`font-display font-bold ${s.balance > 0 ? 'text-danger' : 'text-success'}`}>{formatUZS(s.balance)}</p>
                 </Link>
               ))}
@@ -176,7 +179,7 @@ export default function AdminDashboard({ kpis, biz, productStats, recentSales, s
 
         {/* Recent sales */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
-          <h2 className="font-display font-bold text-ink text-lg mb-4">So'nggi sotuvlar</h2>
+          <h2 className="font-display font-bold text-ink text-lg mb-4">{t('adash.recentSales')}</h2>
           <div className="space-y-1">
             {recentSales.map((s, i) => (
               <div key={i} className={`flex justify-between items-center py-3 px-3 rounded-xl ${i % 2 === 0 ? 'bg-cream' : ''}`}>

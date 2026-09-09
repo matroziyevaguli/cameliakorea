@@ -5,6 +5,7 @@ import { useState } from 'react'
 import AdminNav from '@/components/AdminNav'
 import ConfirmBar from '@/components/ConfirmBar'
 import { formatDate, formatUZS } from '@/lib/format'
+import { useT } from '@/i18n'
 import { Inbox, Check, X, ArrowRight, CheckCircle, ChevronDown, RotateCcw } from 'lucide-react'
 
 type Req = {
@@ -42,13 +43,14 @@ type Transfer = {
 }
 type Props = { requests: Req[]; priceRequests: PriceReq[]; transfers: Transfer[] }
 
-const STATUS_BADGE: Record<Req['status'], { label: string; cls: string }> = {
-  pending:  { label: 'Kutilmoqda', cls: 'bg-orange-100 text-warning' },
-  approved: { label: 'Tasdiqlandi', cls: 'bg-green-100 text-success' },
-  rejected: { label: 'Rad etildi',  cls: 'bg-red-100 text-danger' },
+const STATUS_CLS: Record<Req['status'], string> = {
+  pending:  'bg-orange-100 text-warning',
+  approved: 'bg-green-100 text-success',
+  rejected: 'bg-red-100 text-danger',
 }
 
 export default function Requests({ requests: initReq, priceRequests: initPrice, transfers }: Props) {
+  const t = useT()
   // Local state so an approved/rejected request leaves the pending list IMMEDIATELY
   // (don't depend on a server re-fetch — that's why approvals looked "stuck").
   const [requests, setRequests] = useState(initReq)
@@ -82,7 +84,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
         setNeedStock({ id, current: json.need_stock.current, needed: json.need_stock.needed })
         return
       }
-      setError(json.error ?? 'Xatolik'); return
+      setError(json.error ?? t('common.error')); return
     }
     setNeedStock(null)
     setBusy(null)
@@ -91,7 +93,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
       ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
       : r))
     window.dispatchEvent(new Event('camelia-requests-changed'))   // refresh the nav badge
-    setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
+    setInfo(action === 'approve' ? t('areq.info_approved') : t('areq.status_rejected'))
     setTimeout(() => setInfo(''), 3000)
   }
 
@@ -103,13 +105,13 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
     })
     const json = await res.json().catch(() => ({}))
     setBusy(null)
-    if (!res.ok) { setError(json.error ?? 'Xatolik'); return }
+    if (!res.ok) { setError(json.error ?? t('common.error')); return }
     const now = new Date().toISOString()
     setPriceRequests(rs => rs.map(r => r.id === id
       ? { ...r, status: action === 'approve' ? 'approved' : 'rejected', admin_note: notes[id] || null, resolved_at: now }
       : r))
     window.dispatchEvent(new Event('camelia-requests-changed'))   // refresh the nav badge
-    setInfo(action === 'approve' ? 'Tasdiqlandi ✓' : 'Rad etildi')
+    setInfo(action === 'approve' ? t('areq.info_approved') : t('areq.status_rejected'))
     setTimeout(() => setInfo(''), 3000)
   }
 
@@ -119,7 +121,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
       <main className="p-4 md:p-6 max-w-2xl mx-auto">
         <div className="flex items-center gap-2 mb-6">
           <Inbox className="w-6 h-6 text-rose" />
-          <h2 className="font-display font-bold text-ink text-2xl">Tuzatish so'rovlari</h2>
+          <h2 className="font-display font-bold text-ink text-2xl">{t('areq.title')}</h2>
         </div>
 
         {error && <p className="text-danger text-sm mb-4">{error}</p>}
@@ -128,12 +130,12 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
         {nothing && (
           <div className="bg-surface rounded-2xl shadow-card p-10 text-center text-muted">
             <Inbox className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Hozircha so'rov yo'q</p>
+            <p className="text-sm">{t('areq.empty')}</p>
           </div>
         )}
 
         {(pending.length > 0 || (showResolved && resolved.length > 0)) && (
-          <h3 className="font-display font-bold text-ink text-sm mb-3 px-1">Taqsimot so'rovlari</h3>
+          <h3 className="font-display font-bold text-ink text-sm mb-3 px-1">{t('areq.section_alloc')}</h3>
         )}
 
         {/* Pending */}
@@ -148,13 +150,13 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-ink text-sm">{r.seller_name}</p>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.type === 'new_product' ? 'bg-sky/15 text-sky' : 'bg-lavender/20 text-ink'}`}>
-                          {r.type === 'new_product' ? 'Yangi mahsulot' : 'Tuzatish'}
+                          {r.type === 'new_product' ? t('areq.type_new') : t('areq.type_correction')}
                         </span>
                       </div>
                       <p className="text-xs text-muted">{r.product_name}</p>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_BADGE[r.status].cls}`}>
-                      {STATUS_BADGE[r.status].label}
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_CLS[r.status]}`}>
+                      {t(`areq.status_${r.status}`)}
                     </span>
                   </div>
 
@@ -162,29 +164,29 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                     <span className="font-display font-bold text-xl text-muted">{r.qty_allocated_now}</span>
                     <ArrowRight className="w-4 h-4 text-muted" />
                     <span className="font-display font-bold text-xl text-rose">{r.requested_qty}</span>
-                    <span className="text-xs text-muted ml-auto">sotilgan: <strong className="text-ink">{r.qty_sold}</strong></span>
+                    <span className="text-xs text-muted ml-auto">{t('areq.sold_label')} <strong className="text-ink">{r.qty_sold}</strong></span>
                   </div>
 
                   {r.reason && <p className="text-sm text-ink bg-lavender/10 rounded-xl px-3 py-2 mb-3">"{r.reason}"</p>}
 
                   {belowSold && (
                     <p className="text-xs font-semibold text-danger mb-2">
-                      {r.qty_sold} ta sotilgan — bundan kam qilib bo'lmaydi.
+                      {t('areq.below_sold', { n: r.qty_sold })}
                     </p>
                   )}
 
                   <input
                     value={notes[r.id] ?? ''}
                     onChange={e => setNotes(n => ({ ...n, [r.id]: e.target.value }))}
-                    placeholder="Izoh (ixtiyoriy)…"
+                    placeholder={t('areq.note_ph')}
                     className="w-full bg-cream text-ink rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent"
                   />
 
                   {needStock?.id === r.id ? (
                     <ConfirmBar
                       tone="primary"
-                      question={`Omborda ${needStock.current} ta bor. Tasdiqlansa ombor ${needStock.needed} ta ga oshiriladi.`}
-                      confirmLabel="Ha, oshirilsin"
+                      question={t('areq.stock_q', { current: needStock.current, needed: needStock.needed })}
+                      confirmLabel={t('areq.stock_yes')}
                       busy={busy !== null}
                       onConfirm={() => resolve(r.id, 'approve', true)}
                       onCancel={() => setNeedStock(null)}
@@ -196,14 +198,14 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                       disabled={busy !== null || belowSold}
                       className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
                       <Check className="w-4 h-4" />
-                      {busy === r.id + 'approve' ? '…' : 'Tasdiqlash'}
+                      {busy === r.id + 'approve' ? '…' : t('areq.approve')}
                     </button>
                     <button
                       onClick={() => resolve(r.id, 'reject')}
                       disabled={busy !== null}
                       className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 text-danger font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">
                       <X className="w-4 h-4" />
-                      {busy === r.id + 'reject' ? '…' : 'Rad etish'}
+                      {busy === r.id + 'reject' ? '…' : t('areq.reject')}
                     </button>
                   </div>
                   )}
@@ -215,7 +217,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
 
         {/* ── Price change requests ── */}
         {(pricePending.length > 0 || (showResolved && priceResolved.length > 0)) && (
-          <h3 className="font-display font-bold text-ink text-sm mb-3 mt-8 px-1">Narx so'rovlari</h3>
+          <h3 className="font-display font-bold text-ink text-sm mb-3 mt-8 px-1">{t('areq.section_price')}</h3>
         )}
 
         {pricePending.length > 0 && (
@@ -226,12 +228,12 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-semibold text-ink text-sm">{r.seller_name}</p>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-peach/25 text-ink">Narx</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-peach/25 text-ink">{t('areq.type_price')}</span>
                     </div>
-                    <p className="text-xs text-muted">{r.product_name} · {r.qty} ta</p>
+                    <p className="text-xs text-muted">{r.product_name} · {t('areq.n_ta', { n: r.qty })}</p>
                   </div>
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_BADGE[r.status].cls}`}>
-                    {STATUS_BADGE[r.status].label}
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${STATUS_CLS[r.status]}`}>
+                    {t(`areq.status_${r.status}`)}
                   </span>
                 </div>
 
@@ -246,18 +248,18 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                 <input
                   value={notes[r.id] ?? ''}
                   onChange={e => setNotes(n => ({ ...n, [r.id]: e.target.value }))}
-                  placeholder="Izoh (ixtiyoriy)…"
+                  placeholder={t('areq.note_ph')}
                   className="w-full bg-cream text-ink rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent"
                 />
 
                 <div className="flex gap-2">
                   <button onClick={() => resolvePrice(r.id, 'approve')} disabled={busy !== null}
                     className="flex-1 flex items-center justify-center gap-1.5 bg-gradient-to-br from-mint to-success text-white font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50">
-                    <Check className="w-4 h-4" /> {busy === r.id + 'approve' ? '…' : 'Tasdiqlash'}
+                    <Check className="w-4 h-4" /> {busy === r.id + 'approve' ? '…' : t('areq.approve')}
                   </button>
                   <button onClick={() => resolvePrice(r.id, 'reject')} disabled={busy !== null}
                     className="flex-1 flex items-center justify-center gap-1.5 bg-red-50 text-danger font-display font-bold py-3 rounded-full text-sm active:scale-95 transition disabled:opacity-50 border border-red-100">
-                    <X className="w-4 h-4" /> {busy === r.id + 'reject' ? '…' : 'Rad etish'}
+                    <X className="w-4 h-4" /> {busy === r.id + 'reject' ? '…' : t('areq.reject')}
                   </button>
                 </div>
               </div>
@@ -269,21 +271,21 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
         {transfers.length > 0 && (
           <div className="mt-8">
             <h3 className="font-display font-bold text-ink text-sm mb-1 px-1">
-              Qaytarishlar <span className="font-normal text-muted">(kuzatuv)</span>
+              {t('areq.section_transfers')} <span className="font-normal text-muted">{t('areq.transfers_note_paren')}</span>
             </h3>
-            <p className="text-xs text-muted mb-3 px-1">Sotuvchilar o'zaro qaytarishi — qabul qiluvchi tasdiqlaydi.</p>
+            <p className="text-xs text-muted mb-3 px-1">{t('areq.transfers_desc')}</p>
             <div className="space-y-2">
-              {transfers.map(t => (
-                <div key={t.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
-                  <RotateCcw className={`w-4 h-4 flex-shrink-0 ${t.status === 'approved' ? 'text-success' : t.status === 'rejected' ? 'text-muted' : 'text-warning'}`} />
+              {transfers.map(tr => (
+                <div key={tr.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
+                  <RotateCcw className={`w-4 h-4 flex-shrink-0 ${tr.status === 'approved' ? 'text-success' : tr.status === 'rejected' ? 'text-muted' : 'text-warning'}`} />
                   <div className="min-w-0 flex-1">
-                    <p className="text-ink truncate"><strong>{t.from_name} → {t.to_name}</strong> · {t.product_name}</p>
+                    <p className="text-ink truncate"><strong>{tr.from_name} → {tr.to_name}</strong> · {tr.product_name}</p>
                     <p className="text-xs text-muted">
-                      {t.qty} ta · {formatDate(t.created_at)}{t.status === 'pending' ? ' · qabul kutilmoqda' : ''}
+                      {t('areq.n_ta', { n: tr.qty })} · {formatDate(tr.created_at)}{tr.status === 'pending' ? ` · ${t('areq.awaiting_receipt')}` : ''}
                     </p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[t.status].cls}`}>
-                    {STATUS_BADGE[t.status].label}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_CLS[tr.status]}`}>
+                    {t(`areq.status_${tr.status}`)}
                   </span>
                 </div>
               ))}
@@ -295,7 +297,7 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
         {resolvedCount > 0 && (
           <button onClick={() => setShowResolved(v => !v)}
             className="w-full flex items-center justify-center gap-1.5 text-sm font-semibold text-muted mt-8 mb-4 py-2">
-            Ko'rib chiqilgan ({resolvedCount})
+            {t('areq.reviewed', { n: resolvedCount })}
             <ChevronDown className={`w-4 h-4 transition ${showResolved ? 'rotate-180' : ''}`} />
           </button>
         )}
@@ -308,12 +310,12 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
                 <div className="min-w-0 flex-1">
                   <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name}</p>
                   <p className="text-xs text-muted">
-                    {r.current_qty} → {r.requested_qty} ta · {r.resolved_at ? formatDate(r.resolved_at) : ''}
+                    {r.current_qty} → {t('areq.n_ta', { n: r.requested_qty })} · {r.resolved_at ? formatDate(r.resolved_at) : ''}
                     {r.admin_note ? ` · ${r.admin_note}` : ''}
                   </p>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
-                  {STATUS_BADGE[r.status].label}
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_CLS[r.status]}`}>
+                  {t(`areq.status_${r.status}`)}
                 </span>
               </div>
             ))}
@@ -321,14 +323,14 @@ export default function Requests({ requests: initReq, priceRequests: initPrice, 
               <div key={r.id} className="bg-surface/60 rounded-xl px-4 py-3 flex items-center gap-3 text-sm">
                 <CheckCircle className={`w-4 h-4 flex-shrink-0 ${r.status === 'approved' ? 'text-success' : 'text-muted'}`} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name} <span className="text-[10px] text-peach">(narx)</span></p>
+                  <p className="text-ink truncate"><strong>{r.seller_name}</strong> · {r.product_name} <span className="text-[10px] text-peach">{t('areq.price_tag')}</span></p>
                   <p className="text-xs text-muted">
                     {formatUZS(r.current_price)} → {formatUZS(r.requested_price)} · {r.resolved_at ? formatDate(r.resolved_at) : ''}
                     {r.admin_note ? ` · ${r.admin_note}` : ''}
                   </p>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_BADGE[r.status].cls}`}>
-                  {STATUS_BADGE[r.status].label}
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold flex-shrink-0 ${STATUS_CLS[r.status]}`}>
+                  {t(`areq.status_${r.status}`)}
                 </span>
               </div>
             ))}

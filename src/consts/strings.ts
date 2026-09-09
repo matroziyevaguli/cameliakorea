@@ -126,7 +126,7 @@ export const S = {
   pcs:            "ta",
 }
 
-type SShape = typeof S
+export type SShape = typeof S
 // en/ru/ko full translations (uz lives in S above). Function entries mirror S's signatures.
 const T: Record<Exclude<Locale, 'uz'>, SShape> = {
   en: {

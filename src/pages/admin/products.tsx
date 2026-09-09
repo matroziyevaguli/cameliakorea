@@ -9,7 +9,8 @@ import AdminNav from '@/components/AdminNav'
 import { Plus, Pencil, X, ImagePlus, Send, CheckCircle, Sparkles, Loader2, Link2, Crop as CropIcon, Images, GripVertical, Trash2, CalendarClock, AlertTriangle, Archive, PackageCheck, Truck } from 'lucide-react'
 import ConfirmBar from '@/components/ConfirmBar'
 import { formatDate } from '@/lib/format'
-import { expiryInfo, EXPIRY_LABEL, type ExpiryStatus } from '@/lib/expiry'
+import { expiryInfo, type ExpiryStatus } from '@/lib/expiry'
+import { useT } from '@/i18n'
 import { SKIN_TYPES, CONCERNS, TAG_TYPES } from '@/consts/skincare'
 
 const EXPIRY_STYLE: Record<ExpiryStatus, string> = {
@@ -57,19 +58,11 @@ type FormState = {
 
 const EMPTY: FormState = { name: '', retail_price: '', discount_price: '', cost: '', total_qty: '' }
 
-const fieldLabels: Record<keyof FormState, string> = {
-  name: 'Nomi',
-  retail_price: 'Mahsulot narx',
-  discount_price: 'Chegirma narx (ixtiyoriy)',
-  cost: 'Xarid narxi',
-  total_qty: 'Jami soni',
-}
-
 const ASPECTS = [
-  { label: 'Erkin', value: undefined },
-  { label: '1:1', value: 1 },
-  { label: '4:3', value: 4 / 3 },
-  { label: '16:9', value: 16 / 9 },
+  { labelKey: 'aprod.cropFree', value: undefined },
+  { labelKey: '1:1', value: 1 },
+  { labelKey: '4:3', value: 4 / 3 },
+  { labelKey: '16:9', value: 16 / 9 },
 ] as const
 
 function buildCaption(name: string, retail_price: number, discount_price: number | null, desc: string | null) {
@@ -119,6 +112,14 @@ async function fetchProductsWithState(supabase: ReturnType<typeof createBrowser>
 }
 
 export default function Products({ products: initial }: { products: Product[] }) {
+  const t           = useT()
+  const fieldLabels: Record<keyof FormState, string> = {
+    name: t('aprod.fName'),
+    retail_price: t('aprod.fRetail'),
+    discount_price: t('aprod.fDiscount'),
+    cost: t('aprod.fCost'),
+    total_qty: t('aprod.fQty'),
+  }
   const router      = useRouter()
   const fileRef     = useRef<HTMLInputElement>(null)
   const galleryRef  = useRef<HTMLInputElement>(null)
@@ -184,7 +185,7 @@ export default function Products({ products: initial }: { products: Product[] })
     const res = await fetch('/api/expiry-check', { method: 'POST' })
     const j = await res.json().catch(() => ({}))
     setReporting(false)
-    setReportMsg(!res.ok ? (j.error ?? 'Xatolik') : j.skipped ? 'Telegram sozlanmagan (TELEGRAM_OWNER_CHAT_ID)' : `Telegramga yuborildi: ${j.expired} tugagan, ${j.critical} tez tugaydi`)
+    setReportMsg(!res.ok ? (j.error ?? t('aprod.errGeneric')) : j.skipped ? t('aprod.telegramNotSet') : t('aprod.telegramSent', { expired: j.expired, critical: j.critical }))
   }
 
   const isOpen = showNew || !!editing
@@ -218,8 +219,8 @@ export default function Products({ products: initial }: { products: Product[] })
     ])
     if (data) setGallery(data.map(r => ({ id: r.id, url: r.url })))
     if (tags) {
-      setSkinTypes(tags.filter(t => t.tag_type === TAG_TYPES.skinType).map(t => t.tag_value))
-      setConcerns(tags.filter(t => t.tag_type === TAG_TYPES.concern).map(t => t.tag_value))
+      setSkinTypes(tags.filter(tag => tag.tag_type === TAG_TYPES.skinType).map(tag => tag.tag_value))
+      setConcerns(tags.filter(tag => tag.tag_type === TAG_TYPES.concern).map(tag => tag.tag_value))
     }
   }
 
@@ -325,7 +326,7 @@ export default function Products({ products: initial }: { products: Product[] })
     const json = await res.json()
     setLinkLoading(false)
     if (res.ok && json.url) setLink(json.url)
-    else if (res.ok && json.url === null) setError("YouTube'da video topilmadi — qo'lda kiriting")
+    else if (res.ok && json.url === null) setError(t('aprod.ytNotFound'))
   }
 
   // ── Announce ──────────────────────────────────────────────────────
@@ -343,7 +344,7 @@ export default function Products({ products: initial }: { products: Product[] })
     const res = await fetch('/api/announce', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: p.image_url, caption, link: p.link }) })
     const json = await res.json()
     setPosting(false)
-    if (!res.ok) { setPostError(json.error ?? 'Xatolik yuz berdi'); return }
+    if (!res.ok) { setPostError(json.error ?? t('aprod.errGeneric2')); return }
     setPostedId(p.id); closeAnnounce()
   }
 
@@ -353,10 +354,10 @@ export default function Products({ products: initial }: { products: Product[] })
     const discount = form.discount_price !== '' ? Number(form.discount_price) : null
     // Validation: discount must not exceed retail; prices non-negative.
     if (retail < 0 || (discount != null && discount < 0) || Number(form.cost) < 0) {
-      setError('Narxlar manfiy bo\'lishi mumkin emas'); return
+      setError(t('aprod.errNegative')); return
     }
     if (discount != null && discount > retail) {
-      setError('Chegirma narxi retail narxidan katta bo\'lolmaydi'); return
+      setError(t('aprod.errDiscountHigh')); return
     }
 
     setLoading(true); setError('')
@@ -386,7 +387,7 @@ export default function Products({ products: initial }: { products: Product[] })
       const qty = Number(form.total_qty)
       const { data, error: err } = await supabase.from('products')
         .insert({ ...base, total_qty: arrived ? qty : 0 }).select('id').single()
-      if (err || !data) { setError(err?.message ?? 'Xatolik'); setLoading(false); return }
+      if (err || !data) { setError(err?.message ?? t('aprod.errGeneric')); setLoading(false); return }
       productId = data.id
       if (qty > 0) {
         await supabase.from('product_batches').insert({
@@ -401,7 +402,7 @@ export default function Products({ products: initial }: { products: Product[] })
       const { error: uploadErr } = await supabase.storage
         .from('product-images')
         .upload(path, imageFile, { upsert: true, cacheControl: '0' })
-      if (uploadErr) { setError(`Rasm yuklashda xatolik: ${uploadErr.message}`); setLoading(false); return }
+      if (uploadErr) { setError(t('aprod.errImageUpload', { msg: uploadErr.message })); setLoading(false); return }
       const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(path)
       const urlWithBust = `${urlData.publicUrl}?v=${new Date().getTime()}`
       await supabase.from('products').update({ image_url: urlWithBust }).eq('id', productId)
@@ -420,7 +421,7 @@ export default function Products({ products: initial }: { products: Product[] })
         const { error: gErr } = await supabase.storage
           .from('product-images')
           .upload(gpath, item.blob, { upsert: true, cacheControl: '3600' })
-        if (gErr) { setError(`Galereya yuklashda xatolik: ${gErr.message}`); setLoading(false); return }
+        if (gErr) { setError(t('aprod.errGalleryUpload', { msg: gErr.message })); setLoading(false); return }
         const { data: gUrl } = supabase.storage.from('product-images').getPublicUrl(gpath)
         await supabase.from('product_images').insert({ product_id: productId, url: gUrl.publicUrl, sort_order: i })
       } else if (item.id) {
@@ -460,7 +461,7 @@ export default function Products({ products: initial }: { products: Product[] })
   async function addIncomingBatch() {
     if (!editing) return
     const n = Number(restockQty)
-    if (!Number.isFinite(n) || n <= 0) { setError('Yo\'ldagi sonni kiriting'); return }
+    if (!Number.isFinite(n) || n <= 0) { setError(t('aprod.errIncomingQty')); return }
     setRestockBusy(true); setError('')
     const supabase = createBrowser()
     const { error: err } = await supabase.from('product_batches')
@@ -474,7 +475,7 @@ export default function Products({ products: initial }: { products: Product[] })
       const updated = refreshed.find(p => p.id === editing.id)
       if (updated) setEditing(updated)   // refresh the panel's Qoldi/Yo'lda figures
     }
-    setToast(`+${n} yo'lda qo'shildi — kelganda «Partiyalar»da «Keldi» bosing`)
+    setToast(t('aprod.toastIncoming', { n }))
     setTimeout(() => setToast(''), 4000)
   }
 
@@ -489,7 +490,7 @@ export default function Products({ products: initial }: { products: Product[] })
     setRetireId(null)
     if (err) { setError(err.message); return }
     setProducts(list => list.map(x => x.id === p.id ? { ...x, discontinued_at: value } : x))
-    setToast(off ? `${p.name} — katalogdan olib tashlandi` : `${p.name} — katalogga qaytarildi`)
+    setToast(off ? t('aprod.toastRetired', { name: p.name }) : t('aprod.toastRestored', { name: p.name }))
     setTimeout(() => setToast(''), 4000)
   }
 
@@ -506,9 +507,9 @@ export default function Products({ products: initial }: { products: Product[] })
         body: JSON.stringify({ product_id: discountOffer.productId }),
       })
       const j = await res.json().catch(() => ({}))
-      setToast(j.ok ? "Chegirma Telegram kanalga e'lon qilindi ✅" : (j.error ?? 'Telegram xatolik'))
+      setToast(j.ok ? t('aprod.discountAnnounced') : (j.error ?? t('aprod.telegramError')))
     } catch {
-      setToast('Telegram xatolik')
+      setToast(t('aprod.telegramError'))
     }
     setAnnouncingDiscount(false)
     setDiscountOffer(null)
@@ -528,13 +529,13 @@ export default function Products({ products: initial }: { products: Product[] })
             .map(key => (
             <div key={key}>
               <label className="block text-sm font-medium text-muted mb-1">
-                {key === 'total_qty' && !arrived ? 'Yo\'ldagi soni' : fieldLabels[key]}
+                {key === 'total_qty' && !arrived ? t('aprod.fQtyIncoming') : fieldLabels[key]}
               </label>
               <input
                 type={key === 'name' ? 'text' : 'number'}
                 value={form[key]}
                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                placeholder={key === 'discount_price' ? "Bo'sh qoldiring" : ''}
+                placeholder={key === 'discount_price' ? t('aprod.discountPlaceholder') : ''}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition"
               />
             </div>
@@ -543,21 +544,19 @@ export default function Products({ products: initial }: { products: Product[] })
           {/* NEW product only: is the first shipment already here or still on the way? */}
           {!editing && (
             <div>
-              <label className="block text-sm font-medium text-muted mb-1">Holati</label>
+              <label className="block text-sm font-medium text-muted mb-1">{t('aprod.stateLabel')}</label>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setArrived(true)}
                   className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition border-2 ${arrived ? 'bg-green-100 text-success border-success/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
-                  <PackageCheck className="w-4 h-4" /> Do'konda bor
+                  <PackageCheck className="w-4 h-4" /> {t('aprod.inStore')}
                 </button>
                 <button type="button" onClick={() => setArrived(false)}
                   className={`flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold transition border-2 ${!arrived ? 'bg-sky/20 text-sky border-sky/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
-                  <Truck className="w-4 h-4" /> Yo'lda
+                  <Truck className="w-4 h-4" /> {t('aprod.onTheWay')}
                 </button>
               </div>
               <p className="text-xs text-muted mt-1.5">
-                {arrived
-                  ? "Mahsulot do'konda, sotuvga tayyor."
-                  : "Hali yetib kelmagan — saytda «Yo'lda» ko'rinadi. Kelganda «Partiyalar»da «Keldi» bosing."}
+                {arrived ? t('aprod.inStoreHint') : t('aprod.onTheWayHint')}
               </p>
             </div>
           )}
@@ -568,28 +567,31 @@ export default function Products({ products: initial }: { products: Product[] })
             <div className="rounded-xl bg-cream p-4">
               <div className="flex items-center gap-4 mb-3">
                 <div>
-                  <p className="text-[11px] text-muted">Qoldi</p>
+                  <p className="text-[11px] text-muted">{t('aprod.left')}</p>
                   <p className="font-display font-bold text-ink text-lg leading-none">{Math.max(0, editing.remaining ?? 0)}</p>
                 </div>
                 {(editing.incoming_qty ?? 0) > 0 && (
                   <div>
-                    <p className="text-[11px] text-muted">Yo'lda</p>
+                    <p className="text-[11px] text-muted">{t('aprod.onTheWay')}</p>
                     <p className="font-display font-bold text-sky text-lg leading-none">{editing.incoming_qty}</p>
                   </div>
                 )}
               </div>
-              <label className="block text-xs font-medium text-muted mb-1">Yangi partiya (yo'lda) qo'shish</label>
+              <label className="block text-xs font-medium text-muted mb-1">{t('aprod.addBatchLabel')}</label>
               <div className="flex gap-2">
                 <input type="number" min={1} value={restockQty} onChange={e => setRestockQty(e.target.value)}
-                  placeholder="Soni"
+                  placeholder={t('aprod.qtyPlaceholder')}
                   className="w-full bg-surface text-ink rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky border-2 border-transparent transition" />
                 <button type="button" onClick={addIncomingBatch} disabled={restockBusy || !restockQty}
                   className="flex items-center gap-1.5 flex-shrink-0 bg-gradient-to-br from-sky to-lavender text-white text-sm font-semibold px-4 py-2 rounded-lg active:scale-95 transition disabled:opacity-50">
-                  <Truck className="w-4 h-4" /> {restockBusy ? '…' : "Qo'shish"}
+                  <Truck className="w-4 h-4" /> {restockBusy ? '…' : t('aprod.add')}
                 </button>
               </div>
               <p className="text-[11px] text-muted mt-1.5">
-                Partiya kelganda <b className="text-ink">«Partiyalar»</b> sahifasida «Keldi» bosing — ombor o'zi yangilanadi.
+                {(() => {
+                  const parts = t('aprod.addBatchHint').split('{b}')
+                  return <>{parts[0]}<b className="text-ink">{t('aprod.batchesPage')}</b>{parts[1]}</>
+                })()}
               </p>
             </div>
           )}
@@ -597,7 +599,7 @@ export default function Products({ products: initial }: { products: Product[] })
 
         {/* Image upload */}
         <div className="col-span-2 md:col-span-1">
-          <label className="block text-sm font-medium text-muted mb-2">Rasm</label>
+          <label className="block text-sm font-medium text-muted mb-2">{t('aprod.image')}</label>
           <div onClick={() => fileRef.current?.click()}
             className="cursor-pointer rounded-2xl border-2 border-dashed border-rose/30 hover:border-rose/60 transition overflow-hidden bg-cream flex items-center justify-center"
             style={{ minHeight: '200px' }}>
@@ -609,8 +611,8 @@ export default function Products({ products: initial }: { products: Product[] })
                   <ImagePlus className="w-6 h-6 text-rose" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-ink">Rasm yuklash</p>
-                  <p className="text-xs text-muted mt-0.5">JPG, PNG · bosing</p>
+                  <p className="text-sm font-medium text-ink">{t('aprod.imageUpload')}</p>
+                  <p className="text-xs text-muted mt-0.5">{t('aprod.imageHint')}</p>
                 </div>
               </div>
             )}
@@ -620,11 +622,11 @@ export default function Products({ products: initial }: { products: Product[] })
             <div className="flex gap-3 mt-2">
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="text-xs text-rose hover:text-roseDark transition flex items-center gap-1">
-                <CropIcon className="w-3.5 h-3.5" /> Boshqa rasm / qayta kesish
+                <CropIcon className="w-3.5 h-3.5" /> {t('aprod.recrop')}
               </button>
               <button type="button" onClick={() => { setImageFile(null); setImagePreview(editing?.image_url ?? null) }}
                 className="text-xs text-muted hover:text-danger transition">
-                Olib tashlash
+                {t('aprod.removeImage')}
               </button>
             </div>
           )}
@@ -634,24 +636,24 @@ export default function Products({ products: initial }: { products: Product[] })
       {/* Description */}
       <div className="mt-5">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-muted">Tavsif</label>
+          <label className="text-sm font-medium text-muted">{t('aprod.description')}</label>
           <button type="button" onClick={generateDescription} disabled={descLoading || !form.name}
             className="flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-br from-lavender to-sky text-white px-3 py-1.5 rounded-full active:scale-95 transition disabled:opacity-50 shadow-sm">
-            {descLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Yozilmoqda…</> : <><Sparkles className="w-3.5 h-3.5" /> AI bilan yozish</>}
+            {descLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('aprod.writing')}</> : <><Sparkles className="w-3.5 h-3.5" /> {t('aprod.writeWithAI')}</>}
           </button>
         </div>
         <textarea value={description} onChange={e => setDescription(e.target.value)} rows={4}
-          placeholder="Mahsulot haqida qisqacha tavsif…"
+          placeholder={t('aprod.descPlaceholder')}
           className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-lavender border-2 border-transparent transition resize-none" />
       </div>
 
       {/* YouTube link */}
       <div className="mt-4">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-muted">Video link (YouTube)</label>
+          <label className="text-sm font-medium text-muted">{t('aprod.videoLink')}</label>
           <button type="button" onClick={findYouTube} disabled={linkLoading || !form.name}
             className="flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-br from-rose/80 to-peach text-white px-3 py-1.5 rounded-full active:scale-95 transition disabled:opacity-50 shadow-sm">
-            {linkLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Qidirilmoqda…</> : <><Link2 className="w-3.5 h-3.5" /> YouTube link topish</>}
+            {linkLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('aprod.searching')}</> : <><Link2 className="w-3.5 h-3.5" /> {t('aprod.findYouTube')}</>}
           </button>
         </div>
         <input type="url" value={link} onChange={e => setLink(e.target.value)}
@@ -666,7 +668,7 @@ export default function Products({ products: initial }: { products: Product[] })
       {/* Expiry date */}
       <div className="mt-4">
         <label className="text-sm font-medium text-muted flex items-center gap-1.5 mb-2">
-          <CalendarClock className="w-4 h-4" /> Yaroqlilik muddati (ixtiyoriy)
+          <CalendarClock className="w-4 h-4" /> {t('aprod.expiry')}
         </label>
         <input type="date" value={expiry} onChange={e => setExpiry(e.target.value)}
           className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
@@ -674,9 +676,9 @@ export default function Products({ products: initial }: { products: Product[] })
 
       {/* Category — free text with suggestions (products.category) */}
       <div className="mt-4">
-        <label className="block text-sm font-medium text-muted mb-1">Kategoriya (mahsulot turi)</label>
+        <label className="block text-sm font-medium text-muted mb-1">{t('aprod.category')}</label>
         <input list="product-categories" value={category} onChange={e => setCategory(e.target.value)}
-          placeholder="Masalan: Krem, Tozalovchi, Serum…"
+          placeholder={t('aprod.categoryPlaceholder')}
           className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
         <datalist id="product-categories">
           {['Tozalovchi', 'Krem', 'Serum', 'Quyoshdan himoya', 'Niqob', 'Toner', "Ko'z kremi", 'Soch', 'Tana', 'Lab', 'Deodorant', 'Tish pastasi', 'Toplam']
@@ -686,22 +688,22 @@ export default function Products({ products: initial }: { products: Product[] })
 
       {/* Survey tags — which skin types & concerns this product suits (drives /tavsiya) */}
       <div className="mt-5">
-        <label className="block text-sm font-medium text-muted mb-2">Teri turi (so'rovnoma uchun)</label>
+        <label className="block text-sm font-medium text-muted mb-2">{t('aprod.skinType')}</label>
         <div className="flex flex-wrap gap-2">
-          {SKIN_TYPES.map(t => {
-            const on = skinTypes.includes(t.value)
+          {SKIN_TYPES.map(st => {
+            const on = skinTypes.includes(st.value)
             return (
-              <button key={t.value} type="button"
-                onClick={() => setSkinTypes(s => on ? s.filter(x => x !== t.value) : [...s, t.value])}
+              <button key={st.value} type="button"
+                onClick={() => setSkinTypes(s => on ? s.filter(x => x !== st.value) : [...s, st.value])}
                 className={`px-3 py-1.5 rounded-full text-sm font-semibold border-2 transition ${on ? 'bg-lavender/20 text-lavender border-lavender/40' : 'bg-cream text-muted border-transparent hover:bg-rose/5'}`}>
-                {t.label}
+                {st.label}
               </button>
             )
           })}
         </div>
       </div>
       <div className="mt-4">
-        <label className="block text-sm font-medium text-muted mb-2">Qaysi muammolarga (so'rovnoma uchun)</label>
+        <label className="block text-sm font-medium text-muted mb-2">{t('aprod.concerns')}</label>
         <div className="flex flex-wrap gap-2">
           {CONCERNS.map(c => {
             const on = concerns.includes(c.value)
@@ -714,25 +716,25 @@ export default function Products({ products: initial }: { products: Product[] })
             )
           })}
         </div>
-        <p className="text-xs text-muted mt-1.5">So'rovnoma shu teglar bo'yicha mos mahsulotni tavsiya qiladi.</p>
+        <p className="text-xs text-muted mt-1.5">{t('aprod.tagsHint')}</p>
       </div>
 
       {/* Gallery — result photos */}
       <div className="mt-5">
         <div className="flex items-center justify-between mb-2">
           <label className="text-sm font-medium text-muted flex items-center gap-1.5">
-            <Images className="w-4 h-4" /> Natija rasmlari
+            <Images className="w-4 h-4" /> {t('aprod.resultImages')}
           </label>
           <button type="button" onClick={() => galleryRef.current?.click()} disabled={galleryBusy}
             className="flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-br from-mint to-sky text-white px-3 py-1.5 rounded-full active:scale-95 transition disabled:opacity-50 shadow-sm">
-            {galleryBusy ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Qayta ishlanmoqda…</> : <><Plus className="w-3.5 h-3.5" /> Rasm qo'shish</>}
+            {galleryBusy ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('aprod.processing')}</> : <><Plus className="w-3.5 h-3.5" /> {t('aprod.addImage')}</>}
           </button>
         </div>
         <input ref={galleryRef} type="file" accept="image/*" multiple onChange={handleGalleryFiles} className="hidden" />
 
         {gallery.length === 0 ? (
           <p className="text-xs text-muted bg-cream rounded-xl px-4 py-3">
-            Bir nechta rasm qo'shing. Surib tartibini o'zgartiring.
+            {t('aprod.galleryHint')}
           </p>
         ) : (
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
@@ -749,7 +751,7 @@ export default function Products({ products: initial }: { products: Product[] })
                 <div className="absolute top-1 left-1 bg-black/40 rounded p-0.5">
                   <GripVertical className="w-3 h-3 text-white" />
                 </div>
-                <button aria-label="O'chirish" type="button" onClick={() => removeGalleryItem(i)}
+                <button aria-label={t('aprod.delete')} type="button" onClick={() => removeGalleryItem(i)}
                   className="absolute top-1 right-1 bg-danger text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition">
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -768,10 +770,10 @@ export default function Products({ products: initial }: { products: Product[] })
       <main className="p-6 max-w-5xl mx-auto">
 
         <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display font-bold text-ink text-2xl">Mahsulotlar</h2>
+          <h2 className="font-display font-bold text-ink text-2xl">{t('aprod.title')}</h2>
           <button onClick={openNew}
             className="flex items-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-semibold px-5 py-2.5 rounded-full shadow-rose active:scale-95 transition text-sm">
-            <Plus className="w-4 h-4" /> Yangi mahsulot
+            <Plus className="w-4 h-4" /> {t('aprod.new')}
           </button>
         </div>
 
@@ -779,14 +781,14 @@ export default function Products({ products: initial }: { products: Product[] })
         <div className={`rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3 ${expiringCount > 0 ? 'bg-orange-50 border border-orange-100' : 'bg-surface shadow-card'}`}>
           <div className="flex items-center gap-2 text-sm">
             {expiringCount > 0
-              ? <><AlertTriangle className="w-4 h-4 text-warning" /><span className="text-ink font-semibold">{expiringCount} ta mahsulot muddati tugagan yoki tez tugaydi</span></>
-              : <><CalendarClock className="w-4 h-4 text-success" /><span className="text-muted">Muddati tugayotgan mahsulot yo'q</span></>}
+              ? <><AlertTriangle className="w-4 h-4 text-warning" /><span className="text-ink font-semibold">{t('aprod.expiringSummary', { n: expiringCount })}</span></>
+              : <><CalendarClock className="w-4 h-4 text-success" /><span className="text-muted">{t('aprod.noExpiring')}</span></>}
           </div>
           <div className="flex items-center gap-3">
             {reportMsg && <span className="text-xs text-muted">{reportMsg}</span>}
             <button onClick={sendExpiryReport} disabled={reporting}
               className="text-xs font-semibold bg-gradient-to-br from-sky to-lavender text-white px-4 py-2 rounded-full active:scale-95 transition disabled:opacity-50 flex items-center gap-1.5">
-              <Send className="w-3.5 h-3.5" /> {reporting ? 'Yuborilmoqda…' : "Muddat hisobotini yuborish"}
+              <Send className="w-3.5 h-3.5" /> {reporting ? t('aprod.sending') : t('aprod.sendExpiryReport')}
             </button>
           </div>
         </div>
@@ -797,11 +799,11 @@ export default function Products({ products: initial }: { products: Product[] })
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-left px-5 py-4 font-semibold text-muted w-12"></th>
-                <th className="text-left px-5 py-4 font-semibold text-muted">Nomi</th>
-                <th className="text-right px-4 py-4 font-semibold text-muted">Retail</th>
-                <th className="text-right px-4 py-4 font-semibold text-muted">Chegirma</th>
-                <th className="text-right px-4 py-4 font-semibold text-muted">Xarid</th>
-                <th className="text-right px-4 py-4 font-semibold text-muted">Soni</th>
+                <th className="text-left px-5 py-4 font-semibold text-muted">{t('aprod.fName')}</th>
+                <th className="text-right px-4 py-4 font-semibold text-muted">{t('aprod.colRetail')}</th>
+                <th className="text-right px-4 py-4 font-semibold text-muted">{t('aprod.colDiscount')}</th>
+                <th className="text-right px-4 py-4 font-semibold text-muted">{t('aprod.colCost')}</th>
+                <th className="text-right px-4 py-4 font-semibold text-muted">{t('aprod.colQty')}</th>
                 <th className="px-4 py-4"></th>
               </tr>
             </thead>
@@ -821,19 +823,19 @@ export default function Products({ products: initial }: { products: Product[] })
                       {p.name}
                       {p.discontinued_at && (
                         <span className="ml-2 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-muted">
-                          Endi keltirilmaydi
+                          {t('state.discontinued')}
                         </span>
                       )}
                       {p.state === 'not_arrived' && (
                         <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky/20 text-sky align-middle">
-                          <Truck className="w-3 h-3" /> Yo'lda
+                          <Truck className="w-3 h-3" /> {t('aprod.onTheWay')}
                         </span>
                       )}
                       {(() => {
                         const { status, days } = expiryInfo(p.expiry_date)
                         if (status === 'none' || status === 'ok') return null
                         return <span className={`ml-2 inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${EXPIRY_STYLE[status]}`}>
-                          {EXPIRY_LABEL[status]}{status === 'expired' ? '' : ` · ${days}k`}
+                          {t(`expiry.${status}`)}{status === 'expired' ? '' : ` · ${t('aprod.daysShort', { n: days ?? 0 })}`}
                         </span>
                       })()}
                     </td>
@@ -845,7 +847,7 @@ export default function Products({ products: initial }: { products: Product[] })
                     <td className="px-4 py-3 text-right">
                       <div className="font-display font-bold text-ink">{Math.max(0, p.remaining ?? 0)}</div>
                       {(p.incoming_qty ?? 0) > 0 && (
-                        <div className="text-[10px] font-semibold text-sky">+{p.incoming_qty} yo'lda</div>
+                        <div className="text-[10px] font-semibold text-sky">{t('aprod.incomingShort', { n: p.incoming_qty ?? 0 })}</div>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -861,7 +863,7 @@ export default function Products({ products: initial }: { products: Product[] })
                             📢 Post
                           </button>
                         )}
-                        <button aria-label="Tahrirlash" onClick={() => openEdit(p)} className="text-rose hover:text-roseDark transition">
+                        <button aria-label={t('aprod.edit')} onClick={() => openEdit(p)} className="text-rose hover:text-roseDark transition">
                           <Pencil className="w-4 h-4" />
                         </button>
                       </div>
@@ -872,8 +874,8 @@ export default function Products({ products: initial }: { products: Product[] })
                     <tr>
                       <td colSpan={7} className="px-5 pb-3 pt-0">
                         <ConfirmBar
-                          question={`«${p.name}» katalogdan olib tashlansinmi? Saytda ko'rinmaydi, lekin sotuvlar va tarix saqlanadi.`}
-                          confirmLabel="Ha, olib tashlash"
+                          question={t('aprod.retireConfirm', { name: p.name })}
+                          confirmLabel={t('aprod.retireConfirmBtn')}
                           onConfirm={() => setDiscontinued(p, true)}
                           onCancel={() => setRetireId(null)}
                         />
@@ -888,7 +890,7 @@ export default function Products({ products: initial }: { products: Product[] })
                         <div className="bg-gradient-to-br from-sky/10 to-lavender/10 border border-lavender/30 rounded-2xl p-5">
                           <div className="flex items-center justify-between mb-3">
                             <p className="font-display font-semibold text-ink text-sm">📢 Post to Camelia Store</p>
-                            <button aria-label="Yopish" onClick={closeAnnounce} className="text-muted hover:text-ink transition"><X className="w-4 h-4" /></button>
+                            <button aria-label={t('common.close')} onClick={closeAnnounce} className="text-muted hover:text-ink transition"><X className="w-4 h-4" /></button>
                           </div>
                           {p.image_url && <img src={p.image_url} alt={p.name} className="w-24 h-24 rounded-xl object-cover shadow-sm mb-3" />}
                           <textarea value={caption} onChange={e => setCaption(e.target.value)} rows={9}
@@ -898,9 +900,9 @@ export default function Products({ products: initial }: { products: Product[] })
                             <button onClick={() => post(p)} disabled={posting || !caption.trim()}
                               className="flex items-center gap-2 bg-gradient-to-br from-sky to-lavender text-white font-semibold px-5 py-2.5 rounded-full active:scale-95 transition disabled:opacity-50 text-sm shadow-sm">
                               <Send className="w-4 h-4" />
-                              {posting ? 'Yuborilmoqda…' : "Telegram kanalga jo'natish"}
+                              {posting ? t('aprod.sending') : t('aprod.sendToChannel')}
                             </button>
-                            <button onClick={closeAnnounce} className="text-muted hover:text-ink text-sm px-4 py-2 transition">Bekor qilish</button>
+                            <button onClick={closeAnnounce} className="text-muted hover:text-ink text-sm px-4 py-2 transition">{t('aprod.cancel')}</button>
                           </div>
                         </div>
                       </td>
@@ -924,9 +926,9 @@ export default function Products({ products: initial }: { products: Product[] })
             {/* Sticky header */}
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 flex-shrink-0 sticky top-0 bg-surface rounded-t-2xl z-10">
               <h3 className="font-display font-bold text-ink text-xl">
-                {editing ? 'Mahsulotni tahrirlash' : 'Yangi mahsulot'}
+                {editing ? t('aprod.editTitle') : t('aprod.new')}
               </h3>
-              <button aria-label="Yopish" onClick={cancel} className="text-muted hover:text-ink transition p-1">
+              <button aria-label={t('common.close')} onClick={cancel} className="text-muted hover:text-ink transition p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -941,10 +943,10 @@ export default function Products({ products: initial }: { products: Product[] })
             <div className="flex gap-3 px-6 py-5 border-t border-gray-100 flex-shrink-0">
               <button onClick={save} disabled={loading || !form.name}
                 className="bg-gradient-to-br from-rose to-peach text-white font-semibold px-6 py-2.5 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50 text-sm">
-                {loading ? 'Saqlanmoqda…' : 'Saqlash'}
+                {loading ? t('aprod.saving') : t('aprod.save')}
               </button>
               <button onClick={cancel} className="text-muted hover:text-ink text-sm px-4 py-2.5 transition">
-                Bekor qilish
+                {t('aprod.cancel')}
               </button>
             </div>
           </div>
@@ -957,15 +959,15 @@ export default function Products({ products: initial }: { products: Product[] })
           <div className="bg-surface rounded-2xl shadow-card p-6 w-full max-w-2xl max-h-[92vh] flex flex-col">
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
               <h3 className="font-display font-bold text-ink text-lg flex items-center gap-2">
-                <CropIcon className="w-5 h-5 text-rose" /> Rasmni kesish
+                <CropIcon className="w-5 h-5 text-rose" /> {t('aprod.cropTitle')}
               </h3>
-              <button aria-label="Yopish" onClick={cancelCrop} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
+              <button aria-label={t('common.close')} onClick={cancelCrop} className="text-muted hover:text-ink transition"><X className="w-5 h-5" /></button>
             </div>
             <div className="flex gap-2 mb-4 flex-shrink-0">
-              {ASPECTS.map(({ label, value }) => (
-                <button key={label} onClick={() => changeAspect(value)}
+              {ASPECTS.map(({ labelKey, value }) => (
+                <button key={labelKey} onClick={() => changeAspect(value)}
                   className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${cropAspect === value ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-cream text-ink hover:bg-rose/10'}`}>
-                  {label}
+                  {value === undefined ? t('aprod.cropFree') : labelKey}
                 </button>
               ))}
             </div>
@@ -979,9 +981,9 @@ export default function Products({ products: initial }: { products: Product[] })
             <div className="flex gap-3 mt-4 flex-shrink-0">
               <button onClick={confirmCrop} disabled={!completedCrop}
                 className="bg-gradient-to-br from-rose to-peach text-white font-display font-semibold px-6 py-2.5 rounded-full shadow-rose active:scale-95 transition disabled:opacity-40">
-                Kesib olish ✂️
+                {t('aprod.cropBtn')}
               </button>
-              <button onClick={cancelCrop} className="text-muted hover:text-ink text-sm px-4 py-2.5 transition">Bekor qilish</button>
+              <button onClick={cancelCrop} className="text-muted hover:text-ink text-sm px-4 py-2.5 transition">{t('aprod.cancel')}</button>
             </div>
           </div>
         </div>
@@ -993,21 +995,24 @@ export default function Products({ products: initial }: { products: Product[] })
         <div className="fixed inset-0 z-[55] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setDiscountOffer(null)} />
           <div className="relative bg-surface rounded-2xl shadow-card p-6 max-w-sm w-full">
-            <p className="font-display font-bold text-ink text-lg mb-1">Chegirmani e'lon qilamizmi?</p>
+            <p className="font-display font-bold text-ink text-lg mb-1">{t('aprod.discountAskTitle')}</p>
             <p className="text-sm text-muted mb-4">
-              <b className="text-ink">{discountOffer.name}</b> uchun yangi chegirma:{' '}
-              <b className="text-rose">{formatUZS(discountOffer.price)}</b>.
-              Bu <b>@cameliakorea</b> kanaliga ochiq post sifatida yuboriladi.
+              <b className="text-ink">{discountOffer.name}</b> {t('aprod.discountFor')}{' '}
+              <b className="text-rose">{formatUZS(discountOffer.price)}</b>.{' '}
+              {(() => {
+                const parts = t('aprod.discountChannelNote').split('{ch}')
+                return <>{parts[0]}<b>@cameliakorea</b>{parts[1]}</>
+              })()}
             </p>
             <div className="flex gap-2">
               <button onClick={() => setDiscountOffer(null)} disabled={announcingDiscount}
                 className="flex-1 bg-cream text-ink text-sm font-semibold py-3 rounded-full active:scale-95 transition disabled:opacity-50">
-                Yo'q, e'lon qilinmasin
+                {t('aprod.discountNo')}
               </button>
               <button onClick={confirmDiscountPost} disabled={announcingDiscount}
                 className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-br from-sky to-lavender text-white text-sm font-semibold py-3 rounded-full active:scale-95 transition disabled:opacity-50">
                 <Send className="w-4 h-4" />
-                {announcingDiscount ? 'Yuborilmoqda…' : "Ha, e'lon qilish"}
+                {announcingDiscount ? t('aprod.sending') : t('aprod.discountYes')}
               </button>
             </div>
           </div>

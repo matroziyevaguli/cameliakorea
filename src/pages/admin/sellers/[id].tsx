@@ -2,7 +2,8 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
+import { useT, type TFunc } from '@/i18n'
 import AdminNav from '@/components/AdminNav'
 import Link from 'next/link'
 import { useState } from 'react'
@@ -10,13 +11,16 @@ import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, DollarSign, TrendingUp, AlertCircle, CheckCircle2, Wallet, Package, Wrench, Plus, History } from 'lucide-react'
 
 type Adjustment = { id: string; product_id: string; product_name: string; qty: number; reason: string; note: string | null; created_at: string }
-const REASONS: { value: string; label: string }[] = [
-  { value: 'damaged', label: 'Buzilgan' },
-  { value: 'lost',    label: "Yo'qolgan" },
-  { value: 'gift',    label: "Sovg'a" },
-  { value: 'other',   label: 'Boshqa' },
+const REASONS: { value: string; labelKey: string }[] = [
+  { value: 'damaged', labelKey: 'aslr.reasonDamaged' },
+  { value: 'lost',    labelKey: 'aslr.reasonLost' },
+  { value: 'gift',    labelKey: 'aslr.reasonGift' },
+  { value: 'other',   labelKey: 'aslr.reasonOther' },
 ]
-const reasonLabel = (r: string) => REASONS.find(x => x.value === r)?.label ?? r
+const reasonLabel = (t: TFunc, r: string) => {
+  const found = REASONS.find(x => x.value === r)
+  return found ? t(found.labelKey) : r
+}
 
 type SellerProduct = {
   product_id: string
@@ -50,7 +54,7 @@ type SaleEdit = {
   product_name: string | null
 }
 const EDIT_LABEL: Record<string, string> = {
-  qty: 'Son', price: 'Narx', cancel: 'Bekor qildi', restore: 'Qaytardi',
+  qty: 'aslr.editQty', price: 'aslr.editPrice', cancel: 'aslr.editCancel', restore: 'aslr.editRestore',
 }
 
 type Props = {
@@ -63,15 +67,16 @@ type Props = {
   edits: SaleEdit[]
 }
 
-const cards = (s: Summary) => [
-  { label: 'Umumiy savdo',   value: formatUZS(s.totalRevenue), icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark' },
-  { label: 'Daromadi',       value: formatUZS(s.theirProfit),  icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success' },
-  { label: S.moneyCollect,   value: formatUZS(s.owed),         icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning' },
-  { label: S.moneyHandedOver,value: formatUZS(s.submitted),    icon: CheckCircle2,bg: 'bg-gradient-to-br from-sky to-lavender' },
-  { label: 'Qoldiq qarz',    value: formatUZS(s.balance),      icon: Wallet,      bg: s.balance > 0 ? 'bg-gradient-to-br from-danger to-rose' : 'bg-gradient-to-br from-success to-mint' },
-]
-
 export default function SellerDetail({ sellerId, sellerName, summary, products, sales, adjustments: initialAdjustments, edits }: Props) {
+  const t = useT()
+  const S = useS()
+  const cards = (s: Summary) => [
+    { label: t('aslr.cardTotalSales'), value: formatUZS(s.totalRevenue), icon: DollarSign,  bg: 'bg-gradient-to-br from-rose to-roseDark' },
+    { label: t('aslr.cardProfit'),     value: formatUZS(s.theirProfit),  icon: TrendingUp,  bg: 'bg-gradient-to-br from-mint to-success' },
+    { label: S.moneyCollect,           value: formatUZS(s.owed),         icon: AlertCircle, bg: 'bg-gradient-to-br from-peach to-warning' },
+    { label: S.moneyHandedOver,        value: formatUZS(s.submitted),    icon: CheckCircle2,bg: 'bg-gradient-to-br from-sky to-lavender' },
+    { label: t('aslr.cardBalance'),    value: formatUZS(s.balance),      icon: Wallet,      bg: s.balance > 0 ? 'bg-gradient-to-br from-danger to-rose' : 'bg-gradient-to-br from-success to-mint' },
+  ]
   // G2 — update in place, reconcile in the background.
   const [adjustments, setAdjustments] = useState<Adjustment[]>(initialAdjustments)
   const [productId, setProductId] = useState('')
@@ -84,7 +89,7 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
   async function addAdjustment(e: React.FormEvent) {
     e.preventDefault()
     const n = Number(qty)
-    if (!productId || n <= 0) { setError("Mahsulot va soni to'g'ri bo'lsin"); return }
+    if (!productId || n <= 0) { setError(t('aslr.errAdjustment')); return }
     setSaving(true); setError('')
     const supabase = createBrowser()
     const { error: err } = await supabase.from('stock_adjustments').insert({
@@ -110,7 +115,7 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
         {/* Back + title */}
         <div>
           <Link href="/admin/sellers" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-rose transition mb-3">
-            <ChevronLeft className="w-4 h-4" /> Sotuvchilar
+            <ChevronLeft className="w-4 h-4" /> {t('aslr.backToSellers')}
           </Link>
           <h2 className="font-display font-bold text-ink text-2xl">{sellerName}</h2>
         </div>
@@ -135,21 +140,21 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <Package className="w-4 h-4 text-rose" />
-            <h3 className="font-display font-bold text-ink text-lg">Mahsulotlar bo'yicha</h3>
+            <h3 className="font-display font-bold text-ink text-lg">{t('aslr.byProduct')}</h3>
           </div>
           {products.length === 0 ? (
-            <p className="text-muted text-sm px-6 py-8 text-center">Mahsulot biriktirilmagan</p>
+            <p className="text-muted text-sm px-6 py-8 text-center">{t('aslr.noProducts')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-6 py-3 font-semibold text-muted">Mahsulot</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Bergan</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Sotgan</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Qolgan</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Savdo</th>
-                    <th className="text-right px-6 py-3 font-semibold text-muted">Foyda</th>
+                    <th className="text-left px-6 py-3 font-semibold text-muted">{t('aslr.colProduct')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('aslr.colGiven')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('aslr.colSold')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('aslr.colLeft')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('aslr.colRevenue')}</th>
+                    <th className="text-right px-6 py-3 font-semibold text-muted">{t('aslr.colProfit')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -166,7 +171,7 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-100 bg-cream/60">
-                    <td className="px-6 py-3 font-display font-bold text-ink">Jami</td>
+                    <td className="px-6 py-3 font-display font-bold text-ink">{t('aslr.total')}</td>
                     <td className="px-4 py-3 text-right font-bold text-ink">{products.reduce((a, p) => a + p.had, 0)}</td>
                     <td className="px-4 py-3 text-right font-bold text-success">{products.reduce((a, p) => a + p.sold, 0)}</td>
                     <td className="px-4 py-3 text-right font-bold text-ink">{products.reduce((a, p) => a + p.left, 0)}</td>
@@ -182,19 +187,19 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
         {/* Individual sales */}
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
-            <h3 className="font-display font-bold text-ink text-lg">So'nggi sotuvlar</h3>
+            <h3 className="font-display font-bold text-ink text-lg">{t('aslr.recentSales')}</h3>
           </div>
           {sales.length === 0 ? (
-            <p className="text-muted text-sm px-6 py-8 text-center">Hali sotuv yo'q</p>
+            <p className="text-muted text-sm px-6 py-8 text-center">{t('aslr.noSales')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted">Mahsulot</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Soni</th>
-                    <th className="text-right px-6 py-3 font-semibold text-muted">Narxi</th>
+                    <th className="text-left px-6 py-3 font-semibold text-muted">{t('aslr.colDate')}</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">{t('aslr.colProduct')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('aslr.colQty')}</th>
+                    <th className="text-right px-6 py-3 font-semibold text-muted">{t('aslr.colPrice')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -218,18 +223,18 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
           <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <History className="w-4 h-4 text-rose" />
-              <h3 className="font-display font-bold text-ink text-lg">Sotuv tuzatishlari</h3>
-              <span className="ml-auto text-xs text-muted">{edits.length} ta</span>
+              <h3 className="font-display font-bold text-ink text-lg">{t('aslr.editsTitle')}</h3>
+              <span className="ml-auto text-xs text-muted">{t('aslr.editsCount', { n: edits.length })}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[560px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted">Mahsulot</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted">Nima</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">O'zgarish</th>
-                    <th className="text-left px-6 py-3 font-semibold text-muted">Sabab</th>
+                    <th className="text-left px-6 py-3 font-semibold text-muted">{t('aslr.colDate')}</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">{t('aslr.colProduct')}</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">{t('aslr.colWhat')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('aslr.colChange')}</th>
+                    <th className="text-left px-6 py-3 font-semibold text-muted">{t('aslr.colReason')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -239,7 +244,7 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
                       <td className="px-4 py-3 font-medium text-ink">{e.product_name ?? '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${e.action === 'cancel' ? 'bg-red-50 text-danger' : e.action === 'restore' ? 'bg-green-50 text-success' : 'bg-lavender/20 text-ink'}`}>
-                          {EDIT_LABEL[e.action] ?? e.action}
+                          {EDIT_LABEL[e.action] ? t(EDIT_LABEL[e.action]) : e.action}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right text-ink">
@@ -258,53 +263,53 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <Wrench className="w-4 h-4 text-rose" />
-            <h3 className="font-display font-bold text-ink text-lg">Ombor tuzatish</h3>
+            <h3 className="font-display font-bold text-ink text-lg">{t('aslr.stockTitle')}</h3>
           </div>
 
           <form onSubmit={addAdjustment} className="p-6 grid gap-3 sm:grid-cols-5 items-end border-b border-gray-100">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-muted mb-1">Mahsulot</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('aslr.adjProduct')}</label>
               <select value={productId} onChange={e => setProductId(e.target.value)} required
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
-                <option value="">Tanlang…</option>
-                {products.map(p => <option key={p.product_id} value={p.product_id}>{p.product_name} (qoldi: {p.left})</option>)}
+                <option value="">{t('aslr.pick')}</option>
+                {products.map(p => <option key={p.product_id} value={p.product_id}>{t('aslr.optLeft', { name: p.product_name, left: p.left })}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Soni</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('aslr.adjQty')}</label>
               <input type="number" min={1} value={qty} onChange={e => setQty(e.target.value)} required placeholder="0"
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-muted mb-1">Sabab</label>
+              <label className="block text-xs font-semibold text-muted mb-1">{t('aslr.adjReason')}</label>
               <select value={reason} onChange={e => setReason(e.target.value)}
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
-                {REASONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                {REASONS.map(r => <option key={r.value} value={r.value}>{t(r.labelKey)}</option>)}
               </select>
             </div>
             <button type="submit" disabled={saving}
               className="flex items-center justify-center gap-1.5 bg-gradient-to-br from-rose to-peach text-white font-semibold px-4 py-2.5 rounded-xl shadow-rose active:scale-95 transition disabled:opacity-50 text-sm">
-              <Plus className="w-4 h-4" /> {saving ? 'Saqlanmoqda…' : "Qo'shish"}
+              <Plus className="w-4 h-4" /> {saving ? t('aslr.adjSaving') : t('aslr.adjAdd')}
             </button>
             <div className="sm:col-span-5">
-              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Izoh (ixtiyoriy)"
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder={t('aslr.notePlaceholder')}
                 className="w-full bg-cream text-ink rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
               {error && <p className="text-danger text-xs mt-2">{error}</p>}
             </div>
           </form>
 
           {adjustments.length === 0 ? (
-            <p className="text-muted text-sm px-6 py-6 text-center">Tuzatishlar yo'q</p>
+            <p className="text-muted text-sm px-6 py-6 text-center">{t('aslr.noAdjustments')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm min-w-[520px]">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted">Mahsulot</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted">Sabab</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted">Izoh</th>
-                    <th className="text-right px-6 py-3 font-semibold text-muted">Soni</th>
+                    <th className="text-left px-6 py-3 font-semibold text-muted">{t('aslr.colDate')}</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">{t('aslr.colProduct')}</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">{t('aslr.adjReason')}</th>
+                    <th className="text-left px-4 py-3 font-semibold text-muted">{t('aslr.colNote')}</th>
+                    <th className="text-right px-6 py-3 font-semibold text-muted">{t('aslr.adjQty')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -312,7 +317,7 @@ export default function SellerDetail({ sellerId, sellerName, summary, products, 
                     <tr key={a.id} className={i % 2 === 1 ? 'bg-cream/50' : ''}>
                       <td className="px-6 py-3 text-muted">{formatDate(a.created_at)}</td>
                       <td className="px-4 py-3 font-medium text-ink">{a.product_name}</td>
-                      <td className="px-4 py-3"><span className="text-xs font-semibold bg-red-50 text-danger px-2 py-0.5 rounded-full">{reasonLabel(a.reason)}</span></td>
+                      <td className="px-4 py-3"><span className="text-xs font-semibold bg-red-50 text-danger px-2 py-0.5 rounded-full">{reasonLabel(t, a.reason)}</span></td>
                       <td className="px-4 py-3 text-muted">{a.note ?? '—'}</td>
                       <td className="px-6 py-3 text-right font-display font-bold text-danger">−{a.qty}</td>
                     </tr>

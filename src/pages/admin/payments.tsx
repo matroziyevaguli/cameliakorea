@@ -2,7 +2,8 @@ import { GetServerSideProps } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import { requireRole } from '@/lib/guards'
 import { formatUZS, formatDate } from '@/lib/format'
-import { S } from '@/consts/strings'
+import { useS } from '@/consts/strings'
+import { useT } from '@/i18n'
 import { useState } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
@@ -24,6 +25,8 @@ type Row = {
 type Payment = { id: string; seller_id: string; amount: number; note: string | null; paid_at: string }
 
 export default function Payments({ rows: initialRows, payments: initialPayments }: { rows: Row[]; payments: Payment[] }) {
+  const t = useT()
+  const S = useS()
   const [rows, setRows] = useState<Row[]>(initialRows)
   const [payments, setPayments] = useState<Payment[]>(initialPayments)
   const [sellerId, setSellerId] = useState('')
@@ -77,7 +80,7 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
     if (r.balance <= 0) return
     setBusyId(r.seller_id)
     const supabase = createBrowser()
-    const { error: err } = await supabase.from('payments').insert({ seller_id: r.seller_id, amount: r.balance, note: "To'liq hisob-kitob" })
+    const { error: err } = await supabase.from('payments').insert({ seller_id: r.seller_id, amount: r.balance, note: t('apay.settle_note') })
     setBusyId(null); setSettleId(null)
     if (err) { setError(err.message); return }
     await refresh(supabase)
@@ -96,23 +99,21 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
     <div className="min-h-screen bg-cream">
       <AdminNav />
       <main className="p-6 max-w-6xl mx-auto space-y-6">
-        <h2 className="font-display font-bold text-ink text-2xl">To'lovlar va foyda</h2>
+        <h2 className="font-display font-bold text-ink text-2xl">{t('apay.title')}</h2>
 
         {/* How it works — plain explainer */}
         <div className="bg-gradient-to-br from-sky/10 to-lavender/10 border border-lavender/30 rounded-2xl p-5 flex gap-3">
           <Info className="w-5 h-5 text-lavender flex-shrink-0 mt-0.5" />
           <div className="text-sm text-ink leading-relaxed">
-            <b>Qanday ishlaydi:</b> Sotuvchi mijozdan <b>to'liq pul</b> oladi. O'z daromad ulushini
-            (har bir sotuvchining kelishilgan foizi) o'zida qoldiradi. Qolganini — ya'ni
-            <b>tovar puli + sizning daromad ulushingiz</b> — sizga topshiradi. Demak "{S.moneyCollect}"
-            summasi hammasi daromad emas: ko'p qismi tovaringiz puli qaytib kelmoqda.
+            <b>{t('apay.how_label')}</b> {t('apay.how_1')} <b>{t('apay.how_bold1')}</b> {t('apay.how_2')}{' '}
+            <b>{t('apay.how_bold2')}</b> {t('apay.how_3', { collect: S.moneyCollect })}
           </div>
         </div>
 
         {/* Owner KPI cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-gradient-to-br from-mint to-success text-white rounded-2xl p-5 shadow-card">
-            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">Mening jami daromadim</p><TrendingUp className="w-5 h-5 opacity-70" /></div>
+            <div className="flex items-center justify-between mb-2"><p className="text-sm font-medium opacity-80">{t('apay.total_my_profit')}</p><TrendingUp className="w-5 h-5 opacity-70" /></div>
             <p className="font-display text-2xl font-bold">{formatUZS(totalMyProfit)}</p>
           </div>
           <div className="bg-gradient-to-br from-peach to-warning text-white rounded-2xl p-5 shadow-card">
@@ -130,13 +131,13 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="text-left px-5 py-4 font-semibold text-muted">Sotuvchi</th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Sotgan</th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Ularning daromadi<br /><span className="font-normal text-[11px]">(ularning ulushi, o'zida)</span></th>
-                <th className="text-right px-3 py-4 font-semibold text-success">{S.earningsAdmin}<br /><span className="font-normal text-[11px]">(qolgan ulush)</span></th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">{S.moneyCollect}<br /><span className="font-normal text-[11px]">(tovar+daromadim)</span></th>
+                <th className="text-left px-5 py-4 font-semibold text-muted">{t('apay.col_seller')}</th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">{t('apay.col_sold')}</th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">{t('apay.col_their_profit')}<br /><span className="font-normal text-[11px]">{t('apay.col_their_profit_sub')}</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-success">{S.earningsAdmin}<br /><span className="font-normal text-[11px]">{t('apay.col_my_profit_sub')}</span></th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">{S.moneyCollect}<br /><span className="font-normal text-[11px]">{t('apay.col_collect_sub')}</span></th>
                 <th className="text-right px-3 py-4 font-semibold text-muted">{S.moneyHandedOver}</th>
-                <th className="text-right px-3 py-4 font-semibold text-muted">Qolgan</th>
+                <th className="text-right px-3 py-4 font-semibold text-muted">{t('apay.col_remaining')}</th>
                 <th className="px-3 py-4"></th>
               </tr>
             </thead>
@@ -158,15 +159,15 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
                   <td className="px-3 py-4 text-right">
                     {settleId === r.seller_id ? (
                       <ConfirmBar compact tone="primary"
-                        question={`${formatUZS(r.balance)} to'liq?`}
-                        confirmLabel="Ha, to'landi"
+                        question={t('apay.settle_q', { amount: formatUZS(r.balance) })}
+                        confirmLabel={t('apay.settle_yes')}
                         busy={busyId === r.seller_id}
                         onConfirm={() => settleFull(r)}
                         onCancel={() => setSettleId(null)}
                       />
                     ) : r.balance > 0 && (
-                      <button onClick={() => setSettleId(r.seller_id)} title="To'liq to'lov"
-                        className="text-xs text-rose hover:text-roseDark font-medium whitespace-nowrap">To'liq ✓</button>
+                      <button onClick={() => setSettleId(r.seller_id)} title={t('apay.settle_full_title')}
+                        className="text-xs text-rose hover:text-roseDark font-medium whitespace-nowrap">{t('apay.settle_full')}</button>
                     )}
                   </td>
                 </tr>
@@ -175,39 +176,39 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
           </table>
         </div>
         <p className="text-xs text-muted -mt-3">
-          "Qolgan" ustunidagi <span className="text-success font-semibold">+summa</span> — siz sotuvchiga ortiqcha qaytarishingiz kerakligini bildiradi.
+          {t('apay.remaining_note_1')} <span className="text-success font-semibold">{t('apay.remaining_note_plus')}</span> {t('apay.remaining_note_2')}
         </p>
 
         {/* Record payment */}
         <div className="bg-surface rounded-2xl shadow-card p-6">
           <h3 className="font-display font-bold text-ink text-lg mb-5 flex items-center gap-2">
-            <PlusCircle className="w-5 h-5 text-rose" /> To'lov qabul qilish
+            <PlusCircle className="w-5 h-5 text-rose" /> {t('apay.record_title')}
           </h3>
           <form onSubmit={record} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-muted mb-1">Sotuvchi</label>
+              <label className="block text-sm font-semibold text-muted mb-1">{t('apay.col_seller')}</label>
               <select value={sellerId} onChange={e => setSellerId(e.target.value)} required
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition">
-                <option value="">Tanlang…</option>
-                {rows.map(r => <option key={r.seller_id} value={r.seller_id}>{r.seller_name} — qoldi: {formatUZS(Math.max(0, r.balance))}</option>)}
+                <option value="">{t('apay.select_ph')}</option>
+                {rows.map(r => <option key={r.seller_id} value={r.seller_id}>{t('apay.seller_option', { name: r.seller_name, amount: formatUZS(Math.max(0, r.balance)) })}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-muted mb-1">Miqdor (so'm)</label>
+              <label className="block text-sm font-semibold text-muted mb-1">{t('apay.amount_label')}</label>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)} required min={1}
-                placeholder="Masalan: 500000"
+                placeholder={t('apay.amount_ph')}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-muted mb-1">Izoh (ixtiyoriy)</label>
-              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Masalan: naqd pul"
+              <label className="block text-sm font-semibold text-muted mb-1">{t('apay.note_label')}</label>
+              <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder={t('apay.note_ph')}
                 className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition" />
             </div>
             {error && <p className="text-danger text-sm">{error}</p>}
-            {success && <div className="flex items-center gap-2 text-success text-sm font-semibold"><CheckCircle className="w-4 h-4" /> Saqlandi!</div>}
+            {success && <div className="flex items-center gap-2 text-success text-sm font-semibold"><CheckCircle className="w-4 h-4" /> {t('apay.saved')}</div>}
             <button type="submit" disabled={loading}
               className="bg-gradient-to-br from-rose to-peach text-white font-display font-bold px-8 py-3 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50">
-              {loading ? 'Saqlanmoqda…' : "To'lovni saqlash"}
+              {loading ? t('common.saving') : t('apay.save_payment')}
             </button>
           </form>
         </div>
@@ -216,19 +217,19 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
         <div className="bg-surface rounded-2xl shadow-card overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <History className="w-4 h-4 text-rose" />
-            <h3 className="font-display font-bold text-ink text-lg">To'lov tarixi</h3>
+            <h3 className="font-display font-bold text-ink text-lg">{t('apay.history_title')}</h3>
           </div>
           {payments.length === 0 ? (
-            <p className="text-muted text-sm px-6 py-8 text-center">Hali to'lov yo'q</p>
+            <p className="text-muted text-sm px-6 py-8 text-center">{t('apay.no_payments')}</p>
           ) : (
             <div className="overflow-x-auto">
             <table className="w-full text-sm min-w-[560px]">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left px-6 py-3 font-semibold text-muted">Sana</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted">Sotuvchi</th>
-                  <th className="text-left px-4 py-3 font-semibold text-muted">Izoh</th>
-                  <th className="text-right px-4 py-3 font-semibold text-muted">Miqdor</th>
+                  <th className="text-left px-6 py-3 font-semibold text-muted">{t('apay.col_date')}</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted">{t('apay.col_seller')}</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted">{t('apay.col_note')}</th>
+                  <th className="text-right px-4 py-3 font-semibold text-muted">{t('apay.col_amount')}</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -242,14 +243,14 @@ export default function Payments({ rows: initialRows, payments: initialPayments 
                     <td className="px-4 py-3 text-right">
                       {deleteId === p.id ? (
                         <ConfirmBar compact
-                          question="O'chirilsinmi?"
-                          confirmLabel="Ha"
+                          question={t('apay.delete_q')}
+                          confirmLabel={t('common.yes')}
                           busy={busyId === p.id}
                           onConfirm={() => deletePayment(p.id)}
                           onCancel={() => setDeleteId(null)}
                         />
                       ) : (
-                        <button onClick={() => setDeleteId(p.id)} aria-label="To'lovni o'chirish" title="O'chirish"
+                        <button onClick={() => setDeleteId(p.id)} aria-label={t('apay.delete_payment_aria')} title={t('common.remove')}
                           className="text-danger/50 hover:text-danger transition">
                           <Trash2 className="w-4 h-4" />
                         </button>

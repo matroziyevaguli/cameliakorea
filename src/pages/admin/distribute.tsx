@@ -5,6 +5,7 @@ import { useState, useMemo } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import AdminNav from '@/components/AdminNav'
 import { Share2, CheckCircle, Plus, Minus } from 'lucide-react'
+import { useT } from '@/i18n'
 
 type Product = { id: string; name: string; total_qty: number; image_url: string | null }
 
@@ -28,6 +29,7 @@ type Props = {
 }
 
 export default function Distribute({ products, sellers, cells: initialCells }: Props) {
+  const t = useT()
   const [cells, setCells] = useState(initialCells)
   const [productId, setProductId] = useState('')
   const [qtys, setQtys] = useState<Record<string, string>>({})
@@ -109,7 +111,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
     }
 
     if (!ops.length) {
-      setError("Hech qanday o'zgarish yo'q"); setLoading(false); return
+      setError(t('adist.errNoChange')); setLoading(false); return
     }
 
     // Apply reductions before increases so a mix can't transiently exceed stock.
@@ -143,20 +145,20 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
     <div className="min-h-screen bg-cream">
       <AdminNav />
       <main className="p-6 max-w-2xl mx-auto">
-        <h2 className="font-display font-bold text-ink text-2xl mb-6">Mahsulot taqsimlash</h2>
+        <h2 className="font-display font-bold text-ink text-2xl mb-6">{t('adist.title')}</h2>
 
         <div className="bg-surface rounded-2xl shadow-card p-6 space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-muted mb-2">Mahsulot</label>
+            <label className="block text-sm font-semibold text-muted mb-2">{t('adist.product')}</label>
             <select
               value={productId}
               onChange={e => pickProduct(e.target.value)}
               className="w-full bg-cream text-ink rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose border-2 border-transparent transition"
             >
-              <option value="">Tanlang…</option>
+              <option value="">{t('adist.pick')}</option>
               {products.map(p => {
                 const alloc = sellers.reduce((n, s) => n + (cells[`${p.id}|${s.id}`]?.allocated ?? 0), 0)
-                return <option key={p.id} value={p.id}>{p.name} — {p.total_qty - alloc} ta bo'sh</option>
+                return <option key={p.id} value={p.id}>{t('adist.optFree', { name: p.name, n: p.total_qty - alloc })}</option>
               })}
             </select>
             {/* Selected product photo (a select can't show it inline) */}
@@ -172,10 +174,10 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: 'Jami', value: selected.total_qty, color: 'bg-lavender/20 text-ink' },
-                  { label: 'Sotuvchilarda', value: totalOnHand, color: 'bg-peach/20 text-ink' },
-                  { label: 'Sotilgan', value: soldTotal, color: 'bg-sky/10 text-ink' },
-                  { label: "Bo'sh", value: unallocated, color: unallocated < 0 ? 'bg-red-100 text-danger' : 'bg-mint/20 text-success' },
+                  { label: t('adist.statTotal'), value: selected.total_qty, color: 'bg-lavender/20 text-ink' },
+                  { label: t('adist.statSellers'), value: totalOnHand, color: 'bg-peach/20 text-ink' },
+                  { label: t('adist.statSold'), value: soldTotal, color: 'bg-sky/10 text-ink' },
+                  { label: t('adist.statFree'), value: unallocated, color: unallocated < 0 ? 'bg-red-100 text-danger' : 'bg-mint/20 text-success' },
                 ].map(s => (
                   <div key={s.label} className={`${s.color} rounded-xl p-3 text-center`}>
                     <p className="text-xs text-muted mb-1">{s.label}</p>
@@ -185,14 +187,13 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
               </div>
 
               <p className="text-xs text-muted -mt-1">
-                Raqam — sotuvchining <b>hozir qo'lidagi soni</b>. Ko'paytirsangiz yangi partiya berasiz,
-                kamaytirsangiz qaytarib olasiz. Sotilgani alohida hisoblanadi. O'zgarish har qatorda{' '}
-                <b className="text-rose">+3 / −1</b> ko'rinishida ko'rsatiladi.
+                {t('adist.hintA')}<b>{t('adist.hintBold1')}</b>{t('adist.hintB')}
+                <b className="text-rose">+3 / −1</b>{t('adist.hintC')}
               </p>
 
               {overLimit && (
                 <div className="rounded-xl px-4 py-3 text-sm font-semibold bg-red-50 text-danger">
-                  {-unallocated} ta oshib ketdi — bo'sh {selected.total_qty - soldTotal} ta.
+                  {t('adist.overLimit', { over: -unallocated, free: selected.total_qty - soldTotal })}
                 </div>
               )}
 
@@ -208,7 +209,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                       <div className="flex-1 min-w-0">
                         <span className="font-medium text-ink">{s.full_name}</span>
                         <span className="text-xs text-muted ml-2">
-                          qo'lida: {onHandNow} · sotildi: {c.sold}
+                          {t('adist.rowHeld', { held: onHandNow, sold: c.sold })}
                         </span>
                       </div>
 
@@ -221,7 +222,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
 
                       {/* Stepper + field: nudging is safer than retyping a total */}
                       <div className="flex items-center gap-1 flex-shrink-0">
-                        <button type="button" aria-label="Kamaytirish"
+                        <button type="button" aria-label={t('common.decrease')}
                           onClick={() => setQtys(q => ({ ...q, [s.id]: String(Math.max(0, next - 1)) }))}
                           className="w-8 h-8 rounded-full bg-surface grid place-items-center text-ink active:scale-90 transition">
                           <Minus className="w-4 h-4" />
@@ -234,7 +235,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                           placeholder="0"
                           className="w-16 bg-surface text-ink text-center rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 border-2 border-transparent focus:ring-rose transition"
                         />
-                        <button type="button" aria-label="Ko'paytirish"
+                        <button type="button" aria-label={t('common.increase')}
                           onClick={() => setQtys(q => ({ ...q, [s.id]: String(next + 1) }))}
                           className="w-8 h-8 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition">
                           <Plus className="w-4 h-4" />
@@ -248,7 +249,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
               {error && <p className="text-danger text-sm">{error}</p>}
               {success && (
                 <div className="flex items-center gap-2 text-success text-sm font-semibold">
-                  <CheckCircle className="w-4 h-4" /> Saqlandi!
+                  <CheckCircle className="w-4 h-4" /> {t('adist.saved')}
                 </div>
               )}
 
@@ -258,7 +259,7 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
                 className="w-full flex items-center justify-center gap-2 bg-gradient-to-br from-rose to-peach text-white font-display font-bold py-4 rounded-full shadow-rose active:scale-95 transition disabled:opacity-50"
               >
                 <Share2 className="w-5 h-5" />
-                {loading ? 'Saqlanmoqda…' : 'Saqlash'}
+                {loading ? t('adist.saving') : t('adist.save')}
               </button>
             </>
           )}
@@ -267,27 +268,27 @@ export default function Distribute({ products, sellers, cells: initialCells }: P
         {/* Undistributed products summary */}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-display font-bold text-ink text-lg">Taqsimlanmagan mahsulotlar</h3>
+            <h3 className="font-display font-bold text-ink text-lg">{t('adist.undistTitle')}</h3>
             {undistributedList.length > 0 && (
               <span className="text-xs font-semibold text-rose bg-rose/10 px-3 py-1.5 rounded-full">
-                {undistributedList.length} ta mahsulot · {totalLeft} ta qoldi
+                {t('adist.undistBadge', { n: undistributedList.length, left: totalLeft })}
               </span>
             )}
           </div>
 
           {undistributedList.length === 0 ? (
             <div className="bg-surface rounded-2xl shadow-card p-6 text-center text-success text-sm font-semibold">
-              Hammasi taqsimlangan ✅
+              {t('adist.allDistributed')}
             </div>
           ) : (
             <div className="bg-surface rounded-2xl shadow-card overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left px-5 py-3 font-semibold text-muted">Mahsulot</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Jami</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted">Taqsimlangan</th>
-                    <th className="text-right px-5 py-3 font-semibold text-muted">Qoldi</th>
+                    <th className="text-left px-5 py-3 font-semibold text-muted">{t('adist.colProduct')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('adist.colTotal')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-muted">{t('adist.colDistributed')}</th>
+                    <th className="text-right px-5 py-3 font-semibold text-muted">{t('adist.colLeft')}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -7,6 +7,7 @@ import { useRouter } from 'next/router'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Minus, Plus, Check, Clock, Gift } from 'lucide-react'
 import { useS } from '@/consts/strings'
+import { useT, type TFunc } from '@/i18n'
 import { addPending } from '@/lib/pendingSales'
 
 type Product = {
@@ -31,15 +32,16 @@ function Thumb({ p, i, className = '' }: { p: Product; i: number; className?: st
   )
 }
 
-function friendlyError(msg?: string) {
-  if (!msg) return "Xatolik — qayta urinib ko'ring"
+function friendlyError(t: TFunc, msg?: string) {
+  if (!msg) return t('sell.errGeneric')
   // DB guard messages are already friendly Uzbek → pass them through; hide raw English.
   if (/mahsulot|yetarli|yo'q|biriktir/i.test(msg)) return msg
-  return "Xatolik — qayta urinib ko'ring"
+  return t('sell.errGeneric')
 }
 
 export default function Sell({ products, sellerId, preselectedId }: Props) {
   const S = useS()
+  const t = useT()
   const router = useRouter()
   const inStock = products.filter(p => p.remaining > 0)
   const preOk = preselectedId ? inStock.some(p => p.product_id === preselectedId) : false
@@ -90,7 +92,7 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
 
     // ── Gift ("Sovg'a") — record a stock adjustment, not a sale. Free; seller owes nothing. ──
     if (isGift) {
-      if (!giftName.trim() || !giftPhone.trim()) { setError('Kimga va telefon raqamini kiriting'); return }
+      if (!giftName.trim() || !giftPhone.trim()) { setError(t('sell.errGiftFields')); return }
       setLoading(true); setError('')
       try {
         const res = await fetch('/api/seller/gift', {
@@ -99,9 +101,9 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
         })
         const j = await res.json().catch(() => ({}))
         setLoading(false)
-        if (!res.ok) { setError(friendlyError(j.error)); return }
+        if (!res.ok) { setError(friendlyError(t, j.error)); return }
         setResult({ profit: null, amount: 0, saleId: null, offline: false, gift: giftName.trim() })
-      } catch { setError("Internet bilan muammo — qayta urinib ko'ring"); setLoading(false) }
+      } catch { setError(t('sell.errNet')); setLoading(false) }
       return
     }
 
@@ -120,7 +122,7 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
     try {
       const { data: inserted, error: insertErr } = await supabase
         .from('sales').insert(payload).select('id').single()
-      if (insertErr || !inserted) { setError(friendlyError(insertErr?.message)); setLoading(false); return }
+      if (insertErr || !inserted) { setError(friendlyError(t, insertErr?.message)); setLoading(false); return }
 
       // Profit comes from the view (never computed client-side).
       const { data: sale } = await supabase.from('v_my_sales').select('your_profit').eq('id', inserted.id).single()
@@ -160,9 +162,9 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
           {result.gift ? (
             <>
               <div className="w-24 h-24 rounded-full bg-lavender/20 grid place-items-center"><Gift className="w-12 h-12 text-lavender" /></div>
-              <p className="font-display text-2xl font-bold text-ink">Sovg'a berildi 🎁</p>
-              <p className="text-sm text-muted">Kimga: <b className="text-ink">{result.gift}</b></p>
-              <p className="text-xs text-muted max-w-xs">Ombordan {qty} ta ayirildi. Bu bepul — hisobingizga yozilmaydi.</p>
+              <p className="font-display text-2xl font-bold text-ink">{t('sell.giftDone')}</p>
+              <p className="text-sm text-muted">{t('sell.giftTo')} <b className="text-ink">{result.gift}</b></p>
+              <p className="text-xs text-muted max-w-xs">{t('sell.giftDeducted', { qty })}</p>
             </>
           ) : result.offline ? (
             <>
@@ -211,7 +213,7 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
     <div className="min-h-screen bg-cream flex flex-col">
       <div className="px-5 pt-8 pb-2">
         <div className="flex items-center gap-3">
-          <button aria-label="Orqaga" onClick={back} className="w-9 h-9 rounded-full bg-surface shadow-card grid place-items-center text-ink active:scale-90 transition">
+          <button aria-label={t('common.back')} onClick={back} className="w-9 h-9 rounded-full bg-surface shadow-card grid place-items-center text-ink active:scale-90 transition">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="font-display text-xl font-bold text-ink">{titles[step]}</h1>
@@ -244,17 +246,17 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
 
             {/* Quantity */}
             <div className="flex items-center justify-center gap-8">
-              <button aria-label="Kamaytirish" onClick={() => setQty(q => Math.max(1, q - 1))}
+              <button aria-label={t('common.decrease')} onClick={() => setQty(q => Math.max(1, q - 1))}
                 className="w-16 h-16 rounded-full bg-cream text-ink grid place-items-center text-3xl active:scale-90 transition shadow-card">
                 <Minus className="w-7 h-7" />
               </button>
               <span className="font-display text-5xl font-bold text-ink w-16 text-center">{qty}</span>
-              <button aria-label="Ko'paytirish" onClick={() => setQty(q => Math.min(selected.remaining, q + 1))}
+              <button aria-label={t('common.increase')} onClick={() => setQty(q => Math.min(selected.remaining, q + 1))}
                 className="w-16 h-16 rounded-full bg-gradient-to-br from-rose to-peach text-white grid place-items-center active:scale-90 transition shadow-rose">
                 <Plus className="w-7 h-7" />
               </button>
             </div>
-            <p className="text-center text-xs text-muted -mt-4">Max: {selected.remaining} ta</p>
+            <p className="text-center text-xs text-muted -mt-4">{t('sell.max', { n: selected.remaining })}</p>
 
             {/* Price presets with real amounts */}
             <div className="space-y-2.5">
@@ -281,17 +283,17 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
               {/* Sovg'a (gift) — free; ask who received it */}
               <button onClick={() => setPriceMode('gift')}
                 className={`w-full flex items-center justify-center gap-2 px-5 py-4 rounded-2xl font-display font-semibold transition active:scale-[0.98] ${isGift ? 'bg-gradient-to-br from-lavender to-sky text-white shadow-card' : 'bg-surface text-muted shadow-card'}`}>
-                <Gift className="w-5 h-5" /> Sovg'a
+                <Gift className="w-5 h-5" /> {t('sell.gift')}
               </button>
               {isGift && (
                 <div className="space-y-2.5 pt-1">
                   <input value={giftName} onChange={e => setGiftName(e.target.value)}
-                    placeholder="Kimga? (ism)" autoFocus
+                    placeholder={t('sell.giftNamePh')} autoFocus
                     className="w-full bg-surface text-ink rounded-2xl px-4 py-4 shadow-card focus:outline-none focus:ring-2 focus:ring-lavender border-2 border-transparent" />
                   <input type="tel" inputMode="tel" value={giftPhone} onChange={e => setGiftPhone(e.target.value)}
-                    placeholder="Telefon raqami"
+                    placeholder={t('sell.giftPhonePh')}
                     className="w-full bg-surface text-ink rounded-2xl px-4 py-4 shadow-card focus:outline-none focus:ring-2 focus:ring-lavender border-2 border-transparent" />
-                  <p className="text-xs text-muted text-center">Sovg'a bepul — hisobingizga yozilmaydi, ombordan ayiriladi.</p>
+                  <p className="text-xs text-muted text-center">{t('sell.giftNote')}</p>
                 </div>
               )}
             </div>
@@ -322,8 +324,8 @@ export default function Sell({ products, sellerId, preselectedId }: Props) {
               <Thumb p={selected} i={idx} className="w-32 h-32 rounded-2xl" />
               {isGift ? (
                 <p className="text-base text-ink leading-relaxed">
-                  <b>{qty} ta {selected.product_name}</b> — sovg'a<br />
-                  <span className="text-muted text-sm">Kimga: {giftName} · {giftPhone}</span>
+                  <b>{t('sell.giftReviewItem', { qty, name: selected.product_name })}</b> — {t('sell.asGift')}<br />
+                  <span className="text-muted text-sm">{t('sell.giftToLine', { name: giftName, phone: giftPhone })}</span>
                 </p>
               ) : (
                 <p className="text-base text-ink leading-relaxed">

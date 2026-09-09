@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Router from 'next/router'
+import { useT } from '@/i18n'
 
 // Cute three-dot bouncing spinner in the brand colors. Use inline for buttons/sections.
 export function Spinner({ label, className = '' }: { label?: string; className?: string }) {
@@ -23,6 +24,7 @@ export function MiniSpinner({ className = '' }: { className?: string }) {
 // Global top progress bar — shows on EVERY page navigation (getServerSideProps fetch).
 // Mount once in _app.tsx. Also shows a tiny corner spinner so it's obvious something's happening.
 export function RouteProgress() {
+  const t = useT()
   const [active, setActive] = useState(false)
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export function RouteProgress() {
       {/* corner pill so it's clearly loading */}
       <div className="fixed top-3 right-3 z-[200] flex items-center gap-2 bg-white/95 backdrop-blur shadow-card rounded-full pl-2 pr-3 py-1.5">
         <span className="inline-block w-4 h-4 rounded-full border-2 border-rose/30 border-t-rose animate-spin" />
-        <span className="text-xs font-semibold text-ink">Yuklanmoqda…</span>
+        <span className="text-xs font-semibold text-ink">{t('common.loading')}</span>
       </div>
     </>
   )
