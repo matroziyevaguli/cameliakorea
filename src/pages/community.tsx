@@ -5,7 +5,7 @@ import { useRouter } from 'next/router'
 import { useEffect, useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { TOPICS } from '@/consts/community'
-import { useT } from '@/i18n'
+import { useT, type TFunc } from '@/i18n'
 import LangSwitcher from '@/components/LangSwitcher'
 import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check, Tag, User } from 'lucide-react'
 
@@ -18,6 +18,56 @@ const EXAMPLES = [
   { chipKey: 'comm.ex3.chip', qKey: 'comm.ex3.q', topic: 'dasturchilik' },
   { chipKey: 'comm.ex4.chip', qKey: 'comm.ex4.q', topic: 'boshqa' },
 ]
+
+// Each topic gets its own colour so the filter list reads as a playful, varied set
+// rather than one flat colour. Assigned by the topic's position in TOPICS, so a given
+// category always keeps the same colour (stable, not flickering on every render).
+const TOPIC_STYLES = [
+  { badge: 'bg-rose/15 text-rose',          chip: 'bg-rose/10 text-rose',          active: 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' },
+  { badge: 'bg-lavender/20 text-lavender',  chip: 'bg-lavender/15 text-lavender',  active: 'bg-lavender text-white shadow-card' },
+  { badge: 'bg-sky/20 text-sky',            chip: 'bg-sky/15 text-sky',            active: 'bg-sky text-white shadow-card' },
+  { badge: 'bg-mint/25 text-success',       chip: 'bg-mint/20 text-success',       active: 'bg-success text-white shadow-card' },
+  { badge: 'bg-orange-100 text-warning',    chip: 'bg-orange-50 text-warning',     active: 'bg-warning text-white shadow-card' },
+  { badge: 'bg-red-100 text-danger',        chip: 'bg-red-50 text-danger',         active: 'bg-danger text-white shadow-card' },
+  { badge: 'bg-peach/30 text-rose',         chip: 'bg-peach/20 text-rose',         active: 'bg-peach text-white shadow-card' },
+]
+function topicStyle(value: string | null) {
+  const i = value ? TOPICS.findIndex(tp => tp.value === value) : -1
+  return TOPIC_STYLES[(i < 0 ? 0 : i) % TOPIC_STYLES.length]
+}
+
+// One answered question. Long answers are clamped to a few lines with a "See more"
+// toggle so the list stays scannable; each card owns its own expand state.
+function QACard({ qa, t }: { qa: QA; t: TFunc }) {
+  const [expanded, setExpanded] = useState(false)
+  const long = qa.answer.length > 220
+  const style = topicStyle(qa.topic)
+  return (
+    <div className="bg-surface rounded-2xl shadow-card p-5">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {qa.topic && (
+          <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full ${style.badge}`}>
+            <Tag className="w-3 h-3" /> {t(`topic.${qa.topic}`)}
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1 text-xs text-muted">
+          <User className="w-3.5 h-3.5" /> {qa.name || t('common.anonim')}
+        </span>
+      </div>
+      <p className="font-semibold text-ink">{qa.question}</p>
+      <div className="mt-3 pl-3 border-l-2 border-rose/40">
+        <p className="text-xs font-semibold text-rose mb-0.5">{t('comm.answerLabel')}</p>
+        <p className={`text-ink/90 whitespace-pre-line leading-relaxed ${long && !expanded ? 'line-clamp-4' : ''}`}>{qa.answer}</p>
+        {long && (
+          <button onClick={() => setExpanded(e => !e)}
+            className="mt-1.5 text-xs font-semibold text-rose hover:text-roseDark transition">
+            {expanded ? t('comm.seeLess') : t('comm.seeMore')}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function Community({ items }: { items: QA[] }) {
   const t = useT()
@@ -91,10 +141,13 @@ export default function Community({ items }: { items: QA[] }) {
             <div className="flex flex-wrap gap-2 mb-5">
               <button onClick={() => setFilterTopic('')}
                 className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${filterTopic === '' ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted shadow-card hover:text-ink'}`}>{t('home.all')}</button>
-              {usedTopics.map(tp => (
-                <button key={tp.value} onClick={() => setFilterTopic(tp.value)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${filterTopic === tp.value ? 'bg-gradient-to-br from-rose to-peach text-white shadow-rose' : 'bg-surface text-muted shadow-card hover:text-ink'}`}>{t(`topic.${tp.value}`)}</button>
-              ))}
+              {usedTopics.map(tp => {
+                const style = topicStyle(tp.value)
+                return (
+                  <button key={tp.value} onClick={() => setFilterTopic(tp.value)}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${filterTopic === tp.value ? style.active : `${style.chip} shadow-card hover:brightness-95`}`}>{t(`topic.${tp.value}`)}</button>
+                )
+              })}
             </div>
           )}
 
@@ -106,25 +159,7 @@ export default function Community({ items }: { items: QA[] }) {
             </div>
           ) : (
             <div className="space-y-4">
-              {shown.map(qa => (
-                <div key={qa.id} className="bg-surface rounded-2xl shadow-card p-5">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    {qa.topic && (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-lavender/20 text-lavender">
-                        <Tag className="w-3 h-3" /> {t(`topic.${qa.topic}`)}
-                      </span>
-                    )}
-                    <span className="inline-flex items-center gap-1 text-xs text-muted">
-                      <User className="w-3.5 h-3.5" /> {qa.name || t('common.anonim')}
-                    </span>
-                  </div>
-                  <p className="font-semibold text-ink">{qa.question}</p>
-                  <div className="mt-3 pl-3 border-l-2 border-rose/40">
-                    <p className="text-xs font-semibold text-rose mb-0.5">{t('comm.answerLabel')}</p>
-                    <p className="text-ink/90 whitespace-pre-line leading-relaxed">{qa.answer}</p>
-                  </div>
-                </div>
-              ))}
+              {shown.map(qa => <QACard key={qa.id} qa={qa} t={t} />)}
             </div>
           )}
         </main>
