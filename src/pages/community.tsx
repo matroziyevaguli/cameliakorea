@@ -6,9 +6,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPublicClient } from '@/lib/supabase/api'
 import { TOPICS } from '@/consts/community'
 import { formatDate } from '@/lib/format'
-import { useT, type TFunc } from '@/i18n'
+import { useT, useLocale, type TFunc, type Locale } from '@/i18n'
 import LangSwitcher from '@/components/LangSwitcher'
-import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check, Tag, User } from 'lucide-react'
+import { ArrowLeft, MessageCircleQuestion, Send, X, Loader2, Copy, Check, Tag, User, ArrowDownUp } from 'lucide-react'
 
 type QA = { id: string; name: string | null; question: string; answer: string; topic: string | null; created_at: string | null; answered_at: string | null }
 
@@ -40,6 +40,41 @@ function topicStyle(value: string | null) {
   return TOPIC_STYLES[(i < 0 ? 0 : i) % TOPIC_STYLES.length]
 }
 
+// "2 kun oldin" style. Uses the platform's Intl.RelativeTimeFormat when it can
+// actually format the locale (great for en/ru/ko plurals); falls back to the
+// invariant dictionary strings otherwise (notably Uzbek, which Intl often lacks).
+const REL_STEPS: { limit: number; div: number; unit: Intl.RelativeTimeFormatUnit; key: string }[] = [
+  { limit: 3600,     div: 60,       unit: 'minute', key: 'comm.relMin' },
+  { limit: 86400,    div: 3600,     unit: 'hour',   key: 'comm.relHour' },
+  { limit: 604800,   div: 86400,    unit: 'day',    key: 'comm.relDay' },
+  { limit: 2592000,  div: 604800,   unit: 'week',   key: 'comm.relWeek' },
+  { limit: 31536000, div: 2592000,  unit: 'month',  key: 'comm.relMonth' },
+  { limit: Infinity, div: 31536000, unit: 'year',   key: 'comm.relYear' },
+]
+function relativeTime(dateStr: string, locale: Locale, t: TFunc): string {
+  const sec = Math.round((Date.now() - new Date(dateStr).getTime()) / 1000)
+  const abs = Math.abs(sec)
+  if (abs < 60) return t('comm.relNow')
+  const step = REL_STEPS.find(s => abs < s.limit)!
+  const value = Math.round(abs / step.div)
+  try {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+    if (rtf.resolvedOptions().locale.startsWith(locale)) return rtf.format(-value, step.unit)
+  } catch { /* locale unsupported → dict fallback */ }
+  return t(step.key, { n: value })
+}
+
+// A date that reads as relative time, with the exact date+time available on hover.
+// Renders the absolute date on the server + first client paint (so no hydration
+// mismatch), then swaps to relative once mounted.
+function RelativeDate({ value, labelKey }: { value: string; labelKey: string }) {
+  const t = useT()
+  const locale = useLocale()
+  const [rel, setRel] = useState<string | null>(null)
+  useEffect(() => { setRel(relativeTime(value, locale, t)) }, [value, locale]) // eslint-disable-line react-hooks/exhaustive-deps
+  return <span title={formatDate(value, true)}>{t(labelKey)}: {rel ?? formatDate(value)}</span>
+}
+
 // One answered question. Long answers are clamped to a few lines with a "See more"
 // toggle so the list stays scannable; each card owns its own expand state.
 function QACard({ qa, t }: { qa: QA; t: TFunc }) {
@@ -69,11 +104,12 @@ function QACard({ qa, t }: { qa: QA; t: TFunc }) {
           </button>
         )}
       </div>
-      {/* Dates — bottom-right: when the question was asked, when it was answered. */}
+      {/* Dates — bottom-right: when the question was asked, when it was answered.
+          Relative ("2 kun oldin"); hover shows the exact date + time. */}
       {(qa.created_at || qa.answered_at) && (
         <div className="mt-3 flex flex-wrap justify-end gap-x-3 gap-y-0.5 text-[11px] text-muted">
-          {qa.created_at && <span>{t('comm.askedLabel')}: {formatDate(qa.created_at)}</span>}
-          {qa.answered_at && <span>{t('comm.answeredLabel')}: {formatDate(qa.answered_at)}</span>}
+          {qa.created_at && <RelativeDate value={qa.created_at} labelKey="comm.askedLabel" />}
+          {qa.answered_at && <RelativeDate value={qa.answered_at} labelKey="comm.answeredLabel" />}
         </div>
       )}
     </div>
@@ -115,17 +151,20 @@ export default function Community({ items }: { items: QA[] }) {
   }
   function closeAsk() { setAsk(false); setSent(false); setError(''); if (router.query.ask) router.replace('/community', undefined, { shallow: true }) }
 
-  const shown = useMemo(
-    () => filterTopic ? items.filter(i => i.topic === filterTopic) : items,
-    [items, filterTopic]
-  )
+  // Sort by when the question was answered (fall back to asked date).
+  const [sort, setSort] = useState<'new' | 'old'>('new')
+  const shown = useMemo(() => {
+    const base = filterTopic ? items.filter(i => i.topic === filterTopic) : items
+    const stamp = (q: QA) => new Date(q.answered_at ?? q.created_at ?? 0).getTime()
+    return [...base].sort((a, b) => sort === 'new' ? stamp(b) - stamp(a) : stamp(a) - stamp(b))
+  }, [items, filterTopic, sort])
   const usedTopics = TOPICS.filter(tp => items.some(i => i.topic === tp.value))
 
   // Pagination — the list can grow long, so show a page at a time.
   const [page, setPage] = useState(1)
   const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
-  // Switching filter (or the page count shrinking) must never leave us on a dead page.
-  useEffect(() => { setPage(1) }, [filterTopic])
+  // Switching filter or sort (or the page count shrinking) must never leave us on a dead page.
+  useEffect(() => { setPage(1) }, [filterTopic, sort])
   const curPage = Math.min(page, totalPages)
   const paged = shown.slice((curPage - 1) * PAGE_SIZE, curPage * PAGE_SIZE)
   function goto(p: number) {
@@ -171,6 +210,16 @@ export default function Community({ items }: { items: QA[] }) {
                     className={`px-4 py-1.5 rounded-full text-sm font-semibold transition ${filterTopic === tp.value ? style.active : `${style.chip} shadow-card hover:brightness-95`}`}>{t(`topic.${tp.value}`)}</button>
                 )
               })}
+            </div>
+          )}
+
+          {/* Sort toggle */}
+          {shown.length > 1 && (
+            <div className="flex justify-end mb-3">
+              <button onClick={() => setSort(s => s === 'new' ? 'old' : 'new')}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-ink bg-surface shadow-card rounded-full px-4 py-1.5 active:scale-95 transition">
+                <ArrowDownUp className="w-4 h-4" /> {sort === 'new' ? t('comm.sortNew') : t('comm.sortOld')}
+              </button>
             </div>
           )}
 
