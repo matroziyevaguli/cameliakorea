@@ -33,6 +33,12 @@ export const sellerDict: Record<string, Entry> = {
   'shome.willBeSentToChannel': { uz: '@cameliakorea kanaliga yuboriladi', en: 'Will be sent to the @cameliakorea channel', ru: 'Будет отправлено в канал @cameliakorea', ko: '@cameliakorea 채널로 전송됩니다' },
   'shome.sentToChannel':     { uz: '✅ Kanalga yuborildi!', en: '✅ Posted to the channel!', ru: '✅ Отправлено в канал!', ko: '✅ 채널에 게시됐어요!' },
   'shome.sendToChannelBtn':  { uz: "Telegram kanalga jo'natish", en: 'Send to Telegram channel', ru: 'Отправить в Telegram-канал', ko: '텔레그램 채널로 보내기' },
+  // Instagram — assisted post (IG has no bot API): we copy the caption + save the image, she pastes it in the app.
+  'shome.igPrepare':         { uz: 'Instagram uchun tayyorlash', en: 'Prepare for Instagram', ru: 'Подготовить для Instagram', ko: '인스타그램용 준비' },
+  'shome.igPreparing':       { uz: 'Tayyorlanmoqda…', en: 'Preparing…', ru: 'Подготовка…', ko: '준비 중…' },
+  'shome.igReadyTitle':      { uz: '✅ Instagram uchun tayyor!', en: '✅ Ready for Instagram!', ru: '✅ Готово для Instagram!', ko: '✅ 인스타그램 준비 완료!' },
+  'shome.igReadyHint':       { uz: "Rasm saqlandi va matn nusxalandi. Instagram'da yangi post oching, rasmni tanlang va matnni joylang (paste).", en: 'Image saved and caption copied. Open a new post in Instagram, pick the image, and paste the caption.', ru: 'Изображение сохранено, текст скопирован. Откройте новый пост в Instagram, выберите фото и вставьте текст.', ko: '이미지가 저장되고 캡션이 복사됐어요. 인스타그램에서 새 게시물을 열고 이미지를 선택한 뒤 캡션을 붙여넣으세요.' },
+  'shome.igOpen':            { uz: "Instagram'ni ochish", en: 'Open Instagram', ru: 'Открыть Instagram', ko: '인스타그램 열기' },
 
   // Fix-received sheet
   'shome.given':             { uz: 'Berilgan', en: 'Given', ru: 'Выдано', ko: '지급됨' },

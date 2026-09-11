@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient as createBrowser } from '@/lib/supabase/browser'
 import { useRouter } from 'next/router'
 import SellerNav from '@/components/SellerNav'
-import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, HelpCircle, HandHeart, Receipt, ChevronDown, PlayCircle, RotateCcw } from 'lucide-react'
+import { ShoppingBag, TrendingUp, Send, X, Settings, Search, CalendarClock, Pencil, ClipboardList, Plus, HelpCircle, HandHeart, Receipt, ChevronDown, PlayCircle, RotateCcw, Camera } from 'lucide-react'
 import HelpSheet from '@/components/HelpSheet'
 import NotificationBell from '@/components/NotificationBell'
 import { getPending, flushPending } from '@/lib/pendingSales'
@@ -294,9 +294,34 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState('')
   const [postDone, setPostDone] = useState(false)
+  // Instagram assisted post — IG has no bot API, so we copy the caption + save the image.
+  const [igBusy, setIgBusy] = useState(false)
+  const [igReady, setIgReady] = useState(false)
 
   function openPost(p: Product) {
-    setPostProduct(p); setCaption(buildCaption(p)); setPostError(''); setPostDone(false)
+    setPostProduct(p); setCaption(buildCaption(p)); setPostError(''); setPostDone(false); setIgReady(false)
+  }
+
+  // Copy the caption to the clipboard and download the product image, so she can
+  // open Instagram and paste it into a new post (Instagram allows no direct API post here).
+  async function prepareInstagram() {
+    if (!postProduct?.image_url) return
+    setIgBusy(true)
+    try { await navigator.clipboard.writeText(caption) } catch { /* clipboard blocked — image still saves */ }
+    try {
+      const resp = await fetch(postProduct.image_url)
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(postProduct.name || 'camelia').replace(/[^\w.-]+/g, '_')}.jpg`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 15000)
+    } catch {
+      // Cross-origin/download blocked → open the image so she can long-press to save it.
+      window.open(postProduct.image_url, '_blank')
+    }
+    setIgBusy(false); setIgReady(true)
   }
 
   async function sendPost() {
@@ -642,6 +667,26 @@ export default function SellerHome({ sellerName, summary, monthly, products: ini
                 <Send className="w-5 h-5" />
                 {posting ? t('common.sending') : t('shome.sendToChannelBtn')}
               </button>
+            )}
+
+            {/* Instagram — assisted post (IG has no bot API for this) */}
+            {postProduct.image_url && (
+              igReady ? (
+                <div className="mt-2 bg-lavender/10 rounded-2xl p-4 text-center">
+                  <p className="text-sm font-semibold text-ink">{t('shome.igReadyTitle')}</p>
+                  <p className="text-xs text-muted mt-1 leading-relaxed">{t('shome.igReadyHint')}</p>
+                  <a href="https://www.instagram.com/" target="_blank" rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-2 bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white font-semibold text-sm px-5 py-2.5 rounded-full active:scale-95 transition">
+                    <Camera className="w-4 h-4" /> {t('shome.igOpen')}
+                  </a>
+                </div>
+              ) : (
+                <button onClick={prepareInstagram} disabled={igBusy || !caption.trim()}
+                  className="mt-2 w-full flex items-center justify-center gap-2 bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white font-display font-bold py-4 rounded-full active:scale-95 transition disabled:opacity-50 shadow-sm">
+                  <Camera className="w-5 h-5" />
+                  {igBusy ? t('shome.igPreparing') : t('shome.igPrepare')}
+                </button>
+              )
             )}
           </div>
         </div>
